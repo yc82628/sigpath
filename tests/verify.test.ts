@@ -49,7 +49,7 @@ test("a genuine mismatch is a failure, not unavailable", async () => {
     IMG,
     "image/jpeg",
     CHALLENGE,
-    stubClient({ observed: "a hand holding blank paper", matches_instruction: false, confidence: 0.95, failure_reason: "no code visible" }),
+    stubClient({ observed: "a hand holding blank paper", shown_on_electronic_display: false, written_by_hand_on_physical_surface: false, required_element_present: false, confidence: 0.95, failure_reason: "no code visible" }),
   );
   assert.equal(r.passed, false);
   assert.equal(r.unavailable, undefined);
@@ -65,7 +65,7 @@ test("a match below the confidence threshold does not pass", async () => {
     IMG,
     "image/jpeg",
     CHALLENGE,
-    stubClient({ observed: "blurry 7K4M", matches_instruction: true, confidence: VERIFY_THRESHOLD - 0.1, failure_reason: "" }),
+    stubClient({ observed: "blurry 7K4M", shown_on_electronic_display: false, written_by_hand_on_physical_surface: true, required_element_present: true, confidence: VERIFY_THRESHOLD - 0.1, failure_reason: "" }),
   );
   assert.equal(r.passed, false);
   assert.match(r.failureReason, /legibility/i);
@@ -76,7 +76,7 @@ test("a confident match passes", async () => {
     IMG,
     "image/jpeg",
     CHALLENGE,
-    stubClient({ observed: "handwritten 7K4M on paper beside a face", matches_instruction: true, confidence: 0.96, failure_reason: "" }),
+    stubClient({ observed: "handwritten 7K4M on paper beside a face", shown_on_electronic_display: false, written_by_hand_on_physical_surface: true, required_element_present: true, confidence: 0.96, failure_reason: "" }),
   );
   assert.equal(r.passed, true);
   assert.equal(r.confidence, 0.96);
@@ -87,7 +87,7 @@ test("confidence is clamped to 0..1", async () => {
     IMG,
     "image/jpeg",
     CHALLENGE,
-    stubClient({ observed: "x", matches_instruction: true, confidence: 4.2, failure_reason: "" }),
+    stubClient({ observed: "x", shown_on_electronic_display: false, written_by_hand_on_physical_surface: true, required_element_present: true, confidence: 4.2, failure_reason: "" }),
   );
   assert.equal(r.confidence, 1);
 });

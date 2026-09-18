@@ -25,7 +25,14 @@
  *     about the model, not proof the prompt is broken. Check both.
  */
 
-import { SYSTEM, VERIFY_THRESHOLD, type ChallengeVerification, type AcceptedMediaType } from "./verify";
+import {
+  SYSTEM,
+  VERIFY_THRESHOLD,
+  decide,
+  type Verdict,
+  type ChallengeVerification,
+  type AcceptedMediaType,
+} from "./verify";
 import type { Challenge } from "./generate";
 
 const DEFAULT_HOST = "http://localhost:11434";
@@ -40,19 +47,21 @@ const VERDICT_SCHEMA = {
   type: "object",
   properties: {
     observed: { type: "string" },
-    matches_instruction: { type: "boolean" },
+    shown_on_electronic_display: { type: "boolean" },
+    written_by_hand_on_physical_surface: { type: "boolean" },
+    required_element_present: { type: "boolean" },
     confidence: { type: "number" },
     failure_reason: { type: "string" },
   },
-  required: ["observed", "matches_instruction", "confidence", "failure_reason"],
+  required: [
+    "observed",
+    "shown_on_electronic_display",
+    "written_by_hand_on_physical_surface",
+    "required_element_present",
+    "confidence",
+    "failure_reason",
+  ],
 } as const;
-
-interface OllamaVerdict {
-  observed: string;
-  matches_instruction: boolean;
-  confidence: number;
-  failure_reason: string;
-}
 
 export async function verifyChallengePhotoLocal(
   imageBase64: string,
@@ -108,9 +117,9 @@ export async function verifyChallengePhotoLocal(
       };
     }
 
-    let verdict: OllamaVerdict;
+    let verdict: Verdict;
     try {
-      verdict = JSON.parse(raw) as OllamaVerdict;
+      verdict = JSON.parse(raw) as Verdict;
     } catch {
       // Constrained decoding should prevent this, but a truncated generation can
       // still produce invalid JSON. That is an outage, not a failed photo.
@@ -124,14 +133,17 @@ export async function verifyChallengePhotoLocal(
     }
 
     const confidence = Math.max(0, Math.min(1, Number(verdict.confidence) || 0));
+    // Same policy function as the hosted backend. The model reports; code decides.
+    const { passed, reason } = decide(verdict, challenge.kind);
+
     return {
-      passed: verdict.matches_instruction === true && confidence >= VERIFY_THRESHOLD,
+      passed: passed && confidence >= VERIFY_THRESHOLD,
       confidence,
       observed: verdict.observed ?? "",
       failureReason:
-        verdict.matches_instruction && confidence < VERIFY_THRESHOLD
-          ? "Image matched but legibility was too low to accept."
-          : (verdict.failure_reason ?? ""),
+        passed && confidence < VERIFY_THRESHOLD
+          ? "Observations matched but legibility was too low to accept."
+          : reason,
     };
   } catch (err) {
     // Server down, model not pulled, connection refused. Never "they failed".
