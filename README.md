@@ -533,15 +533,30 @@ challenge window and the capture expires while the user waits. Run one throwaway
 check before demoing, or set `OLLAMA_KEEP_ALIVE=30m`. Note `qwen3.5:27b` does NOT
 fit in 8 GB alongside the vision projector — it fails with a CUDA OOM.
 
-**Measured results (local backend, 2026-09-18):**
+**Measured results (local backend, qwen2.5vl:7b, 2026-09-18):**
 
-| Image | Expected | Verdict | Reason given |
+| Case | Source | Verdict | Confidence |
 |---|---|---|---|
-| Digitally rendered `VJCW` | FAIL | FAIL (0.95) | "contains only the text 'VJCW' in a digital format, not handwritten" |
-| Same image, asked for `ZZZZ` | FAIL | FAIL | "contains the text 'VJCW' instead... printed, not handwritten" |
+| Handwritten code next to face | **real capture** | PASS | — |
+| Digitally rendered code | synthetic | FAIL | 0.95 |
+| Same image, asked for a different code | synthetic | FAIL | — |
+| Simulated screen photo (glare, grid, noise) | synthetic | FAIL | 0.95 |
+| Harder sim (+ skew, blur, JPEG q72) | synthetic | FAIL | **0.50** |
 
-The second matters most: the model compares the ACTUAL code rather than merely
-confirming a code is present.
+Two things to take from this.
+
+The model compares the ACTUAL code rather than confirming a code is merely
+present, and it names the mechanism — "a digital display", "printed or digitally
+rendered, not handwritten" — rather than guessing.
+
+**Confidence falls as the image degrades, and that cuts both ways.** Confidence
+gates only the pass path, so the check fails closed: an attacker cannot blur
+their way through. But a legitimate user on a cheap webcam in poor light can land
+below the 0.75 threshold and be rejected for the same reason. Calibrate
+`VERIFY_THRESHOLD` against captures taken in BAD conditions, not good ones.
+
+Every negative above is synthetic. A real photograph of a real monitor is the
+outstanding test — see `test-images/README.md`.
 
 **Never tested against a real photograph.** The unit tests use a stubbed client
 and prove the control flow only. Before demoing, take three photos: the correct
