@@ -164,11 +164,17 @@ fail inside Linux with `bad interpreter: /bin/bash^M`.
 
 ## Setup
 
-On Windows:
+On Windows. Note `cp` is a Unix command — cmd.exe does not have it, so use
+whichever line matches the shell you are actually in:
 
 ```bash
 npm install
-cp .env.local.example .env.local
+```
+
+```
+copy .env.local.example .env.local          :: cmd.exe
+Copy-Item .env.local.example .env.local     # PowerShell
+cp .env.local.example .env.local            # Git Bash / WSL
 ```
 
 Toolchain, once, **inside WSL Ubuntu**:
