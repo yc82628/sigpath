@@ -110,6 +110,41 @@ shell. There are deliberately no `anchor:*` scripts in `package.json` for this
 reason. (Installing Node inside Ubuntu would also fix it, at the cost of a second
 Node to keep in sync. Calling `anchor` directly is simpler.)
 
+### Test on localnet, not devnet
+
+Deploying a 230KB program costs **1.17 SOL of rent-exemption** on any cluster.
+That is not a fee and not a setting — it scales only with the binary's byte size,
+and `--max-len` will not lower it because Anchor already reserves the minimum.
+
+It is also refundable (`solana program close --recipient <your address>`), and a
+redeploy to the same program id does not charge again. But the faucet rate limits
+on devnet make iterating there painful regardless.
+
+So iterate against a local validator. Unlimited SOL, instant, no faucet:
+
+```bash
+# terminal 1 — leave running
+solana-test-validator --reset
+
+# terminal 2
+solana config set --url localhost
+solana airdrop 100
+anchor deploy --provider.cluster localnet
+```
+
+Point the app at it with `NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899` in
+`.env.local`.
+
+Note `solana-test-validator` writes a `test-ledger/` directory — keep it off
+`/mnt/c`, it is slow there. Run it from your Linux home and pass `--ledger`:
+
+```bash
+solana-test-validator --reset --ledger ~/sigpath-ledger
+```
+
+Deploy to devnet only when you want a shareable, persistent address — for the
+demo, or for judges to verify against a public explorer.
+
 ### Use Ubuntu, not Kali
 
 `kali-linux` is the default distro on this machine and has **no** Rust, Cargo,
