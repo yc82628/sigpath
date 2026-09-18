@@ -28,6 +28,21 @@ import {
   isAcceptedMediaType,
   type ChallengeVerification,
 } from "../challenge/verify";
+import { verifyChallengePhotoLocal } from "../challenge/verify-local";
+
+/**
+ * Which backend judges the photo.
+ *   VISION_BACKEND=anthropic  (default) hosted, ~$0.01/check, the one you ship
+ *   VISION_BACKEND=ollama     local, free, slower — for development and demos
+ *
+ * The prompt is shared between them, so switching backends changes the model,
+ * never the rules it is asked to apply.
+ */
+function backend() {
+  return (process.env.VISION_BACKEND ?? "anthropic").toLowerCase() === "ollama"
+    ? verifyChallengePhotoLocal
+    : verifyChallengePhoto;
+}
 
 /**
  * sessionId -> the challenge that session must satisfy.
@@ -132,7 +147,7 @@ export class VisionLivenessProvider implements LivenessProvider {
       };
     }
 
-    const result = await verifyChallengePhoto(
+    const result = await backend()(
       clientPayload.imageBase64,
       clientPayload.mediaType,
       challenge,

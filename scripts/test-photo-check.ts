@@ -74,9 +74,12 @@ async function main() {
     console.error('  e.g. npx tsx scripts/test-photo-check.ts pass.jpg "handwritten code 7K4M"');
     process.exit(1);
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("ANTHROPIC_API_KEY is not set. Add it to .env.local:");
+  const useOllama = (process.env.VISION_BACKEND ?? "anthropic").toLowerCase() === "ollama";
+  if (!useOllama && !process.env.ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY is not set. Either add it to .env.local:");
     console.error("  ANTHROPIC_API_KEY=sk-ant-...");
+    console.error("or run the local backend instead (free):");
+    console.error("  VISION_BACKEND=ollama npx tsx scripts/test-photo-check.ts ...");
     process.exit(1);
   }
 
@@ -95,7 +98,11 @@ async function main() {
   console.log(`kind      ${kind}`);
   console.log("calling the model…\n");
 
-  const { verifyChallengePhoto, VERIFY_THRESHOLD } = await import("../lib/challenge/verify");
+  const { VERIFY_THRESHOLD } = await import("../lib/challenge/verify");
+  const verifyChallengePhoto = useOllama
+    ? (await import("../lib/challenge/verify-local")).verifyChallengePhotoLocal
+    : (await import("../lib/challenge/verify")).verifyChallengePhoto;
+  console.log(`backend   ${useOllama ? "ollama (local, free)" : "anthropic (hosted)"}`);
 
   const started = Date.now();
   const result = await verifyChallengePhoto(base64, mediaType as never, {

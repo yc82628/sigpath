@@ -521,6 +521,28 @@ prose. Keep all three if you edit that prompt.
 **`lib/crypto/sign.ts`** binds a capture to the issued nonce, so a previously
 prepared photo cannot be replayed against a fresh challenge.
 
+**Two backends, one prompt.** `VISION_BACKEND=anthropic` (hosted, ~$0.01/check)
+or `ollama` (local, free). `verify-local.ts` imports `SYSTEM` and
+`VerdictSchema` from `verify.ts` rather than copying them — two copies of a
+security-relevant prompt drift, and the one you are not testing is the one that
+quietly loses its injection defences.
+
+**Ollama needs pre-warming before a demo.** Measured on an RTX 5070 Laptop (8 GB)
+with `qwen2.5vl:7b`: **48s cold, 2.5s warm.** A cold start eats half the 90-second
+challenge window and the capture expires while the user waits. Run one throwaway
+check before demoing, or set `OLLAMA_KEEP_ALIVE=30m`. Note `qwen3.5:27b` does NOT
+fit in 8 GB alongside the vision projector — it fails with a CUDA OOM.
+
+**Measured results (local backend, 2026-09-18):**
+
+| Image | Expected | Verdict | Reason given |
+|---|---|---|---|
+| Digitally rendered `VJCW` | FAIL | FAIL (0.95) | "contains only the text 'VJCW' in a digital format, not handwritten" |
+| Same image, asked for `ZZZZ` | FAIL | FAIL | "contains the text 'VJCW' instead... printed, not handwritten" |
+
+The second matters most: the model compares the ACTUAL code rather than merely
+confirming a code is present.
+
 **Never tested against a real photograph.** The unit tests use a stubbed client
 and prove the control flow only. Before demoing, take three photos: the correct
 handwritten code, a wrong code, and the code displayed on a phone screen. The
