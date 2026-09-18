@@ -1,0 +1,15 @@
+# This repo is edited on Windows and built in WSL. Without this, git hands
+# Windows checkouts CRLF endings and any shell script fails inside Linux with
+# a confusing `bad interpreter: /bin/bash^M`.
+#
+# Normalise everything to LF in the repo and on disk.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.so binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.zip binary
+*.wasm binary
