@@ -5,6 +5,7 @@ import { computeFootprintScore } from "@/lib/footprint/score";
 import { subjectHash, bytesToHex } from "@/lib/crypto/hash";
 import { issueIx, METHOD } from "@/lib/chains/solana/instructions";
 import { attestationPda } from "@/lib/chains/solana/pda";
+import { consumeLiveness } from "@/lib/liveness/store";
 import { SOLANA_RPC_URL, SOLANA_PROGRAM_ID, ATTESTATION_TTL_SECONDS } from "@/lib/config";
 
 // POST /api/attest  { platform: "github", handle: "alice" }
@@ -33,8 +34,12 @@ function issuerKeypair(): Keypair {
  * verifier can see HOW a score was reached and weigh it, instead of taking the
  * number on trust.
  */
-function methodFlags(reports: Awaited<ReturnType<typeof computeFootprintScore>>["reports"]): number {
+function methodFlags(
+  reports: Awaited<ReturnType<typeof computeFootprintScore>>["reports"],
+  liveCapture: boolean,
+): number {
   let flags = 0;
+  if (liveCapture) flags |= METHOD.LIVE_CAPTURE;
   for (const r of reports) {
     if (r.ownershipProven) flags |= METHOD.OWNERSHIP_PROVEN;
     for (const s of r.signals) {
@@ -46,7 +51,13 @@ function methodFlags(reports: Awaited<ReturnType<typeof computeFootprintScore>>[
 }
 
 export async function POST(req: NextRequest) {
-  let body: { platform?: string; handle?: string; ownershipProven?: boolean };
+  let body: {
+    platform?: string;
+    handle?: string;
+    ownershipProven?: boolean;
+    /** From POST /api/liveness — set only after the capture challenge passed. */
+    livenessSessionId?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -81,6 +92,21 @@ export async function POST(req: NextRequest) {
 
   const scored = computeFootprintScore([report]);
 
+  // --- 1b. live capture, if one was completed -------------------------------
+  // THE CLIENT NEVER ASSERTS THIS. It supplies a session id; the server looks up
+  // what it recorded when the capture challenge was judged. A forged id is not
+  // found, so passing `livenessSessionId: "anything"` buys nothing.
+  //
+  // The session is CONSUMED here — single use. Otherwise one successful capture
+  // could stamp LIVE_CAPTURE onto any number of unrelated attestations.
+  // consumeLiveness returns null unless the session exists, passed, is unexpired
+  // and is unused — so a non-null result IS the pass signal. Do not add a
+  // `.passed` check on top; the type has no such field and the store has already
+  // applied every condition.
+  const liveCapture = body.livenessSessionId
+    ? consumeLiveness(body.livenessSessionId) !== null
+    : false;
+
   // --- 2. record it on chain ------------------------------------------------
   const subject = await subjectHash("github", handle);
   const programId = new PublicKey(SOLANA_PROGRAM_ID);
@@ -95,7 +121,7 @@ export async function POST(req: NextRequest) {
       issuer: issuer.publicKey,
       subjectHash: subject,
       score: scored.score,
-      method: methodFlags(scored.reports),
+      method: methodFlags(scored.reports, liveCapture),
       ttlSeconds: ATTESTATION_TTL_SECONDS,
     });
     signature = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [issuer], {
@@ -128,6 +154,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     score: scored.score,
     band: scored.band,
+    liveCapture,
     reasons: scored.reasons,
     gaps: scored.gaps,
     signals: report.signals.map((s) => ({

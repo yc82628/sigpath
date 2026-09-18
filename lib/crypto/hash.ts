@@ -14,6 +14,15 @@ export async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(digest);
 }
 
+/**
+ * Same digest, wider input. The capture/signing path deals in ArrayBuffers
+ * straight off a Blob, so accepting both avoids a conversion at every call site.
+ */
+export async function sha256Bytes(input: ArrayBuffer | Uint8Array): Promise<Uint8Array> {
+  const data = input instanceof Uint8Array ? input : new Uint8Array(input);
+  return sha256(data);
+}
+
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return bytesToHex(await sha256(bytes));
 }
