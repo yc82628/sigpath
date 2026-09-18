@@ -18,7 +18,8 @@
  * proves much.
  */
 
-import type { Platform, PlatformReport, Signal } from "./types";
+import type { Platform, PlatformReport } from "./types";
+import { buildGithubSignals } from "./github-signals";
 
 const API = "https://api.github.com";
 const PLATFORM: Platform = "github";
@@ -93,76 +94,26 @@ export async function collectGithub(
       bio?: string | null;
     };
 
-    const signals: Signal[] = [];
     const ageYears = yearsSince(user.created_at);
 
-    signals.push({
-      id: "github.account_age_years",
-      platform: PLATFORM,
-      kind: "temporal",
-      label: "GitHub account age",
-      value: Number(ageYears.toFixed(1)),
-      // 5 years reads as a well-established account.
-      normalised: Math.min(1, ageYears / 5),
-      // Halved after the 2026-09-18 benchmark. Age is context, not evidence —
-      // an old empty account is what a dormant purchased account looks like.
-      // The corroboration gate in score.ts is the hard backstop; this stops age
-      // dominating the weighted average even for accounts that clear the gate.
-      weight: 0.5,
-    });
-
-    signals.push({
-      id: "github.followers",
-      platform: PLATFORM,
-      kind: "corroborated",
-      label: "Followers",
-      value: user.followers,
-      normalised: logNorm(user.followers, 500),
-      // Cut from 0.8 to 0.3 after the 2026-09-18 benchmark. Followers are
-      // corroborated only in the weakest sense: they are openly purchasable in
-      // bulk, so a follower count is closer to a self-generated signal than to
-      // evidence someone reviewed your work. A merged PR (2.0) cannot be bought.
-      weight: 0.3,
-    });
-
-    signals.push({
-      id: "github.public_repos",
-      platform: PLATFORM,
-      kind: "self_asserted",
-      label: "Public repositories",
-      value: user.public_repos,
-      normalised: logNorm(user.public_repos, 40),
-      // Deliberately low: an empty repo costs nothing to create.
-      weight: 0.3,
-    });
-
-    // --- Stars received across own repos (corroborated) ---
+    // --- Stars received across own repos ---
+    let starsReceived = 0;
     const reposRes = await fetchImpl(
       `${API}/users/${encodeURIComponent(handle)}/repos?per_page=100&sort=updated`,
       { headers: headers() },
     );
     if (reposRes.ok) {
       const repos = (await reposRes.json()) as Array<{ stargazers_count: number; fork: boolean }>;
-      // Forks inherit their parent's stars in some views; exclude them so a
-      // fork of a popular project does not read as the user's own traction.
-      const stars = repos
+      // Forks inherit their parent's stars in some views; exclude them so a fork
+      // of a popular project does not read as this user's own traction.
+      starsReceived = repos
         .filter((r) => !r.fork)
         .reduce((sum, r) => sum + (r.stargazers_count || 0), 0);
-
-      signals.push({
-        id: "github.stars_received",
-        platform: PLATFORM,
-        kind: "corroborated",
-        label: "Stars on own repositories",
-        value: stars,
-        normalised: logNorm(stars, 200),
-        weight: 1.0,
-      });
     }
 
-    // --- THE signal: merged PRs into repos the user does not own ---
-    // The search API has a much tighter rate limit than the core API (about
-    // 10 req/min), so this is one request and we accept the count only.
+    // --- The heaviest signal: merged PRs into repos the user does not own ---
+    // The search API rate-limits far sooner than the core API (~10/min
+    // unauthenticated), so this is a single request for the count only.
     const q = `is:pr author:${handle} is:merged -user:${handle}`;
     const prRes = await fetchImpl(
       `${API}/search/issues?q=${encodeURIComponent(q)}&per_page=1`,
@@ -170,40 +121,33 @@ export async function collectGithub(
     );
     if (!prRes.ok) {
       // SILENT-DROP BUG, found by the 2026-09-18 benchmark: this branch used to
-      // do nothing. The search API rate-limits far sooner than the core API
-      // (~10/min unauthenticated), so the heaviest-weighted signal in the whole
-      // model vanished and the score was computed from what remained — quietly,
-      // with no indication anything was missing. Every benchmark number was wrong.
+      // do nothing, so when the search rate-limited the model's heaviest signal
+      // simply vanished and a score was computed from what remained — quietly,
+      // with no indication anything was missing.
       //
-      // That is exactly the failure this project forbids: "could not check" was
-      // being folded into the score instead of surfaced. Report it instead.
+      // That is the failure this project forbids: "could not check" was being
+      // folded into the score instead of surfaced. Refuse to score instead.
       return {
         ...base,
         status: prRes.status === 403 || prRes.status === 429 ? "rate_limited" : "error",
-        signals,
+        signals: [],
         detail:
           `Merged-PR search unavailable (HTTP ${prRes.status}). This is the ` +
           `heaviest-weighted signal, so no score is issued without it. Set ` +
           `GITHUB_TOKEN to raise the search rate limit.`,
       };
     }
+    const { total_count: mergedPrsExternal } = (await prRes.json()) as { total_count: number };
 
-    {
-      const pr = (await prRes.json()) as { total_count: number };
-      signals.push({
-        id: "github.merged_prs_external",
-        platform: PLATFORM,
-        kind: "corroborated",
-        label: "Merged PRs in others' repositories",
-        value: pr.total_count,
-        // Benchmarked 2026-09-18: a ceiling of 50 made 72, 235, 1074 and 1412
-        // merged PRs score identically. 400 keeps the top of the range spread
-        // while still treating ~50 as clearly substantial.
-        normalised: logNorm(pr.total_count, 400),
-        // The heaviest weight in the whole model. Another human approved these.
-        weight: 2.0,
-      });
-    }
+    // Interpretation lives in github-signals.ts so the tests exercise the real
+    // weighting rather than a copy of it that can drift.
+    const signals = buildGithubSignals({
+      accountAgeYears: ageYears,
+      followers: user.followers,
+      publicRepos: user.public_repos,
+      starsReceived,
+      mergedPrsExternal,
+    });
 
     return { ...base, status: "ok", signals };
   } catch (err) {

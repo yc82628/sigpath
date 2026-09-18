@@ -127,14 +127,34 @@ export function computeFootprintScore(reports: PlatformReport[]): FootprintScore
     };
   }
 
-  // --- Per-platform strength ---
+  // --- Per-platform strength -------------------------------------------------
+  // Corroborated evidence DRIVES the score; context only modulates it.
+  //
+  // Benchmarked 2026-09-18. A flat weighted average over all signals diluted the
+  // thing that matters: total weight is 4.1, so even a maxed merged-PR signal
+  // contributed only 2.0/4.1 = 49% of the term. Meanwhile account age and repo
+  // count normalise near 1.0 for ANY old account, so weak evidence propped up
+  // the floor while strong evidence was averaged down. Cohort separation stalled
+  // at 28 points.
+  //
+  // Splitting them means an account with no third-party evidence cannot reach a
+  // middling score on age alone, and one with a deep merged-PR history is not
+  // dragged down by having few followers.
   const allSignals = usable.flatMap((r) => r.signals);
-  const platformTerm = weightedAverage(allSignals);
+  const corroboratedSignals = allSignals.filter((s) => s.kind === "corroborated");
+  const contextSignals = allSignals.filter((s) => s.kind !== "corroborated");
+
+  const platformTerm =
+    weightedAverage(corroboratedSignals) * 0.85 + weightedAverage(contextSignals) * 0.15;
 
   // --- Cross-platform consistency ---
   const consistency = checkConsistency(reports);
-  // More proven platforms is better, saturating at three (we only support three).
-  const breadthTerm = Math.min(1, consistency.provenPlatforms / 3);
+  // (n - 1) / 2, NOT n / 3. The old form gave every single-platform subject a
+  // flat +10 — a constant, which adds nothing to separation and merely
+  // compressed the usable range into 10..65. One platform now earns no breadth
+  // credit at all, which is the honest reading: one profile is the cheapest
+  // thing to fake, so it should score on its own evidence alone.
+  const breadthTerm = Math.min(1, Math.max(0, (consistency.provenPlatforms - 1) / 2));
   const agreementTerm = consistency.nameAgreement;
 
   // Weighting: platform depth 55%, breadth 30%, name agreement 15%. Breadth is
