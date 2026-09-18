@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+*.log
+next-env.d.ts
+
+# Secrets — never commit
+.env
+.env.*
+!.env.local.example
+fee-payer.json
+*.pem
+
+# Anchor / Rust
+target/
+programs/**/target/
+.anchor/
+test-ledger/
+
+# Bundles
+*.zip
