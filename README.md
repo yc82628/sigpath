@@ -37,14 +37,40 @@ tests/
 
 ---
 
+## Where to run what
+
+This repo is edited on Windows and built partly in WSL. The split is not
+optional — Anchor has no native Windows support — but it is smaller than
+"do everything in Ubuntu":
+
+| Command | Where | Why |
+|---|---|---|
+| `anchor build` / `anchor deploy`, `cargo`, `solana`, `solana-keygen` | **WSL Ubuntu** | No Rust/Solana toolchain on Windows; Anchor is unsupported there |
+| `npm install`, `npm test`, `npm run dev`, `next build` | **Windows** | Runs natively, and the dev server is faster outside WSL |
+
+**Keep exactly one copy of this repo, on the Windows side.** WSL reaches it at
+`/mnt/c/Users/<you>/Desktop/sigpath`. Rust builds over `/mnt/c` are slower than
+native ext4, but you build the program rarely and run the dev server constantly.
+
+Do **not** clone a second copy into the Linux home directory to speed up builds.
+Two copies is how you spend an afternoon building code you didn't just edit.
+
+`.gitattributes` normalises everything to LF so files stay valid across the
+boundary — without it, a shell script checked out on Windows gets CRLF and fails
+inside Linux with `bad interpreter: /bin/bash^M`.
+
+---
+
 ## Setup
+
+On Windows:
 
 ```bash
 npm install
 cp .env.local.example .env.local
 ```
 
-Toolchain (once, in **WSL/Ubuntu or macOS/Linux** — not PowerShell):
+Toolchain, once, **inside WSL Ubuntu** (or macOS/Linux) — not PowerShell:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
@@ -61,7 +87,10 @@ anchor --version   # anchor-cli 0.30.1
 
 ## Build and deploy
 
+Run these **inside WSL**:
+
 ```bash
+cd /mnt/c/Users/<you>/Desktop/sigpath
 npm run anchor:build     # anchor build --no-idl; see "Known toolchain traps" #3
 npm run anchor:deploy    # builds, then deploys to devnet
 ```
@@ -76,7 +105,7 @@ Copy the printed program id into `NEXT_PUBLIC_PROGRAM_ID` in `.env.local`.
 > makes `PublicKey()` throw during page-data collection and the build fails with
 > `Non-base58 character`.
 
-Then:
+Then, back on **Windows**:
 
 ```bash
 npm test
