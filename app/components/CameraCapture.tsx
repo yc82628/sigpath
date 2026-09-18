@@ -59,6 +59,8 @@ export default function CameraCapture({
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [risk, setRisk] = useState<RiskBand | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  /** True once the video reports real dimensions — i.e. a frame exists to draw. */
+  const [streaming, setStreaming] = useState(false);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -68,6 +70,39 @@ export default function CameraCapture({
   // Release the camera on unmount. Leaving it running leaves the indicator light
   // on, which people notice and do not like.
   useEffect(() => stopStream, [stopStream]);
+
+  // Attach the stream AFTER the <video> element mounts.
+  //
+  // This element only renders once phase is "live", so assigning srcObject
+  // inside start() ran while videoRef.current was still null — the guard there
+  // silently skipped, the preview stayed black, and videoWidth stayed 0. The
+  // capture then drew a 0x0 canvas and the model rejected the empty image with
+  // "Failed to load image or audio file", which reads like a format problem and
+  // is actually an ordering problem.
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (phase !== "live" || !video || !stream) return;
+    if (video.srcObject === stream) return;
+    video.srcObject = stream;
+    void video.play().catch(() => {
+      setPhase("error");
+      setError("Could not start the preview. Check that no other app is using the camera.");
+    });
+
+    // Heuristics run here, not in start(), for the same reason: measuring frame
+    // jitter needs a mounted element with a live stream. Backgrounded so they
+    // never delay the capture, and advisory only — they must never block it.
+    void (async () => {
+      try {
+        const check = await inspectStream(stream);
+        const jitter = await measureFrameJitter(video, 3000);
+        setRisk(toRiskBand(check, jitter.suspicious));
+      } catch {
+        /* advisory only */
+      }
+    })();
+  }, [phase]);
 
   // Countdown. Purely informational — the server re-checks expiry on submit, so
   // a modified client that freezes this timer gains nothing.
@@ -91,6 +126,7 @@ export default function CameraCapture({
     setError("");
     setOutcome(null);
     setRisk(null);
+    setStreaming(false);
     setPhase("starting");
 
     try {
@@ -114,11 +150,10 @@ export default function CameraCapture({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
+      // Do NOT touch videoRef here: the <video> renders only once phase is
+      // "live", so it does not exist yet. The effect above attaches the stream
+      // after it mounts.
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
 
       setChallenge({
         sessionId: data.sessionId,
@@ -127,19 +162,6 @@ export default function CameraCapture({
         ttlSeconds: data.ttlSeconds,
       });
       setPhase("live");
-
-      // Heuristics run in the background so they never delay the capture.
-      void (async () => {
-        try {
-          const check = await inspectStream(stream);
-          const jitter = videoRef.current
-            ? await measureFrameJitter(videoRef.current, 3000)
-            : { suspicious: false };
-          setRisk(toRiskBand(check, jitter.suspicious));
-        } catch {
-          /* advisory only — never block the capture on this */
-        }
-      })();
     } catch (e) {
       stopStream();
       setPhase("error");
@@ -161,6 +183,15 @@ export default function CameraCapture({
     try {
       // Draw the live frame to a canvas. This is the only path from camera to
       // bytes — there is no file picker to substitute into it.
+      // A frame with no pixels encodes to a stub image, and the model rejects it
+      // with an opaque "failed to load image" that looks like a format bug. Fail
+      // here instead, where the actual cause is knowable.
+      if (!video.videoWidth || !video.videoHeight) {
+        setPhase("live");
+        setError("No camera frame yet — wait for the preview to appear, then try again.");
+        return;
+      }
+
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -225,9 +256,16 @@ export default function CameraCapture({
         <>
           <p className="instruction">{challenge.instruction}</p>
           <p className={`timer ${urgent ? "urgent" : ""}`}>{secondsLeft}s remaining</p>
-          <video ref={videoRef} playsInline muted className="preview" />
-          <button onClick={capture} disabled={phase === "submitting"}>
-            {phase === "submitting" ? "Checking…" : "Take photo"}
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className="preview"
+            onLoadedMetadata={() => setStreaming(true)}
+          />
+          <button onClick={capture} disabled={phase === "submitting" || !streaming}>
+            {phase === "submitting" ? "Checking…" : streaming ? "Take photo" : "Waiting for camera…"}
           </button>
           {risk === "review" && (
             <p className="hint">This capture will be flagged for manual review.</p>
