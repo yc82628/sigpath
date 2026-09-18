@@ -87,12 +87,37 @@ anchor --version   # anchor-cli 0.30.1
 
 ## Build and deploy
 
-Run these **inside WSL**:
+Run these **inside WSL Ubuntu**, calling `anchor` directly:
 
 ```bash
+wsl -d Ubuntu
 cd /mnt/c/Users/<you>/Desktop/sigpath
-npm run anchor:build     # anchor build --no-idl; see "Known toolchain traps" #3
-npm run anchor:deploy    # builds, then deploys to devnet
+anchor build --no-idl
+anchor deploy --provider.cluster devnet
+```
+
+**Do not wrap these in `npm run`.** Neither WSL distro here has Node installed,
+so `npm` inside WSL resolves to the *Windows* binary at
+`/mnt/c/Program Files/nodejs/npm`. It then runs the script through cmd.exe,
+which cannot see a Linux `anchor`, and you get:
+
+```
+'anchor' is not recognized as an internal or external command
+```
+
+That wording is the tell — it is a Windows error surfacing inside your Linux
+shell. There are deliberately no `anchor:*` scripts in `package.json` for this
+reason. (Installing Node inside Ubuntu would also fix it, at the cost of a second
+Node to keep in sync. Calling `anchor` directly is simpler.)
+
+### Use Ubuntu, not Kali
+
+`kali-linux` is the default distro on this machine and has **no** Rust, Cargo,
+Solana CLI or Anchor. Always start the shell with `wsl -d Ubuntu`, or make it the
+default once:
+
+```powershell
+wsl --set-default Ubuntu
 ```
 
 Plain `anchor build` (without `--no-idl`) **will fail** on this toolchain. The
