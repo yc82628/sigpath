@@ -12,8 +12,22 @@ exercise the check.
    If this passes, the check is worthless: it means the model is confirming
    "a code is present" rather than "THE code is present".
 
-**3. SCREEN** — open `screen-code.html` on a monitor or second phone, then
-   photograph that screen. Expect a FAIL citing a screen.
+**3. SCREEN** — open **http://localhost:3000/screen-code.html**, type in the code
+   your capture actually asked for, then photograph that screen.
+
+   The code MUST match the live challenge. An earlier version of this page
+   hardcoded 7K4M, which made the test useless — the challenge issues a random
+   code each time, so the model would reject the photo for being the WRONG CODE
+   rather than for being a screen, proving nothing about the screen rule.
+
+   Press F for fullscreen first: browser chrome is an obvious tell, and removing
+   it makes this a harder and fairer test.
+
+   To display on a phone, find your LAN IP (`ipconfig`) and open
+   `http://<ip>:3000/screen-code.html`. The displaying device needs no camera,
+   so plain http is fine for it.
+
+   Expect a FAIL citing a screen or digital display.
 
    **This is the load-bearing one.** It is what makes "no outside AI image" true:
    a generated or downloaded image has to reach the camera somehow, and holding

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Screen test target</title>
+<!--
+  Display target for the SCREEN test case.
+
+  The point of this test: photograph this screen instead of writing the code on
+  paper. A correct implementation must FAIL it, because a generated or
+  downloaded image has to reach the camera somehow and a screen is the easiest
+  path. If a screen passes, an attacker never needs to handwrite anything.
+
+  THE CODE MUST MATCH THE LIVE CHALLENGE. An earlier version hardcoded 7K4M,
+  which was useless: the challenge issues a random code each time, so the model
+  would reject the photo for being the WRONG CODE rather than for being a
+  screen — and the test would prove nothing about the screen rule.
+
+  Open on a second monitor, or on your phone at http://<your-lan-ip>:3000/screen-code.html
+  (the displaying device needs no camera, so plain http is fine for it).
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #0d0d0f; color: #e8eaed;
+    font: 16px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 28px; padding: 24px;
+  }
+  .card {
+    background: #fff; color: #111; border-radius: 12px;
+    padding: 6vh 8vw; box-shadow: 0 0 80px rgba(0,0,0,.8);
+  }
+  .code {
+    font-size: clamp(64px, 18vw, 190px); font-weight: 700;
+    letter-spacing: .12em; line-height: 1; white-space: nowrap;
+  }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  input {
+    font: inherit; font-size: 20px; text-transform: uppercase; letter-spacing: .1em;
+    padding: 10px 14px; width: 190px; text-align: center;
+    background: #17181c; color: #e8eaed; border: 1px solid #2a2d33; border-radius: 8px;
+  }
+  .hint { color: #8b929b; font-size: 13px; max-width: 46ch; text-align: center; }
+  kbd { background: #22252b; border-radius: 4px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+  <div class="card"><div class="code" id="code">----</div></div>
+
+  <div class="controls">
+    <input id="input" maxlength="12" placeholder="CODE" aria-label="Code to display" autocomplete="off">
+    <span class="hint">Type the code your capture asked for, then photograph this screen.</span>
+  </div>
+
+  <p class="hint">
+    A correct implementation <strong>fails</strong> this photo — it should recognise a
+    screen, not accept the code. Press <kbd>F</kbd> for fullscreen to remove the
+    browser chrome, which makes it a harder and fairer test.
+  </p>
+
+<script>
+  const codeEl = document.getElementById("code");
+  const input = document.getElementById("input");
+
+  // ?code=VJCW or #VJCW both work, so the code can be shared to a phone as a URL.
+  const fromUrl =
+    new URLSearchParams(location.search).get("code") ||
+    decodeURIComponent(location.hash.slice(1));
+
+  function show(v) {
+    const clean = (v || "").toUpperCase().replace(/[^A-Z0-9 ]/g, "").slice(0, 12);
+    codeEl.textContent = clean || "----";
+  }
+
+  if (fromUrl) { input.value = fromUrl; show(fromUrl); }
+  input.addEventListener("input", (e) => show(e.target.value));
+  input.focus();
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key.toLowerCase() === "f" && document.activeElement !== input) {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    }
+  });
+</script>
+</body>
+</html>
