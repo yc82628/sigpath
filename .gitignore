@@ -19,3 +19,8 @@ test-ledger/
 
 # Bundles
 *.zip
+
+# Live-capture test photos (may contain your face)
+test-images/*.jpg
+test-images/*.jpeg
+test-images/*.png
