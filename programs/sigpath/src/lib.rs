@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 // Placeholder. Run `anchor keys sync` after the first build and this is
 // rewritten with the real program id (it also updates Anchor.toml).
-declare_id!("SigPath111111111111111111111111111111111111");
+declare_id!("Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4");
 
 /// SigPath — the on-chain half of a dual-chain attestation registry.
 ///

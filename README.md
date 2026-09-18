@@ -83,31 +83,40 @@ npm run dev
 
 ## Known toolchain traps
 
-These bite on a fresh machine and cost an hour each. Fixes are known:
+All three below are already handled in this repo. Read this before you touch the
+lockfile or the build command, because each one costs about an hour to rediscover.
 
-**1. `anchor build` uses a different Rust than your shell.**
+**1. `anchor build` does NOT use the Rust in your shell.**
 `cargo --version` may report 1.9x while `anchor build` uses the Rust bundled with
-Solana's platform-tools (1.75 on solana-cli 1.18.x). Crates that require
-`edition2024` therefore fail to parse even though your shell's cargo handles them.
+Solana platform-tools — 1.75 on solana-cli 1.18.x. Crates requiring `edition2024`
+therefore fail to *parse*, even though your shell's cargo handles them fine.
 
-```bash
-# blake3 pulls digest 0.11 -> crypto-common 0.2.x, which needs edition2024
-cargo update -p blake3 --precise 1.5.5
-```
+**2. `Cargo.lock` is load-bearing. Do not run bare `cargo update`.**
+A fresh resolve pulls current crates that Cargo 1.75 cannot parse. It is not one
+crate — fix `blake3` and `toml_datetime` appears, fix that and the next one does.
+The committed lockfile resolves to a tree 1.75 can read. If you must change a
+dependency, change exactly that one with `--precise` and rebuild immediately.
 
-**2. `anchor-syn 0.30.1` breaks on current `proc-macro2`.**
-`proc_macro2::Span::source_file` was removed in 1.0.95; anchor-syn still calls it,
-so the IDL build fails with `no method named source_file`.
+**3. IDL generation cannot work on this toolchain, so it is disabled.**
+`anchor-syn 0.30.1` calls `proc_macro2::Span::source_file()`, removed in
+proc-macro2 1.0.95 — so anchor needs <= 1.0.94. But 1.0.94's own nightly path
+calls `proc_macro::Span::source_file()`, which current rustc removed — so 1.0.94
+will not compile on a modern host. No version satisfies both.
 
-```bash
-cargo update -p proc-macro2 --precise 1.0.94
-```
+Hence `anchor build --no-idl`, wired into `npm run anchor:build`.
 
-**3. Building over `/mnt/c` from WSL is slow.** It works, but expect several
-minutes on a cold build. Keep one canonical copy of the repo — a second copy in
-the Linux home directory is how you end up building code you didn't just edit.
+The consequence: there is no generated IDL, so no typed `@coral-xyz/anchor`
+client. Reads already work without one — `lib/chains/solana/client.ts` decodes
+accounts by byte offset. **Writes must build instructions by hand**: 8-byte
+discriminator plus Borsh-packed args.
 
----
+That makes the account layout a hand-maintained contract between
+`programs/sigpath/src/lib.rs` and the decoder in `client.ts`. Change a field in
+one and the other silently reads garbage — no compiler catches it. Add a
+round-trip test against a known account whenever the layout changes.
+
+The clean long-term fix is Anchor 0.31.x, which resolved this upstream. That is a
+migration, not a patch — don't attempt it close to a deadline.
 
 ## Enabling Base
 

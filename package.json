@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "tsx --test tests/*.test.ts",
-    "anchor:build": "anchor build",
-    "anchor:deploy": "anchor deploy --provider.cluster devnet"
+    "anchor:build": "anchor build --no-idl",
+    "anchor:deploy": "anchor build --no-idl && anchor deploy --provider.cluster devnet"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",

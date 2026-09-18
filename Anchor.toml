@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-sigpath = "SigPath111111111111111111111111111111111111"
+sigpath = "Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4"
 
 [registry]
 url = "https://api.apr.dev"
