@@ -6,6 +6,214 @@ Deployed on devnet: [`Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4`](https://exp
 
 ---
 
+## Quickstart — exact commands
+
+Every block below is labelled with the shell it must run in. **The shell matters
+more than usual on this project**: `cp` does not exist in cmd.exe, and `npm`
+inside WSL resolves to the Windows binary. Run each block in the shell named
+above it and nothing will trip.
+
+Paths assume `C:\Users\oyc82\Desktop\sigpath` — substitute your own.
+
+---
+
+### 1 — Windows (PowerShell)
+
+```powershell
+cd C:\Users\oyc82\Desktop\sigpath
+npm install
+if (-not (Test-Path .env.local)) { Copy-Item .env.local.example .env.local }
+```
+
+The `if` guard matters: `.env.local` holds your program id and issuer key, and
+copying the example over it silently wipes both.
+
+Verify:
+
+```powershell
+node --version        # expect v20 or newer
+Test-Path .env.local  # expect True
+```
+
+---
+
+### 2 — WSL Ubuntu
+
+**Not Kali.** `kali-linux` is the default distro on this machine and has no Rust,
+Cargo, Solana CLI or Anchor.
+
+```powershell
+wsl -d Ubuntu
+```
+
+Your prompt should read `oyc82@...`. If it shows Kali styling you are in the
+wrong distro — `exit` and re-run with `-d Ubuntu`.
+
+```bash
+cd /mnt/c/Users/oyc82/Desktop/sigpath
+which anchor && anchor --version && solana --version
+```
+
+Expect `/home/oyc82/.cargo/bin/anchor`, `anchor-cli 0.30.1`, `solana-cli 1.18.x`.
+If `which anchor` prints nothing:
+
+```bash
+source ~/.cargo/env
+```
+
+---
+
+### 3 — WSL Ubuntu: wallet and funds
+
+```bash
+solana config set --url devnet
+solana address
+solana balance
+```
+
+Only if you have **no** keypair yet — this overwrites an existing one:
+
+```bash
+solana-keygen new --no-bip39-passphrase
+```
+
+A first deploy needs ~1.18 SOL. If the balance is short:
+
+```bash
+solana airdrop 1
+solana airdrop 1
+```
+
+The faucet rate-limits often. When it refuses, use https://faucet.solana.com with
+the address from `solana address` — separate quota.
+
+---
+
+### 4 — WSL Ubuntu: build and deploy
+
+```bash
+cd /mnt/c/Users/oyc82/Desktop/sigpath
+anchor build --no-idl
+anchor deploy --provider.cluster devnet
+```
+
+Two things that bite if you deviate:
+
+- **`--no-idl` is required.** Plain `anchor build` fails on this toolchain (trap #3).
+- **Never `npm run` these.** WSL has no Node, so `npm` resolves to the Windows
+  binary and runs the script through cmd.exe, which cannot see a Linux `anchor`.
+  The tell is a Windows error inside a Linux shell:
+  `'anchor' is not recognized as an internal or external command`.
+
+Copy the `Program Id:` line from the output, then confirm it landed:
+
+```bash
+solana program show <PROGRAM_ID>
+exit
+```
+
+---
+
+### 5 — Windows: finish the config
+
+Open `.env.local` in an editor and set two values:
+
+```
+NEXT_PUBLIC_PROGRAM_ID=<the Program Id from step 4>
+GITHUB_TOKEN=<a classic token, no scopes ticked>
+```
+
+Token from https://github.com/settings/tokens. **Tick no scopes** — only public
+data is read.
+
+Both are required:
+
+- Without a real base58 `NEXT_PUBLIC_PROGRAM_ID`, `next build` throws
+  `Non-base58 character` during page-data collection.
+- Without `GITHUB_TOKEN`, GitHub's search API allows ~10 req/min and every
+  attestation returns `rate_limited`.
+
+---
+
+### 6 — Windows (PowerShell): run it
+
+```powershell
+cd C:\Users\oyc82\Desktop\sigpath
+npm test
+npm run dev
+```
+
+Expect 24 passing tests, then a dev server on http://localhost:3000.
+
+**Restart the dev server after any `.env.local` change** — Next.js reads that file
+only at startup.
+
+---
+
+### 7 — Windows: prove it works
+
+With the dev server running, in a second PowerShell window:
+
+```powershell
+curl.exe -s -X POST http://localhost:3000/api/attest -H 'Content-Type: application/json' -d '{\"platform\":\"github\",\"handle\":\"sindresorhus\",\"ownershipProven\":true}'
+```
+
+In Git Bash the quoting is simpler:
+
+```bash
+curl -s -X POST http://localhost:3000/api/attest -H "Content-Type: application/json" -d '{"platform":"github","handle":"sindresorhus","ownershipProven":true}'
+```
+
+Two PowerShell traps, both verified the hard way:
+
+- **Use `curl.exe`, not `curl`.** Bare `curl` is an alias for `Invoke-WebRequest`,
+  which takes different arguments and errors on `-X` and `-H`.
+- **Do not use `Invoke-RestMethod` here.** It throws on any non-2xx response, so a
+  `503 rate_limited` surfaces as a PowerShell exception instead of the JSON that
+  explains what went wrong. `curl.exe` prints the body either way.
+
+A successful response carries a `proof` object with the account address and
+explorer links. A failure carries `status` and `detail` — `rate_limited` means
+`GITHUB_TOKEN` is missing or exhausted, not that the subject failed.
+
+Then open http://localhost:3000/verify, enter the same handle, and follow the
+explorer link. That page reads the chain in your browser, not from this server.
+
+---
+
+### Full sequence, no commentary
+
+**PowerShell:**
+
+```powershell
+cd C:\Users\oyc82\Desktop\sigpath
+npm install
+if (-not (Test-Path .env.local)) { Copy-Item .env.local.example .env.local }
+wsl -d Ubuntu
+```
+
+**Inside Ubuntu:**
+
+```bash
+cd /mnt/c/Users/oyc82/Desktop/sigpath
+source ~/.cargo/env
+solana config set --url devnet
+solana balance
+anchor build --no-idl
+anchor deploy --provider.cluster devnet
+exit
+```
+
+**Back in PowerShell** — set `NEXT_PUBLIC_PROGRAM_ID` and `GITHUB_TOKEN` in
+`.env.local`, then:
+
+```powershell
+npm test
+npm run dev
+```
+
+---
+
 ## What it does
 
 Gathers public evidence about a subject, scores how well-corroborated that
@@ -159,35 +367,6 @@ wsl --set-default Ubuntu
 
 `.gitattributes` forces LF, so a shell script checked out on Windows does not
 fail inside Linux with `bad interpreter: /bin/bash^M`.
-
----
-
-## Setup
-
-On Windows. Note `cp` is a Unix command — cmd.exe does not have it, so use
-whichever line matches the shell you are actually in:
-
-```bash
-npm install
-```
-
-```
-copy .env.local.example .env.local          :: cmd.exe
-Copy-Item .env.local.example .env.local     # PowerShell
-cp .env.local.example .env.local            # Git Bash / WSL
-```
-
-Toolchain, once, **inside WSL Ubuntu**:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
-cargo install --git https://github.com/solana-foundation/anchor --tag v0.30.1 anchor-cli
-anchor --version   # must read 0.30.1, matching the pinned anchor-lang
-```
-
-**Set `GITHUB_TOKEN`** in `.env.local` — a classic token with *no scopes*, since
-only public data is read. Without it the search API allows ~10 req/min and
-attestation requests fail with `rate_limited`. This is not optional for a demo.
 
 ---
 
