@@ -62,9 +62,13 @@ anchor --version   # anchor-cli 0.30.1
 ## Build and deploy
 
 ```bash
-anchor build          # also runs `keys sync`, rewriting declare_id! and Anchor.toml
-anchor deploy --provider.cluster devnet
+npm run anchor:build     # anchor build --no-idl; see "Known toolchain traps" #3
+npm run anchor:deploy    # builds, then deploys to devnet
 ```
+
+Plain `anchor build` (without `--no-idl`) **will fail** on this toolchain. The
+first build also runs `keys sync`, rewriting `declare_id!` and `Anchor.toml` with
+the real program id.
 
 Copy the printed program id into `NEXT_PUBLIC_PROGRAM_ID` in `.env.local`.
 
