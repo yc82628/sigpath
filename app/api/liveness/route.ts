@@ -87,6 +87,20 @@ export async function POST(req: NextRequest) {
 
       recordLiveness(body.sessionId, v.passed, v.confidence);
 
+      // OPERATOR AUDIT TRAIL. `observed` is the model's transcription of what was
+      // actually in frame, and it is the only way to answer "why did this pass?"
+      // after the fact. Without it a disputed verdict is unreviewable, and during
+      // testing there is no way to tell a handwritten capture from a photographed
+      // screen — both just log 200.
+      //
+      // Server-side only. Returning it to the client would tell an attacker
+      // exactly what the model saw and what to change on the next attempt.
+      console.log(
+        `[liveness] ${body.sessionId.slice(0, 8)} ${v.passed ? "PASS" : "FAIL"} ` +
+          `conf=${v.confidence.toFixed(2)} observed="${v.observed.replace(/\s+/g, " ").slice(0, 300)}"` +
+          (v.failureReason ? ` reason="${v.failureReason.slice(0, 200)}"` : ""),
+      );
+
       return NextResponse.json({
         passed: v.passed,
         confidence: v.confidence,
