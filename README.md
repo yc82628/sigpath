@@ -226,6 +226,51 @@ go check it yourself.*
 
 ---
 
+## Solana Attestation Service
+
+SigPath issues into [SAS](https://solana.com/docs/tools/attestations), Solana's
+native credential standard, alongside its own program.
+
+**Why this matters more than the custom registry.** Without it a verification
+lives in a SigPath PDA that only SigPath can read — another identity silo, and
+the weakest possible answer to "why does this need Solana", because a bespoke
+registry is equally possible anywhere. With SAS, a lending protocol, DAO gate or
+marketplace can act on a SigPath verification *without knowing SigPath exists*.
+Verify once, readable everywhere, no bilateral integration.
+
+```
+credential  rdcnpvPbTaSepYsmPDLqmYUmGZqtEADbBtueuNYZXJX   (devnet)
+schema      HSpMhakBosGxWspBCpt2BBkghyBHhbwS5Teh2wDVrmwq
+program     22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG
+```
+
+Register once per cluster, then issue happens automatically in `/api/attest`:
+
+```bash
+SAS_ENABLED=true npx tsx scripts/sas-bootstrap.ts --issue
+```
+
+**The nonce is the subject hash.** A 32-byte hash is a valid Address, so the SAS
+attestation derives from the same commitment as SigPath's own PDA — same privacy
+property, and anyone who knows the subject finds both records by re-hashing it.
+
+**Two SDKs, deliberately.** `sas-lib` needs `@solana/kit` v5; the rest of the
+project uses `@solana/web3.js` v1. Migrating everything would be a rewrite of the
+client, instructions, attest route and verify page. `lib/chains/solana/sas.ts` is
+the ONLY place kit is used and the boundary is base58 strings. Do not leak kit
+types out of that file.
+
+**Never guess the schema layout codes.** From `sas-lib/dist/src/utils.js`:
+`0 = u8, 3 = u64, 8 = i64, 10 = bool, 12 = String`. An early version of this used
+`6` for i64 — 6 is i16, which would have silently truncated every timestamp with
+no error. Serialization also uses the schema AS DEPLOYED (fetched on chain), so a
+divergence fails loudly instead of encoding plausible-looking garbage.
+
+Verified round-trip on devnet: `score 64, method 6, issuedAt 1790016783` written
+and read back intact.
+
+---
+
 ## The two-chain split
 
 Solana is the source of truth. Attestations are created, scored and revoked

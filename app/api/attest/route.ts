@@ -6,6 +6,7 @@ import { subjectHash, bytesToHex } from "@/lib/crypto/hash";
 import { issueIx, METHOD } from "@/lib/chains/solana/instructions";
 import { attestationPda } from "@/lib/chains/solana/pda";
 import { consumeLiveness } from "@/lib/liveness/store";
+import { issueSasAttestation } from "@/lib/chains/solana/sas";
 import { SOLANA_RPC_URL, SOLANA_PROGRAM_ID, ATTESTATION_TTL_SECONDS } from "@/lib/config";
 
 // POST /api/attest  { platform: "github", handle: "alice" }
@@ -145,6 +146,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // --- 3. issue into Solana Attestation Service ------------------------------
+  // SigPath's own program is the detailed record; SAS is the portable one, so a
+  // lending protocol or DAO gate can act on this verification without knowing
+  // SigPath exists. Runs AFTER the SigPath write and never blocks it — a SAS
+  // failure is operational, not a verification failure.
+  const expiresAt = Math.floor(Date.now() / 1000) + ATTESTATION_TTL_SECONDS;
+  const sas = await issueSasAttestation(
+    subject,
+    scored.score,
+    methodFlags(scored.reports, liveCapture),
+    expiresAt,
+  );
+
   const cluster = SOLANA_RPC_URL.includes("devnet")
     ? "?cluster=devnet"
     : SOLANA_RPC_URL.includes("127.0.0.1") || SOLANA_RPC_URL.includes("localhost")
@@ -172,6 +186,12 @@ export async function POST(req: NextRequest) {
       signature,
       explorerAccount: `https://explorer.solana.com/address/${pda.toBase58()}${cluster}`,
       explorerTx: `https://explorer.solana.com/tx/${signature}${cluster}`,
+      // Portable credential. `disabled` means SAS_ENABLED is not set — the
+      // SigPath attestation above is unaffected either way.
+      sas:
+        sas.status === "ok"
+          ? { status: "ok", account: sas.attestation, signature: sas.signature, explorer: sas.explorer }
+          : { status: sas.status, reason: sas.reason },
     },
   });
 }
