@@ -62,8 +62,9 @@ async function main() {
   if (boot.status === "ok") {
     console.log(`  ok   tx ${boot.signature}`);
     console.log(`       ${boot.explorer}`);
-  } else if (boot.status === "error" && /already in use/i.test(boot.reason)) {
-    console.log("  already registered — continuing");
+  } else if (boot.status === "exists") {
+    // The normal case after the first run. Not an error, and not worth a fee.
+    console.log("  already registered on this cluster — nothing to do");
   } else {
     console.error(`  FAILED: ${"reason" in boot ? boot.reason : "unknown"}`);
     process.exit(1);

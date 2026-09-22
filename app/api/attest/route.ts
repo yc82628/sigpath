@@ -191,7 +191,9 @@ export async function POST(req: NextRequest) {
       sas:
         sas.status === "ok"
           ? { status: "ok", account: sas.attestation, signature: sas.signature, explorer: sas.explorer }
-          : { status: sas.status, reason: sas.reason },
+          : sas.status === "exists"
+            ? { status: "exists", account: sas.attestation, explorer: sas.explorer }
+            : { status: sas.status, reason: sas.reason },
     },
   });
 }

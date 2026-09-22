@@ -38,7 +38,9 @@ import {
   getCreateSchemaInstruction,
   getCreateAttestationInstruction,
   serializeAttestationData,
+  deserializeAttestationData,
   fetchSchema,
+  fetchMaybeAttestation,
 } from "sas-lib";
 import {
   address,
@@ -98,7 +100,42 @@ export interface SasConfig {
 export type SasResult =
   | { status: "disabled"; reason: string }
   | { status: "ok"; attestation: string; signature: string; explorer: string }
+  /** Already on chain. Not an error — bootstrap is meant to be re-runnable. */
+  | { status: "exists"; attestation: string; explorer: string }
   | { status: "error"; reason: string };
+
+/**
+ * Dig the program logs out of a kit error.
+ *
+ * `sendAndConfirmTransaction` rejects with "Transaction simulation failed" and
+ * nothing else on the message — the useful part ("account already in use", a
+ * custom program error, "insufficient funds for rent") lives on a nested
+ * context object whose exact shape varies by failure mode. Walking the object
+ * for a `logs` array is uglier than reading one documented field, but it means
+ * an operator sees the actual cause instead of a sentence that fits every
+ * possible failure equally badly.
+ */
+function extractLogs(err: unknown, depth = 0): string[] {
+  if (depth > 6 || typeof err !== "object" || err === null) return [];
+  const o = err as Record<string, unknown>;
+  if (Array.isArray(o.logs) && o.logs.every((l) => typeof l === "string")) {
+    return o.logs as string[];
+  }
+  for (const key of ["context", "cause", "err", "value"]) {
+    const found = extractLogs(o[key], depth + 1);
+    if (found.length) return found;
+  }
+  return [];
+}
+
+/** A message with the cause in it, not just "simulation failed". */
+function describeError(err: unknown): string {
+  const base = err instanceof Error ? err.message : String(err);
+  const logs = extractLogs(err);
+  if (!logs.length) return base;
+  // The last few lines carry the failing program's own complaint.
+  return `${base} — ${logs.slice(-4).join(" | ")}`;
+}
 
 function rpcUrlToWs(url: string): string {
   return url.replace(/^http/, "ws");
@@ -205,14 +242,40 @@ async function send(cfg: SasConfig, instructions: unknown[], payer: KeyPairSigne
 /**
  * One-time bootstrap: register the credential and schema.
  *
- * Idempotent in the sense that a second run fails with "already in use" rather
- * than corrupting anything — but it is not free, so run it once per cluster and
- * record the addresses.
+ * SAFE TO RE-RUN. It asks the chain whether both accounts already exist and
+ * returns `exists` without sending anything, rather than paying for a
+ * transaction that is certain to fail.
+ *
+ * An earlier version just sent the transaction and pattern-matched "already in
+ * use" on the error message — but the message it actually gets back is
+ * "Transaction simulation failed", which matches nothing, so a perfectly normal
+ * second run looked like a hard failure and exited non-zero.
  */
 export async function bootstrapSasIssuer(cfg: SasConfig): Promise<SasResult> {
   try {
     const authority = await signer(cfg);
     const { credential, schema } = await deriveSigPathAddresses(authority.address);
+
+    const rpc = createSolanaRpc(cfg.rpcUrl);
+    const [credInfo, schemaInfo] = await Promise.all([
+      rpc.getAccountInfo(credential, { encoding: "base64" }).send(),
+      rpc.getAccountInfo(schema, { encoding: "base64" }).send(),
+    ]);
+
+    if (credInfo.value && schemaInfo.value) {
+      return { status: "exists", attestation: schema, explorer: explorerUrl(schema, cfg.rpcUrl) };
+    }
+
+    // A half-finished bootstrap is worth saying out loud: re-sending both
+    // instructions will fail on the one that already exists.
+    if (credInfo.value !== null && schemaInfo.value === null) {
+      return {
+        status: "error",
+        reason:
+          `Credential ${credential} exists but schema ${schema} does not. ` +
+          `The first bootstrap was interrupted; the schema must be created on its own.`,
+      };
+    }
 
     const ixs = [
       getCreateCredentialInstruction({
@@ -242,7 +305,7 @@ export async function bootstrapSasIssuer(cfg: SasConfig): Promise<SasResult> {
       explorer: explorerUrl(schema, cfg.rpcUrl),
     };
   } catch (err) {
-    return { status: "error", reason: err instanceof Error ? err.message : String(err) };
+    return { status: "error", reason: describeError(err) };
   }
 }
 
@@ -302,13 +365,75 @@ export async function issueSasAttestation(
       explorer: explorerUrl(attestation, cfg.rpcUrl),
     };
   } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
+    // Test the DESCRIBED error, not err.message. The message on its own is
+    // "Transaction simulation failed" for every failure mode alike — the
+    // "already in use" string only appears once the program logs are folded in,
+    // which is the same trap that made bootstrap report a normal re-run as a
+    // hard failure.
+    const reason = describeError(err);
     return {
       status: "error",
       reason: reason.includes("already in use")
         ? `A SAS attestation already exists for subject ${bytesToHex(subjectHash).slice(0, 16)}…`
         : reason,
     };
+  }
+}
+
+/**
+ * Read a subject's SAS attestation back and decode it.
+ *
+ * THE POINT OF THE WHOLE MODULE IS THIS DIRECTION.
+ * Issuing is only half a credential — what makes SAS worth using over a private
+ * table is that a third party can re-derive the address from the subject and
+ * decode the data with no help from us. This function takes nothing but the
+ * issuer's address and the subject hash, both public, and is the reference for
+ * what any other Solana app would do.
+ *
+ * It decodes against the schema AS DEPLOYED rather than the local SCHEMA_LAYOUT
+ * constant, so a schema that has drifted from this file is caught here instead
+ * of silently producing plausible wrong numbers.
+ */
+export async function readSasAttestation(
+  issuerAuthority: Address,
+  subjectHash: Uint8Array,
+  rpcUrl: string,
+): Promise<
+  | { status: "not_found"; attestation: string }
+  | { status: "error"; reason: string }
+  | {
+      status: "ok";
+      attestation: string;
+      explorer: string;
+      data: Record<string, unknown>;
+      expiry: number;
+      signer: string;
+      /** True once expiry has passed. Expired is NOT the same as revoked. */
+      expired: boolean;
+    }
+> {
+  try {
+    const { schema, attestation } = await deriveSubjectAttestation(issuerAuthority, subjectHash);
+    const rpc = createSolanaRpc(rpcUrl);
+
+    const maybe = await fetchMaybeAttestation(rpc, attestation);
+    if (!maybe.exists) return { status: "not_found", attestation };
+
+    const schemaAccount = await fetchSchema(rpc, schema);
+    const data = deserializeAttestationData(schemaAccount.data, maybe.data.data as Uint8Array);
+    const expiry = Number(maybe.data.expiry);
+
+    return {
+      status: "ok",
+      attestation,
+      explorer: explorerUrl(attestation, rpcUrl),
+      data: data as Record<string, unknown>,
+      expiry,
+      signer: maybe.data.signer,
+      expired: expiry > 0 && expiry < Math.floor(Date.now() / 1000),
+    };
+  } catch (err) {
+    return { status: "error", reason: describeError(err) };
   }
 }
 
