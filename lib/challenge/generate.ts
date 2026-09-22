@@ -51,7 +51,14 @@ export const CHALLENGE_GRACE_SECONDS = 10;
 // Challenge vocabulary
 // ---------------------------------------------------------------------------
 
-export type ChallengeKind = "code" | "fingers" | "adjacent" | "angle";
+/**
+ * `fingers` is retained for decoding old sessions and is no longer generated.
+ * See buildChallenge: a gesture alone has about four possible values, so a
+ * blind retry passes one time in four. Live person challenges now use
+ * `code_fingers`, where the code carries the entropy and the gesture proves a
+ * hand moved on demand.
+ */
+export type ChallengeKind = "code" | "fingers" | "code_fingers" | "adjacent" | "angle";
 
 export interface Challenge {
   /** Opaque id for this challenge, safe to log. */
@@ -95,19 +102,35 @@ export function buildChallenge(subject: "item" | "person" = "item"): Challenge {
   const base = { challengeId, expiresAt, ttlSeconds: CHALLENGE_TTL_SECONDS };
 
   if (subject === "person") {
-    const n = randomInt(2, 6); // 2..5 — one finger reads badly, five is the max
-    const kinds: ChallengeKind[] = ["fingers", "code"];
+    const c = code();
+
+    // A GESTURE ALONE IS NOT A CHALLENGE.
+    // "Hold up 3 fingers" has four possible answers, so an attacker replaying a
+    // prepared video of someone holding up fingers gets in one attempt in four —
+    // and no amount of counting accuracy fixes that, because the check is
+    // working correctly when it passes them. The code carries the entropy
+    // (28^4 ≈ 614k); the gesture adds a second, simultaneous physical act that a
+    // still image or a prepared clip will not happen to match.
+    // So every person challenge now contains a code, and the gesture rides
+    // along. Never issue the gesture on its own.
+    const kinds: ChallengeKind[] = ["code_fingers", "code"];
     const kind = kinds[randomInt(kinds.length)];
 
-    if (kind === "fingers") {
+    if (kind === "code_fingers") {
+      const n = randomInt(2, 6); // 2..5 — one finger reads badly, five is the max
       return {
         ...base,
-        kind: "fingers",
-        instruction: `Hold up ${n} fingers next to your face and take the photo.`,
-        expected: `${n} fingers visible`,
+        kind: "code_fingers",
+        instruction:
+          `Write ${c} on a piece of paper and hold it next to your face, ` +
+          `and hold up ${n} fingers with your other hand.`,
+        // Order matters: expectedFingerCount() reads the trailing clause, and
+        // the code sits behind "code " where a stray digit cannot be mistaken
+        // for a finger count.
+        expected: `handwritten code ${c} and ${n} fingers visible`,
       };
     }
-    const c = code();
+
     return {
       ...base,
       kind: "code",

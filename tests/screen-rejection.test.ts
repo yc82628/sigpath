@@ -184,17 +184,107 @@ test("fingers_visible is ignored for code challenges", () => {
   assert.equal(decide(verdict({ fingers_visible: 5 }), "code").passed, true);
 });
 
+// ---------------------------------------------------------------------------
+// code_fingers — both gates, never either
+// ---------------------------------------------------------------------------
+//
+// A gesture alone has ~4 possible answers, so a replayed clip of someone
+// holding up fingers passes one attempt in four however accurately it is
+// counted. Person challenges now always carry a code; the gesture rides along.
+
+const BOTH = "handwritten code A3F4 and 3 fingers visible";
+
+test("code_fingers passes only when both halves are right", () => {
+  const r = decide(verdict({ fingers_visible: 3, required_element_present: true }), "code_fingers", BOTH);
+  assert.equal(r.passed, true);
+});
+
+test("code_fingers fails on the right code with the wrong fingers", () => {
+  const r = decide(verdict({ fingers_visible: 4, required_element_present: true }), "code_fingers", BOTH);
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /counted 4/i);
+});
+
+test("code_fingers fails on the right fingers with the wrong code", () => {
+  // The half that would otherwise be skipped: the finger check passes, and the
+  // code check must still run rather than returning early.
+  const r = decide(
+    verdict({ fingers_visible: 3, required_element_present: false, failure_reason: "code reads A3F5" }),
+    "code_fingers",
+    BOTH,
+  );
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /A3F5/);
+});
+
+test("code_fingers still requires handwriting", () => {
+  const r = decide(
+    verdict({ fingers_visible: 3, written_by_hand_on_physical_surface: false }),
+    "code_fingers",
+    BOTH,
+  );
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /handwritten/i);
+});
+
+test("code_fingers rejects a screen before anything else", () => {
+  const r = decide(
+    verdict({ fingers_visible: 3, shown_on_electronic_display: true }),
+    "code_fingers",
+    BOTH,
+  );
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /display|screen/i);
+});
+
+test("a digit inside the code is not mistaken for a finger count", () => {
+  // "handwritten code A3F4 and 3 fingers visible" — only the digits directly
+  // before "fingers" count. A code full of digits must not shift the answer.
+  assert.equal(expectedFingerCount("handwritten code 3746 and 5 fingers visible"), 5);
+  assert.equal(expectedFingerCount("handwritten code 2222 and 2 fingers visible"), 2);
+});
+
+test("adjacent challenges do not require handwriting", () => {
+  // "Place the item next to something blue" has nothing written in frame.
+  // Listing adjacent as needing handwriting rejected every honest capture; it
+  // was dormant only because person mode never generates this kind.
+  assert.equal(
+    decide(verdict({ written_by_hand_on_physical_surface: false }), "adjacent").passed,
+    true,
+  );
+});
+
+test("person mode never issues a gesture-only challenge", () => {
+  // The entropy floor. Every live person challenge must contain a code, so a
+  // blind retry is ~1 in 614k rather than 1 in 4.
+  for (let i = 0; i < 300; i++) {
+    const c = buildChallenge("person");
+    assert.notEqual(c.kind, "fingers", "gesture-only challenges must not be issued");
+    assert.match(c.expected, /handwritten code [A-Z0-9]{4}/, `no code in: "${c.expected}"`);
+  }
+});
+
 test("every generated finger challenge is parseable by decide()", () => {
   // Binds the generator to the policy. If buildChallenge ever changes its
   // wording, this fails here rather than silently failing every capture.
-  for (let i = 0; i < 200; i++) {
+  let seen = 0;
+  for (let i = 0; i < 300; i++) {
     const c = buildChallenge("person");
-    if (c.kind !== "fingers") continue;
+    if (c.kind !== "code_fingers") continue;
+    seen++;
     const want = expectedFingerCount(c.expected);
     assert.ok(want !== null, `unparseable expected string: "${c.expected}"`);
-    assert.equal(decide(verdict({ fingers_visible: want }), "fingers", c.expected).passed, true);
-    assert.equal(decide(verdict({ fingers_visible: want + 1 }), "fingers", c.expected).passed, false);
+    assert.equal(
+      decide(verdict({ fingers_visible: want }), c.kind, c.expected).passed,
+      true,
+      `should pass: "${c.expected}"`,
+    );
+    assert.equal(decide(verdict({ fingers_visible: want + 1 }), c.kind, c.expected).passed, false);
   }
+  // Without this the loop could skip every iteration and the test would pass
+  // while asserting nothing — which is exactly what happened when the kind was
+  // renamed from "fingers".
+  assert.ok(seen > 0, "no code_fingers challenge was generated in 300 tries");
 });
 
 test("a missing element is rejected with its reason preserved", () => {

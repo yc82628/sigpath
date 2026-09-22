@@ -118,7 +118,11 @@ export const VERDICT_JSON_SCHEMA = {
  * decide() treats as a hard failure rather than letting it fall through.
  */
 export function expectedFingerCount(expected: string): number | null {
-  const m = /^(\d+)\s+fingers?\b/i.exec(expected.trim());
+  // Unanchored, because a combined challenge reads "handwritten code A3F4 and
+  // 3 fingers visible". A digit inside the code cannot be picked up by mistake:
+  // this only matches digits IMMEDIATELY followed by "finger(s)", and the code
+  // is always followed by " and".
+  const m = /(\d+)\s+fingers?\b/i.exec(expected.trim());
   return m ? Number(m[1]) : null;
 }
 
@@ -164,7 +168,7 @@ export function decide(
   // So the model now reports a NUMBER and is told not to adjust it toward the
   // expected value, and the comparison is this line. Same principle throughout:
   // the model observes, code decides.
-  if (kind === "fingers") {
+  if (kind === "fingers" || kind === "code_fingers") {
     const want = expectedFingerCount(expected);
     if (want === null) {
       // A finger challenge whose expected string we cannot parse must not fall
@@ -176,15 +180,22 @@ export function decide(
     if (got !== want) {
       return { passed: false, reason: `Expected ${want} fingers; counted ${got}.` };
     }
-    return { passed: true, reason: "" };
+    // `fingers` is the retired gesture-only kind, which has nothing else to
+    // check. `code_fingers` must ALSO satisfy every code rule below — both
+    // gates, never either.
+    if (kind === "fingers") return { passed: true, reason: "" };
   }
 
   if (!v.required_element_present) {
     return { passed: false, reason: v.failure_reason || "Required element not present." };
   }
-  // The handwriting requirement applies only to written codes. A "hold up three
-  // fingers" challenge has nothing written on any surface.
-  const needsHandwriting = kind === "code" || kind === "angle" || kind === "adjacent";
+  // Which kinds put a handwritten code in frame.
+  //
+  // `adjacent` is deliberately NOT in this list. Its instruction is "place the
+  // item next to something blue" — nothing is written, so requiring handwriting
+  // would reject every honest capture. It was listed here until 2026-09-22 and
+  // the bug was dormant only because person mode never generates it.
+  const needsHandwriting = kind === "code" || kind === "code_fingers" || kind === "angle";
   if (needsHandwriting && !v.written_by_hand_on_physical_surface) {
     return { passed: false, reason: "The code is not handwritten on a physical surface." };
   }
