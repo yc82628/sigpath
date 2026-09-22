@@ -1,6 +1,10 @@
 # SigPath
 
-Attestation infrastructure across two chains. **Solana originates, Base mirrors.**
+A Solana-first (Base-mirrored) attestation engine that turns a developer's
+verifiable digital footprint into a public, re-derivable on-chain score — gated
+by a live camera challenge whose pass/fail policy lives in code rather than in a
+prompt, and published both to its own Anchor program and to the Solana
+Attestation Service so any app can read it without integrating with SigPath.
 
 Deployed on devnet: [`Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4`](https://explorer.solana.com/address/Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4?cluster=devnet)
 
