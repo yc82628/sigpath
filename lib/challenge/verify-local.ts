@@ -39,6 +39,26 @@ import type { Challenge } from "./generate";
 const DEFAULT_HOST = "http://localhost:11434";
 const DEFAULT_MODEL = "qwen3.5:27b";
 
+/**
+ * How long Ollama keeps the model resident after a request.
+ *
+ * WHY THIS IS A REQUEST FIELD AND NOT AN ENV VAR
+ * Ollama unloads an idle model after about 5 minutes. On this hardware a cold
+ * load is ~48s against a 90-second challenge window, so the first capture after
+ * a lull fails as "expired" through no fault of the user — and a demo is
+ * exactly a lull followed by one important capture.
+ *
+ * The documented fix, OLLAMA_KEEP_ALIVE, is read by the `ollama serve` PROCESS.
+ * Putting it in this project's .env.local does nothing at all, because that
+ * file configures the Next server, not the separate Ollama daemon. It would
+ * have to be set in the environment before `ollama serve` started.
+ *
+ * `keep_alive` in the request body is the part we actually control, so that is
+ * where it goes. Set OLLAMA_KEEP_ALIVE here to override, "0" to unload
+ * immediately after each call, or "-1" to keep the model resident forever.
+ */
+const DEFAULT_KEEP_ALIVE = "30m";
+
 export async function verifyChallengePhotoLocal(
   imageBase64: string,
   _mediaType: AcceptedMediaType,
@@ -55,6 +75,9 @@ export async function verifyChallengePhotoLocal(
       body: JSON.stringify({
         model,
         stream: false,
+        // Keeps the model resident between captures. See DEFAULT_KEEP_ALIVE —
+        // the env var of the same name is read by `ollama serve`, not by us.
+        keep_alive: process.env.OLLAMA_KEEP_ALIVE ?? DEFAULT_KEEP_ALIVE,
         // Ollama constrains decoding to this. Shared with the other backends so
         // the three cannot drift apart — see VERDICT_JSON_SCHEMA in verify.ts.
         format: VERDICT_JSON_SCHEMA,

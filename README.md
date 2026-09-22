@@ -617,8 +617,18 @@ the screen photo was still rejected for being a screen.
 **Ollama needs pre-warming before a demo.** Measured on an RTX 5070 Laptop (8 GB)
 with `qwen2.5vl:7b`: **48s cold, 2.5s warm.** A cold start eats half the 90-second
 challenge window and the capture expires while the user waits. Run one throwaway
-check before demoing, or set `OLLAMA_KEEP_ALIVE=30m`. Note `qwen3.5:27b` does NOT
-fit in 8 GB alongside the vision projector — it fails with a CUDA OOM.
+check before demoing. Note `qwen3.5:27b` does NOT fit in 8 GB alongside the
+vision projector — it fails with a CUDA OOM.
+
+Ollama also unloads an idle model after ~5 minutes, so "warmed up an hour ago"
+is not warm. Every request now sends `keep_alive: "30m"` to hold it resident;
+override with `OLLAMA_KEEP_ALIVE` (`"-1"` never unloads, `"0"` unloads at once).
+
+> Setting `OLLAMA_KEEP_ALIVE` in `.env.local` does **nothing** — that variable
+> is read by the `ollama serve` process, and `.env.local` configures the Next
+> server, not the separate Ollama daemon. This README said to do exactly that
+> until 2026-09-22. The request field is the part we control, so that is where
+> it lives; the env var here only overrides what we send.
 
 **Measured results (local backend, qwen2.5vl:7b, 2026-09-18):**
 
