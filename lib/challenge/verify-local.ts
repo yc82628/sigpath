@@ -112,7 +112,7 @@ export async function verifyChallengePhotoLocal(
 
     const confidence = Math.max(0, Math.min(1, Number(verdict.confidence) || 0));
     // Same policy function as the hosted backend. The model reports; code decides.
-    const { passed, reason } = decide(verdict, challenge.kind);
+    const { passed, reason } = decide(verdict, challenge.kind, challenge.expected);
 
     return {
       passed: passed && confidence >= VERIFY_THRESHOLD,

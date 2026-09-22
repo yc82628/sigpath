@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { decide, type Verdict } from "../lib/challenge/verify";
+import { decide, expectedFingerCount, type Verdict } from "../lib/challenge/verify";
+import { buildChallenge } from "../lib/challenge/generate";
 
 /**
  * Regression tests for the screen bypass found on 2026-09-18.
@@ -34,6 +35,7 @@ function verdict(over: Partial<Verdict> = {}): Verdict {
     shown_on_electronic_display: false,
     written_by_hand_on_physical_surface: true,
     required_element_present: true,
+    fingers_visible: -1,
     confidence: 1,
     failure_reason: "",
     ...over,
@@ -79,8 +81,13 @@ test("a screen is rejected for finger challenges too", () => {
   // Handwriting is not required for "hold up three fingers", but a video of
   // someone's hand played on a phone is still not a live capture.
   const r = decide(
-    verdict({ shown_on_electronic_display: true, written_by_hand_on_physical_surface: false }),
+    verdict({
+      shown_on_electronic_display: true,
+      written_by_hand_on_physical_surface: false,
+      fingers_visible: 3,
+    }),
     "fingers",
+    "3 fingers visible",
   );
   assert.equal(r.passed, false);
 });
@@ -103,10 +110,91 @@ test("fingers challenges do not require handwriting", () => {
   // A hand is not written on anything. Requiring handwriting here would reject
   // every legitimate finger capture.
   const r = decide(
-    verdict({ written_by_hand_on_physical_surface: false }),
+    verdict({ written_by_hand_on_physical_surface: false, fingers_visible: 3 }),
     "fingers",
+    "3 fingers visible",
   );
   assert.equal(r.passed, true);
+});
+
+// ---------------------------------------------------------------------------
+// Counting: the second place the model was being asked to apply the policy
+// ---------------------------------------------------------------------------
+//
+// Reported 2026-09-22: finger challenges were inconsistent — the same gesture
+// passed sometimes and failed others. Same root cause as the screen bypass.
+// `required_element_present` for "3 fingers visible" asked the model to count
+// AND compare in one boolean, so it could see four, judge four close enough to
+// the three it had been told to expect, and answer true. Now it reports a
+// count and these tests own the comparison.
+
+test("the right number of fingers passes", () => {
+  assert.equal(
+    decide(verdict({ fingers_visible: 3 }), "fingers", "3 fingers visible").passed,
+    true,
+  );
+});
+
+test("the wrong number of fingers fails, and says both numbers", () => {
+  const r = decide(verdict({ fingers_visible: 4 }), "fingers", "3 fingers visible");
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /expected 3/i);
+  assert.match(r.reason, /counted 4/i);
+});
+
+test("off-by-one is a failure, not a near-miss", () => {
+  // The whole point. A model left to judge 'close enough' is what made this
+  // inconsistent in the first place.
+  for (const got of [2, 4]) {
+    assert.equal(decide(verdict({ fingers_visible: got }), "fingers", "3 fingers visible").passed, false);
+  }
+});
+
+test("required_element_present cannot rescue a wrong count", () => {
+  // The model may well answer true here — it is being asked a question that
+  // invites exactly the reasoning we removed. The count is what decides.
+  const r = decide(
+    verdict({ fingers_visible: 5, required_element_present: true }),
+    "fingers",
+    "3 fingers visible",
+  );
+  assert.equal(r.passed, false);
+});
+
+test("no hand in frame fails with its own reason", () => {
+  const r = decide(verdict({ fingers_visible: -1 }), "fingers", "3 fingers visible");
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /no hand/i);
+});
+
+test("a finger challenge with an unparseable expected string cannot pass", () => {
+  // Fail closed. A malformed challenge must not fall through to the generic
+  // required_element_present path and pass on the model's say-so.
+  const r = decide(verdict({ fingers_visible: 3 }), "fingers", "hold up some fingers");
+  assert.equal(r.passed, false);
+  assert.match(r.reason, /malformed/i);
+});
+
+test("a non-integer count is rounded, not coerced to zero", () => {
+  assert.equal(decide(verdict({ fingers_visible: 3.0 }), "fingers", "3 fingers visible").passed, true);
+});
+
+test("fingers_visible is ignored for code challenges", () => {
+  // A hand holding the paper is normal and must not affect a code verdict.
+  assert.equal(decide(verdict({ fingers_visible: 5 }), "code").passed, true);
+});
+
+test("every generated finger challenge is parseable by decide()", () => {
+  // Binds the generator to the policy. If buildChallenge ever changes its
+  // wording, this fails here rather than silently failing every capture.
+  for (let i = 0; i < 200; i++) {
+    const c = buildChallenge("person");
+    if (c.kind !== "fingers") continue;
+    const want = expectedFingerCount(c.expected);
+    assert.ok(want !== null, `unparseable expected string: "${c.expected}"`);
+    assert.equal(decide(verdict({ fingers_visible: want }), "fingers", c.expected).passed, true);
+    assert.equal(decide(verdict({ fingers_visible: want + 1 }), "fingers", c.expected).passed, false);
+  }
 });
 
 test("a missing element is rejected with its reason preserved", () => {

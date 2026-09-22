@@ -67,6 +67,9 @@ export const VerdictSchema = z.object({
   required_element_present: z
     .boolean()
     .describe("True if the required element itself is visible and reads EXACTLY as required, regardless of what surface it is on."),
+  fingers_visible: z
+    .number()
+    .describe("How many fingers are held up and clearly extended on the most visible hand. Count thumbs. 0 if a hand is visible but no fingers are extended, -1 if no hand is in frame. Count what you see; do not adjust toward any number you were told to expect."),
   confidence: z
     .number()
     .describe("0 to 1. How certain these observations are, given image quality and legibility."),
@@ -94,6 +97,7 @@ export const VERDICT_JSON_SCHEMA = {
     shown_on_electronic_display: { type: "boolean" },
     written_by_hand_on_physical_surface: { type: "boolean" },
     required_element_present: { type: "boolean" },
+    fingers_visible: { type: "number" },
     confidence: { type: "number" },
     failure_reason: { type: "string" },
   },
@@ -102,10 +106,21 @@ export const VERDICT_JSON_SCHEMA = {
     "shown_on_electronic_display",
     "written_by_hand_on_physical_surface",
     "required_element_present",
+    "fingers_visible",
     "confidence",
     "failure_reason",
   ],
 } as const;
+
+/**
+ * Pull the required count out of a finger challenge's `expected` string
+ * ("3 fingers visible"). Returns null if it is not a finger challenge, which
+ * decide() treats as a hard failure rather than letting it fall through.
+ */
+export function expectedFingerCount(expected: string): number | null {
+  const m = /^(\d+)\s+fingers?\b/i.exec(expected.trim());
+  return m ? Number(m[1]) : null;
+}
 
 /**
  * THE POLICY. Applied here, in code, deliberately.
@@ -124,13 +139,46 @@ export const VERDICT_JSON_SCHEMA = {
  * So the model now only reports observations, and the decision is this function —
  * which cannot be talked out of anything.
  */
-export function decide(v: Verdict, kind: string): { passed: boolean; reason: string } {
+export function decide(
+  v: Verdict,
+  kind: string,
+  /** The challenge's `expected` string. Required for finger challenges. */
+  expected = "",
+): { passed: boolean; reason: string } {
   if (v.shown_on_electronic_display) {
     return {
       passed: false,
       reason: "The element is shown on an electronic display. A photo of a screen is not a live capture.",
     };
   }
+
+  // FINGERS ARE COUNTED HERE, NOT BY THE MODEL.
+  //
+  // This was the same mistake as the screen bypass, in a different place. Asking
+  // "is the required element present?" about "3 fingers visible" makes the model
+  // both count AND compare in one boolean, and small vision models are weak at
+  // counting — so it would see four fingers, decide four is close enough to what
+  // it was told to expect, and answer true. Inconsistently, which is worse than
+  // wrongly: the same gesture passed or failed run to run.
+  //
+  // So the model now reports a NUMBER and is told not to adjust it toward the
+  // expected value, and the comparison is this line. Same principle throughout:
+  // the model observes, code decides.
+  if (kind === "fingers") {
+    const want = expectedFingerCount(expected);
+    if (want === null) {
+      // A finger challenge whose expected string we cannot parse must not fall
+      // through to a pass on required_element_present.
+      return { passed: false, reason: "Malformed finger challenge; cannot verify." };
+    }
+    const got = Number.isFinite(v.fingers_visible) ? Math.round(v.fingers_visible) : -1;
+    if (got < 0) return { passed: false, reason: "No hand is visible in the photo." };
+    if (got !== want) {
+      return { passed: false, reason: `Expected ${want} fingers; counted ${got}.` };
+    }
+    return { passed: true, reason: "" };
+  }
+
   if (!v.required_element_present) {
     return { passed: false, reason: v.failure_reason || "Required element not present." };
   }
@@ -183,7 +231,15 @@ Rules:
 5. written_by_hand_on_physical_surface and shown_on_electronic_display are not
    opposites and both can be true — handwriting photographed and then shown on a
    screen is handwritten in style AND on a display. Answer each independently.
-6. If the image is too blurry, dark, or cropped to tell, report low confidence and set the relevant field false. Do not guess.`;
+6. COUNTING IS A SEPARATE, INDEPENDENT TASK. For fingers_visible, count the
+   extended fingers on the most visible hand one at a time — thumb, index,
+   middle, ring, little — and report the total you actually see. You are told
+   what number is expected; that is context for the user's task, NOT a target.
+   Do not round toward it. Reporting 4 when 4 are up is correct even if 3 were
+   requested; something else compares the two. A partially bent or occluded
+   finger is not extended. Use -1 when no hand is in frame, and 0 when a hand
+   is visible with no fingers extended.
+7. If the image is too blurry, dark, or cropped to tell, report low confidence and set the relevant field false. Do not guess.`;
 
 /**
  * Run the check.
@@ -249,7 +305,7 @@ export async function verifyChallengePhoto(
     }
 
     const confidence = Math.max(0, Math.min(1, verdict.confidence));
-    const { passed, reason } = decide(verdict, challenge.kind);
+    const { passed, reason } = decide(verdict, challenge.kind, challenge.expected);
 
     return {
       passed: passed && confidence >= VERIFY_THRESHOLD,
