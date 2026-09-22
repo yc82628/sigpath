@@ -24,8 +24,24 @@
  * product decision (no login) and it is also why there is no PII to leak.
  */
 
-/** Sources we can search. `stub` is the offline feed — see sources/stub.ts. */
-export type MarketplaceId = "ebay" | "etsy" | "discogs" | "stub";
+/**
+ * The marketplaces this product covers. Deliberately a short, fixed list rather
+ * than an open-ended crawl: a small set of large retailers gives consistent,
+ * comparable results, and every source added is an integration to keep working.
+ *
+ * `stub` is the offline feed — see sources/stub.ts.
+ */
+export type MarketplaceId = "ebay" | "amazon" | "idealo" | "kleinanzeigen" | "stub";
+
+/**
+ * How a marketplace can be reached, which is not the same question as whether
+ * we want it. See lib/marketplace/registry.ts for the per-source verdict.
+ */
+export type AccessMode =
+  /** A licensed API we can call for structured results. */
+  | "api"
+  /** No API we may use. We link the buyer to the site's own search instead. */
+  | "link_out";
 
 /**
  * Condition matters more than it looks. A used phone at half the price of a new

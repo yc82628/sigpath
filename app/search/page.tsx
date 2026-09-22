@@ -1,6 +1,7 @@
 import { searchAll } from "@/lib/marketplace/search";
 import { StubSource } from "@/lib/marketplace/sources/stub";
 import { EbaySource } from "@/lib/marketplace/sources/ebay";
+import { AmazonSource } from "@/lib/marketplace/sources/amazon";
 import type { MarketplaceSource } from "@/lib/marketplace/sources/types";
 import { formatMoney, totalPrice, type Listing } from "@/lib/marketplace/types";
 import type { Flag } from "@/lib/marketplace/anomaly";
@@ -29,7 +30,7 @@ import type { Flag } from "@/lib/marketplace/anomaly";
 export const dynamic = "force-dynamic";
 
 function sources(): MarketplaceSource[] {
-  const list: MarketplaceSource[] = [new EbaySource()];
+  const list: MarketplaceSource[] = [new EbaySource(), new AmazonSource()];
   if (process.env.STUB_FEED !== "false") list.push(new StubSource());
   return list;
 }
@@ -169,6 +170,30 @@ export default async function SearchPage({
             result.listings.map((l) => (
               <ListingRow key={`${l.source}-${l.id}`} listing={l} flags={byListing.get(l.id) ?? []} />
             ))
+          )}
+
+          {/* The marketplaces we cover but are not permitted to query. One
+              click each rather than nothing — and deliberately separated from
+              the results above, because no price here reached the median and
+              implying otherwise would overstate the comparison. */}
+          {result.linkOut.length > 0 && (
+            <section className="linkout">
+              <h2>Also search directly</h2>
+              <p className="hint">
+                These have no API we may use, so their prices are not part of the
+                comparison above.
+              </p>
+              <ul>
+                {result.linkOut.map((t) => (
+                  <li key={t.id}>
+                    <a href={t.url} target="_blank" rel="noopener noreferrer">
+                      {t.label} &rarr;
+                    </a>
+                    {t.note && <span className="hint"> {t.note}</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </>
       )}

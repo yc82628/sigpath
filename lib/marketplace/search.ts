@@ -13,6 +13,7 @@ import type { Listing, SearchOptions, SourceResult } from "./types";
 import { totalPrice } from "./types";
 import type { MarketplaceSource } from "./sources/types";
 import { analyse, type Analysis } from "./anomaly";
+import { linkOutTargets } from "./registry";
 
 export interface SearchResponse {
   query: string;
@@ -20,6 +21,16 @@ export interface SearchResponse {
   /** One entry per source asked, ok or not. */
   sources: { source: string; status: string; count: number; detail?: string }[];
   analysis: Analysis;
+  /**
+   * Marketplaces we cover but may not query, with a deep link into their own
+   * search. See registry.ts — for idealo and Kleinanzeigen there is no API we
+   * are permitted to use, so the buyer gets one click instead of nothing.
+   *
+   * These contribute no listings and therefore no prices, which is why they are
+   * a separate field rather than a fake source: nothing here may ever reach the
+   * median.
+   */
+  linkOut: { id: string; label: string; url: string; note?: string }[];
 }
 
 /** Cheapest first, by what the buyer actually pays. */
@@ -46,6 +57,7 @@ export async function searchAll(
         degraded: [],
         notConfigured: [],
       },
+      linkOut: [],
     };
   }
 
@@ -83,5 +95,6 @@ export async function searchAll(
     // Pass the FULL results, failures included. Passing only the ok ones would
     // silently re-enable the biased comparison this design exists to prevent.
     analysis: analyse(results, { currency: opts.currency }),
+    linkOut: linkOutTargets(q),
   };
 }

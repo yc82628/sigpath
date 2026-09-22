@@ -6,6 +6,8 @@ import { StubSource } from "../lib/marketplace/sources/stub";
 import { EbaySource, toMinorUnits } from "../lib/marketplace/sources/ebay";
 import { totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
 import type { MarketplaceSource } from "../lib/marketplace/sources/types";
+import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
+import { AmazonSource, signPaapiRequest } from "../lib/marketplace/sources/amazon";
 
 /**
  * The property these tests exist to protect:
@@ -261,7 +263,7 @@ test("median is integer and does not drift on even-length sets", () => {
 
 test("a source that throws becomes a typed failure, not a crash", async () => {
   const exploding: MarketplaceSource = {
-    id: "etsy",
+    id: "amazon",
     search: async () => {
       throw new Error("kaboom");
     },
@@ -269,9 +271,9 @@ test("a source that throws becomes a typed failure, not a crash", async () => {
   const r = await searchAll("thinkpad", [new StubSource(), exploding]);
 
   assert.ok(r.listings.length > 0, "the working source still contributes");
-  const etsy = r.sources.find((s) => s.source === "etsy");
-  assert.equal(etsy?.status, "error");
-  assert.match(etsy?.detail ?? "", /kaboom/);
+  const broken = r.sources.find((s) => s.source === "amazon");
+  assert.equal(broken?.status, "error");
+  assert.match(broken?.detail ?? "", /kaboom/);
   // And the failure must reach the analysis, not be swallowed by the merge.
   assert.equal(r.analysis.status, "incomplete_coverage");
 });
@@ -406,4 +408,162 @@ test("an unknown eBay condition never becomes 'new'", async () => {
   const r = await new EbaySource({ EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s" }, fetchImpl).search("x");
   assert.equal(r.listings[0].condition, "refurbished");
   assert.equal(r.listings[1].condition, "unknown");
+});
+
+// ---------------------------------------------------------------------------
+// The fixed marketplace set, and the two we may not query
+// ---------------------------------------------------------------------------
+
+test("all four prioritised marketplaces are covered", () => {
+  const ids = MARKETPLACES.map((m) => m.id);
+  for (const want of ["ebay", "amazon", "idealo", "kleinanzeigen"]) {
+    assert.ok(ids.includes(want as never), `${want} missing from the registry`);
+  }
+});
+
+test("idealo and Kleinanzeigen are link-outs, never sources", () => {
+  // If either were ever wired up as a MarketplaceSource it would mean we had
+  // started extracting data we are not permitted to extract.
+  for (const id of ["idealo", "kleinanzeigen"] as const) {
+    assert.equal(MARKETPLACES.find((m) => m.id === id)?.access, "link_out");
+  }
+});
+
+test("link-out URLs are built correctly and escaped", () => {
+  const targets = linkOutTargets("thinkpad x1 carbon");
+  const idealo = targets.find((t) => t.id === "idealo")!;
+  const kl = targets.find((t) => t.id === "kleinanzeigen")!;
+
+  assert.match(idealo.url, /^https:\/\/www\.idealo\.de\//);
+  assert.ok(idealo.url.includes("thinkpad%20x1%20carbon"));
+  // Path-style search: /s-<slug>/k0
+  assert.equal(kl.url, "https://www.kleinanzeigen.de/s-thinkpad-x1-carbon/k0");
+});
+
+test("a query that slugs to nothing still yields a usable URL", () => {
+  const kl = linkOutTargets("!!! ???").find((t) => t.id === "kleinanzeigen")!;
+  assert.equal(kl.url, "https://www.kleinanzeigen.de/s-suche/k0");
+});
+
+test("link-out targets never contribute listings or prices", async () => {
+  // They are a separate field precisely so nothing from them can reach the
+  // median. Claiming a cross-marketplace comparison that silently included a
+  // site we never queried would be the worst kind of wrong.
+  const r = await searchAll("thinkpad x1", [new StubSource()]);
+  assert.equal(r.linkOut.length, 2);
+  assert.ok(r.listings.every((l) => l.source !== "idealo" && l.source !== "kleinanzeigen"));
+  assert.ok(!r.analysis.coverage.includes("idealo" as never));
+});
+
+// ---------------------------------------------------------------------------
+// Amazon PA-API
+// ---------------------------------------------------------------------------
+
+test("Amazon reports not_configured and names what is missing", async () => {
+  const r = await new AmazonSource({}).search("thinkpad");
+  assert.equal(r.status, "not_configured");
+  assert.match(r.detail ?? "", /AMAZON_ACCESS_KEY/);
+  // The reason matters: an operator who does not know about the sales
+  // requirement will assume they typed a key wrong.
+  assert.match(r.detail ?? "", /qualifying sales/i);
+});
+
+test("the SigV4 signature is stable for a fixed clock and key", () => {
+  // A signing bug surfaces only as an opaque 401 from a service we may not be
+  // able to call at all, so it is pinned here instead.
+  const a = signPaapiRequest({
+    accessKey: "AKIAEXAMPLE",
+    secretKey: "secret",
+    host: "webservices.amazon.de",
+    region: "eu-west-1",
+    body: '{"Keywords":"thinkpad"}',
+    now: new Date("2026-09-22T10:15:30Z"),
+  });
+  const b = signPaapiRequest({
+    accessKey: "AKIAEXAMPLE",
+    secretKey: "secret",
+    host: "webservices.amazon.de",
+    region: "eu-west-1",
+    body: '{"Keywords":"thinkpad"}',
+    now: new Date("2026-09-22T10:15:30Z"),
+  });
+  assert.equal(a.headers.authorization, b.headers.authorization);
+
+  // Every signed header must actually be sent, byte for byte, or the service
+  // rejects the request.
+  const signedList = /SignedHeaders=([^,]+)/.exec(a.headers.authorization)![1].split(";");
+  for (const h of signedList) {
+    assert.ok(h in a.headers, `signed header "${h}" is not being sent`);
+  }
+  assert.deepEqual(signedList, [...signedList].sort(), "signed headers must be sorted");
+  assert.equal(a.headers["x-amz-date"], "20260922T101530Z");
+  assert.match(a.headers.authorization, /Credential=AKIAEXAMPLE\/20260922\/eu-west-1\/ProductAdvertisingAPI\/aws4_request/);
+});
+
+test("a different body produces a different signature", () => {
+  const base = {
+    accessKey: "AKIAEXAMPLE",
+    secretKey: "secret",
+    host: "webservices.amazon.de",
+    region: "eu-west-1",
+    now: new Date("2026-09-22T10:15:30Z"),
+  };
+  const a = signPaapiRequest({ ...base, body: '{"Keywords":"a"}' });
+  const b = signPaapiRequest({ ...base, body: '{"Keywords":"b"}' });
+  assert.notEqual(a.headers.authorization, b.headers.authorization);
+});
+
+test("an ineligible Associates account is explained, not just 401'd", async () => {
+  const fetchImpl = (async () =>
+    new Response('{"Errors":[{"Code":"AssociateNotEligible"}]}', { status: 401 })) as unknown as typeof fetch;
+
+  const r = await new AmazonSource(
+    { AMAZON_ACCESS_KEY: "k", AMAZON_SECRET_KEY: "s", AMAZON_PARTNER_TAG: "t" },
+    fetchImpl,
+  ).search("x");
+
+  assert.equal(r.status, "error");
+  assert.match(r.detail ?? "", /qualifying sales/i);
+});
+
+test("Amazon prices convert to integer minor units", async () => {
+  const fetchImpl = (async () =>
+    new Response(
+      JSON.stringify({
+        SearchResult: {
+          Items: [
+            {
+              ASIN: "B01",
+              DetailPageURL: "https://amazon.de/dp/B01",
+              ItemInfo: { Title: { DisplayValue: "Thing" } },
+              Offers: { Listings: [{ Price: { Amount: 19.99, Currency: "EUR" }, Condition: { Value: "New" } }] },
+            },
+            // No price: dropped rather than guessed at.
+            { ASIN: "B02", DetailPageURL: "https://amazon.de/dp/B02" },
+          ],
+        },
+      }),
+      { status: 200 },
+    )) as unknown as typeof fetch;
+
+  const r = await new AmazonSource(
+    { AMAZON_ACCESS_KEY: "k", AMAZON_SECRET_KEY: "s", AMAZON_PARTNER_TAG: "t" },
+    fetchImpl,
+  ).search("thing");
+
+  assert.equal(r.status, "ok");
+  assert.equal(r.listings.length, 1);
+  assert.equal(r.listings[0].price.amount, 1999);
+  assert.ok(Number.isInteger(r.listings[0].price.amount));
+});
+
+test("an unknown AMAZON_LOCALE fails loudly rather than guessing a host", async () => {
+  const r = await new AmazonSource({
+    AMAZON_ACCESS_KEY: "k",
+    AMAZON_SECRET_KEY: "s",
+    AMAZON_PARTNER_TAG: "t",
+    AMAZON_LOCALE: "ZZ",
+  }).search("x");
+  assert.equal(r.status, "error");
+  assert.match(r.detail ?? "", /AMAZON_LOCALE/);
 });
