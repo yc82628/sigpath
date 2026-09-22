@@ -33,8 +33,31 @@
 import type { Condition, Listing, Money, SearchOptions, SourceResult } from "../types";
 import type { MarketplaceSource } from "./types";
 
-const TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token";
-const BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
+/**
+ * Sandbox and production are separate accounts with separate keysets.
+ *
+ * WHY SANDBOX IS WORTH SUPPORTING
+ * A production keyset is created DISABLED. eBay only enables it once you have
+ * subscribed to — or explicitly opted out of — marketplace account deletion
+ * notifications, which is a compliance step with its own form. A sandbox keyset
+ * has no such gate and works the moment it is created, so the integration can
+ * be proven end to end while production clearance is still pending.
+ *
+ * Sandbox returns eBay's own test inventory, not real listings. It proves the
+ * auth, the request shape and the parsing; it says nothing about result
+ * quality, and its prices must never be presented as real market data.
+ *
+ * Note the SCOPE string stays on api.ebay.com in both environments — it is an
+ * identifier, not an address, and "fixing" it to the sandbox host is a common
+ * way to get an unhelpful invalid_scope error.
+ */
+const HOSTS = {
+  production: "https://api.ebay.com",
+  sandbox: "https://api.sandbox.ebay.com",
+} as const;
+
+export type EbayEnv = keyof typeof HOSTS;
+
 const SCOPE = "https://api.ebay.com/oauth/api_scope";
 
 /** eBay condition strings -> our buckets. Unknown maps to "unknown", never "new". */
@@ -84,19 +107,33 @@ export class EbaySource implements MarketplaceSource {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
-  private credentials(): { id: string; secret: string; marketplace: string } | null {
+  private credentials():
+    | { id: string; secret: string; marketplace: string; env: EbayEnv }
+    | null {
     const id = this.env.EBAY_CLIENT_ID?.trim();
     const secret = this.env.EBAY_CLIENT_SECRET?.trim();
     if (!id || !secret) return null;
-    return { id, secret, marketplace: this.env.EBAY_MARKETPLACE_ID?.trim() || "EBAY_DE" };
+
+    // Default to production. Sandbox is opt-in, because silently serving eBay's
+    // test inventory as if it were the real market would be worse than not
+    // running at all.
+    const raw = (this.env.EBAY_ENV?.trim() || "production").toLowerCase();
+    const env: EbayEnv = raw === "sandbox" ? "sandbox" : "production";
+
+    return {
+      id,
+      secret,
+      marketplace: this.env.EBAY_MARKETPLACE_ID?.trim() || "EBAY_DE",
+      env,
+    };
   }
 
-  private async accessToken(id: string, secret: string): Promise<string> {
+  private async accessToken(id: string, secret: string, env: EbayEnv): Promise<string> {
     // 60s of slack so a token cannot expire between the check and the call.
     if (this.token && this.token.expiresAt > Date.now() + 60_000) return this.token.value;
 
     const basic = Buffer.from(`${id}:${secret}`).toString("base64");
-    const res = await this.fetchImpl(TOKEN_URL, {
+    const res = await this.fetchImpl(`${HOSTS[env]}/identity/v1/oauth2/token`, {
       method: "POST",
       headers: {
         authorization: `Basic ${basic}`,
@@ -106,7 +143,21 @@ export class EbaySource implements MarketplaceSource {
     });
 
     if (!res.ok) {
-      throw new Error(`token request returned ${res.status}: ${(await res.text()).slice(0, 160)}`);
+      const text = (await res.text()).slice(0, 200);
+      // The failure everyone hits first. A production keyset is created
+      // DISABLED and stays that way until the marketplace account deletion
+      // notification compliance step is done — and the raw error does not say
+      // so, which turns a ten-minute form into an afternoon of key-checking.
+      if (/invalid_client|unauthorized_client|disabled/i.test(text)) {
+        // Front-load the actionable part: this string gets truncated for
+        // display, and the advice is worth more than the raw body.
+        throw new Error(
+          `eBay rejected these credentials (${res.status}). A new PRODUCTION keyset stays ` +
+            `disabled until the marketplace account deletion notification step is completed ` +
+            `on the Application Keys page. Also check EBAY_ENV matches the keyset. Raw: ${text}`,
+        );
+      }
+      throw new Error(`token request returned ${res.status}: ${text}`);
     }
     const body = (await res.json()) as { access_token?: string; expires_in?: number };
     if (!body.access_token) throw new Error("token response had no access_token");
@@ -133,9 +184,10 @@ export class EbaySource implements MarketplaceSource {
     }
 
     try {
-      const token = await this.accessToken(creds.id, creds.secret);
+      const token = await this.accessToken(creds.id, creds.secret, creds.env);
       const url =
-        `${BROWSE_URL}?q=${encodeURIComponent(query)}` +
+        `${HOSTS[creds.env]}/buy/browse/v1/item_summary/search` +
+        `?q=${encodeURIComponent(query)}` +
         `&limit=${Math.min(opts.limit ?? 20, 200)}`;
 
       const res = await this.fetchImpl(url, {
@@ -193,7 +245,18 @@ export class EbaySource implements MarketplaceSource {
         });
       }
 
-      return { source: this.id, status: "ok", listings };
+      return {
+        source: this.id,
+        status: "ok",
+        listings,
+        // Sandbox returns eBay's own test inventory. Its prices are not real
+        // market data, so a median computed over them means nothing — say so
+        // rather than letting a demo quietly present test data as the market.
+        detail:
+          creds.env === "sandbox"
+            ? "SANDBOX — eBay test inventory, not real listings. Prices are not market data."
+            : undefined,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Never throws — see sources/types.ts. A rejected promise here would make
@@ -202,7 +265,7 @@ export class EbaySource implements MarketplaceSource {
         source: this.id,
         status: /timeout|abort/i.test(msg) ? "timeout" : "error",
         listings: [],
-        detail: msg.slice(0, 200),
+        detail: msg.slice(0, 400),
       };
     }
   }

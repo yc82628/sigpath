@@ -567,3 +567,93 @@ test("an unknown AMAZON_LOCALE fails loudly rather than guessing a host", async 
   assert.equal(r.status, "error");
   assert.match(r.detail ?? "", /AMAZON_LOCALE/);
 });
+
+// ---------------------------------------------------------------------------
+// eBay environments
+// ---------------------------------------------------------------------------
+
+test("sandbox and production hit different hosts", async () => {
+  const seen: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    seen.push(String(url));
+    if (String(url).includes("oauth2/token")) {
+      return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ itemSummaries: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await new EbaySource(
+    { EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s", EBAY_ENV: "sandbox" },
+    fetchImpl,
+  ).search("x");
+  assert.ok(seen.every((u) => u.includes("api.sandbox.ebay.com")), seen.join(" "));
+
+  seen.length = 0;
+  await new EbaySource(
+    { EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s" },
+    fetchImpl,
+  ).search("x");
+  assert.ok(seen.every((u) => u.includes("api.ebay.com") && !u.includes("sandbox")), seen.join(" "));
+});
+
+test("an unrecognised EBAY_ENV falls back to production, never sandbox", async () => {
+  // Silently serving eBay's test inventory as the real market would be worse
+  // than not running at all, so sandbox must always be an explicit choice.
+  const seen: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    seen.push(String(url));
+    return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await new EbaySource(
+    { EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s", EBAY_ENV: "staging" },
+    fetchImpl,
+  ).search("x");
+  assert.ok(!seen[0].includes("sandbox"));
+});
+
+test("sandbox results are labelled as test data", async () => {
+  const fetchImpl = (async (url: string) => {
+    if (String(url).includes("oauth2/token")) {
+      return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ itemSummaries: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const r = await new EbaySource(
+    { EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s", EBAY_ENV: "sandbox" },
+    fetchImpl,
+  ).search("x");
+  assert.equal(r.status, "ok");
+  assert.match(r.detail ?? "", /SANDBOX/);
+  assert.match(r.detail ?? "", /not real listings/i);
+});
+
+test("a disabled production keyset is explained, not just 'invalid_client'", async () => {
+  // The failure everyone hits first: production keysets are created disabled.
+  // The raw error does not say so.
+  const fetchImpl = (async () =>
+    new Response('{"error":"invalid_client"}', { status: 401 })) as unknown as typeof fetch;
+
+  const r = await new EbaySource({ EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s" }, fetchImpl).search("x");
+  assert.equal(r.status, "error");
+  assert.match(r.detail ?? "", /account deletion notification/i);
+});
+
+test("the OAuth scope stays on api.ebay.com even in sandbox", async () => {
+  // It is an identifier, not an address. Rewriting it to the sandbox host is a
+  // common way to get an unhelpful invalid_scope error.
+  let body = "";
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    // Capture the TOKEN request only — the search call that follows has no
+    // body and would otherwise overwrite what we are asserting on.
+    if (String(url).includes("oauth2/token")) body = String(init.body ?? "");
+    return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await new EbaySource(
+    { EBAY_CLIENT_ID: "i", EBAY_CLIENT_SECRET: "s", EBAY_ENV: "sandbox" },
+    fetchImpl,
+  ).search("x");
+  assert.ok(body.includes(encodeURIComponent("https://api.ebay.com/oauth/api_scope")));
+});
