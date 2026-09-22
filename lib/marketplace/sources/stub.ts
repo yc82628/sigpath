@@ -1,0 +1,126 @@
+/**
+ * lib/marketplace/sources/stub.ts — an offline feed that behaves like a real one.
+ *
+ * WHY THIS EXISTS
+ * eBay credentials are a developer-account registration, which gates every
+ * other piece of work behind something only the repo owner can do. This feed
+ * means the search route, the merge, the anomaly check and the UI can all be
+ * built and tested today, and the real source drops in behind the same
+ * interface later.
+ *
+ * DETERMINISTIC ON PURPOSE
+ * The same query always produces the same listings, seeded from the query
+ * string. A demo that reshuffles itself between rehearsal and stage is worse
+ * than no demo, and a test against random data is a test that fails on Tuesday.
+ *
+ * IT DELIBERATELY CONTAINS SCAMS
+ * Every query yields one drastically underpriced listing and one pair of
+ * listings sharing a photo under different seller names, because a feed that
+ * only ever looks healthy cannot demonstrate a check that is supposed to catch
+ * unhealthy things. Nothing here is meant to resemble a real seller: names are
+ * generated, and no real marketplace is contacted.
+ */
+
+import { createHash } from "crypto";
+import type { Condition, Listing, SearchOptions, SourceResult } from "../types";
+import type { MarketplaceSource } from "./types";
+
+/** Deterministic 32-bit stream from a seed string. */
+function rng(seed: string): () => number {
+  let h = createHash("sha256").update(seed).digest();
+  let i = 0;
+  return () => {
+    if (i + 4 > h.length) {
+      h = createHash("sha256").update(h).digest();
+      i = 0;
+    }
+    const v = h.readUInt32BE(i);
+    i += 4;
+    return v / 0xffffffff;
+  };
+}
+
+const CONDITIONS: Condition[] = ["new", "new", "new", "refurbished", "used"];
+const ADJECTIVES = ["Sealed", "Boxed", "Mint", "Genuine", "Original", "Unused"];
+
+export class StubSource implements MarketplaceSource {
+  readonly id = "stub" as const;
+
+  constructor(private readonly currency = "EUR") {}
+
+  async search(query: string, opts: SearchOptions = {}): Promise<SourceResult> {
+    const q = query.trim();
+    if (!q) {
+      return { source: this.id, status: "ok", listings: [] };
+    }
+
+    const limit = Math.min(opts.limit ?? 12, 40);
+    const next = rng(q.toLowerCase());
+
+    // A plausible going rate for this query, 40.00 to 640.00.
+    const base = 4000 + Math.floor(next() * 60000);
+    const listings: Listing[] = [];
+
+    for (let i = 0; i < limit; i++) {
+      // Honest listings scatter within roughly +/-25% of the going rate.
+      const spread = 0.75 + next() * 0.5;
+      const amount = Math.round((base * spread) / 100) * 100;
+      const condition = CONDITIONS[Math.floor(next() * CONDITIONS.length)];
+      const sellerNo = Math.floor(next() * 900) + 100;
+
+      listings.push({
+        id: `stub-${i}`,
+        source: this.id,
+        title: `${ADJECTIVES[Math.floor(next() * ADJECTIVES.length)]} ${q}`,
+        url: `https://example.invalid/stub/${encodeURIComponent(q)}/${i}`,
+        price: { amount, currency: this.currency },
+        shipping: { amount: Math.floor(next() * 5) * 100, currency: this.currency },
+        condition,
+        imageHash: `img-${i}`,
+        seller: {
+          handle: `seller_${sellerNo}`,
+          displayName: `Seller ${sellerNo}`,
+          feedbackScore: Math.floor(next() * 4000),
+          feedbackPercentage: 90 + Math.floor(next() * 10),
+        },
+        listedAt: Math.floor(Date.now() / 1000) - Math.floor(next() * 60 * 86400),
+      });
+    }
+
+    // --- the plant: far below the going rate, from a brand-new account -------
+    listings.push({
+      id: "stub-bait",
+      source: this.id,
+      title: `${q} - URGENT SALE, must go today`,
+      url: `https://example.invalid/stub/${encodeURIComponent(q)}/bait`,
+      price: { amount: Math.round((base * 0.28) / 100) * 100, currency: this.currency },
+      shipping: { amount: 0, currency: this.currency },
+      condition: "new",
+      imageHash: "img-shared",
+      seller: {
+        handle: "quick_deals_2026",
+        displayName: "Quick Deals",
+        feedbackScore: 0,
+        feedbackPercentage: 0,
+        memberSince: Math.floor(Date.now() / 1000) - 3 * 86400,
+      },
+      listedAt: Math.floor(Date.now() / 1000) - 3600,
+    });
+
+    // --- the plant: same photo, different seller ----------------------------
+    listings.push({
+      id: "stub-clone",
+      source: this.id,
+      title: `${q} brand new`,
+      url: `https://example.invalid/stub/${encodeURIComponent(q)}/clone`,
+      price: { amount: Math.round((base * 0.9) / 100) * 100, currency: this.currency },
+      shipping: { amount: 499, currency: this.currency },
+      condition: "new",
+      imageHash: "img-shared",
+      seller: { handle: "bargain_bin_77", displayName: "Bargain Bin", feedbackScore: 12 },
+      listedAt: Math.floor(Date.now() / 1000) - 7200,
+    });
+
+    return { source: this.id, status: "ok", listings };
+  }
+}
