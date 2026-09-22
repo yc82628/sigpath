@@ -3,6 +3,7 @@ import { searchAll } from "@/lib/marketplace/search";
 import { StubSource } from "@/lib/marketplace/sources/stub";
 import { EbaySource } from "@/lib/marketplace/sources/ebay";
 import { AmazonSource } from "@/lib/marketplace/sources/amazon";
+import { FeedSource } from "@/lib/marketplace/sources/feed";
 import type { MarketplaceSource } from "@/lib/marketplace/sources/types";
 
 // GET /api/search?q=thinkpad+x1
@@ -37,7 +38,7 @@ function sources(): MarketplaceSource[] {
   // The fixed set of API-reachable marketplaces. idealo and Kleinanzeigen are
   // covered too, but as link-outs rather than sources — see registry.ts for why
   // there is no API we are permitted to query.
-  const list: MarketplaceSource[] = [new EbaySource(), new AmazonSource()];
+  const list: MarketplaceSource[] = [new EbaySource(), new AmazonSource(), new FeedSource()];
   // The offline feed stays on until a real source is configured, so the route
   // is demonstrable with no credentials at all. Set STUB_FEED=false to drop it.
   if (process.env.STUB_FEED !== "false") list.push(new StubSource());

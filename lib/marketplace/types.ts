@@ -31,7 +31,19 @@
  *
  * `stub` is the offline feed — see sources/stub.ts.
  */
-export type MarketplaceId = "ebay" | "amazon" | "idealo" | "kleinanzeigen" | "stub";
+export type MarketplaceId =
+  | "ebay"
+  | "amazon"
+  | "idealo"
+  | "kleinanzeigen"
+  /**
+   * A licensed affiliate product feed (Awin, CJ, Tradedoubler, or any
+   * Google-Shopping-style CSV). One integration that carries many merchants at
+   * once, and the only route by which retailers without a public API can enter
+   * this product legitimately. See sources/feed.ts.
+   */
+  | "feed"
+  | "stub";
 
 /**
  * How a marketplace can be reached, which is not the same question as whether

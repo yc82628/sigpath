@@ -8,6 +8,7 @@ import { totalPrice, type Listing, type SourceResult } from "../lib/marketplace/
 import type { MarketplaceSource } from "../lib/marketplace/sources/types";
 import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
 import { AmazonSource, signPaapiRequest } from "../lib/marketplace/sources/amazon";
+import { FeedSource, parseDelimited, feedPriceToMinorUnits } from "../lib/marketplace/sources/feed";
 
 /**
  * The property these tests exist to protect:
@@ -656,4 +657,129 @@ test("the OAuth scope stays on api.ebay.com even in sandbox", async () => {
     fetchImpl,
   ).search("x");
   assert.ok(body.includes(encodeURIComponent("https://api.ebay.com/oauth/api_scope")));
+});
+
+// ---------------------------------------------------------------------------
+// Affiliate product feeds — the legitimate route to retailers without an API
+// ---------------------------------------------------------------------------
+
+test("quoted commas in a title do not shift the columns", async () => {
+  // THE BUG THIS PARSER EXISTS TO AVOID. Product titles contain commas
+  // constantly, and a split(",") shifts every later column by one — so the
+  // price column silently reads a spec string, or another field's number.
+  // A corrupted price here corrupts the median for every other source.
+  const rows = parseDelimited(
+    'product_name,search_price,aw_deep_link\n"Lenovo ThinkPad X1, 14 Zoll, 16GB",1299.00,https://x.invalid/1\n',
+  );
+  assert.equal(rows[1][0], "Lenovo ThinkPad X1, 14 Zoll, 16GB");
+  assert.equal(rows[1][1], "1299.00");
+  assert.equal(rows[1][2], "https://x.invalid/1");
+});
+
+test("escaped quotes and embedded newlines survive parsing", () => {
+  const rows = parseDelimited('a,b\n"say ""hi""","line1\nline2"\n');
+  assert.equal(rows[1][0], 'say "hi"');
+  assert.equal(rows[1][1], "line1\nline2");
+});
+
+test("prices parse in both German and English notation", () => {
+  assert.equal(feedPriceToMinorUnits("19.99"), 1999);
+  assert.equal(feedPriceToMinorUnits("19,99"), 1999);
+  assert.equal(feedPriceToMinorUnits("1.234,56"), 123456);
+  assert.equal(feedPriceToMinorUnits("1,234.56"), 123456);
+  assert.equal(feedPriceToMinorUnits("1299"), 129900);
+  assert.equal(feedPriceToMinorUnits("19.99 EUR"), 1999);
+  assert.equal(feedPriceToMinorUnits(""), null);
+  assert.equal(feedPriceToMinorUnits("n/a"), null);
+});
+
+function feedResponse(csv: string) {
+  return (async () => new Response(csv, { status: 200 })) as unknown as typeof fetch;
+}
+
+const FEED_CSV =
+  "aw_product_id,product_name,search_price,currency,aw_deep_link,merchant_name,condition\n" +
+  '1,"Lenovo ThinkPad X1 Carbon, 14 Zoll",1299.00,EUR,https://shop.invalid/1,TechMerchant,new\n' +
+  "2,Dell XPS 13,1099.00,EUR,https://shop.invalid/2,TechMerchant,new\n" +
+  "3,ThinkPad X1 Yoga,1199.00,EUR,https://shop.invalid/3,OtherShop,refurbished\n";
+
+const FEED_ENV = { FEED_URL: "https://feed.invalid/products.csv", FEED_LABEL: "Awin merchants" };
+
+test("a feed source is searchable and maps to listings", async () => {
+  const r = await new FeedSource(FEED_ENV, feedResponse(FEED_CSV)).search("thinkpad x1");
+  assert.equal(r.status, "ok");
+  assert.equal(r.listings.length, 2, "both ThinkPad X1 rows should match");
+  assert.equal(r.listings[0].price.amount, 129900);
+  assert.equal(r.listings[0].seller.handle, "TechMerchant");
+  assert.equal(r.listings[0].source, "feed");
+});
+
+test("all query terms must match, not any", async () => {
+  // An OR match floods the results with anything sharing one common word, and
+  // those prices then drag the median.
+  const r = await new FeedSource(FEED_ENV, feedResponse(FEED_CSV)).search("thinkpad yoga");
+  assert.equal(r.listings.length, 1);
+  assert.match(r.listings[0].title, /Yoga/);
+});
+
+test("a feed says it is a snapshot, not a live price", async () => {
+  const r = await new FeedSource(FEED_ENV, feedResponse(FEED_CSV)).search("thinkpad");
+  assert.match(r.detail ?? "", /snapshot/i);
+  assert.match(r.detail ?? "", /Awin merchants/);
+});
+
+test("a feed missing required columns fails loudly", async () => {
+  // Returning an empty result would read as "no matches", which is a different
+  // and misleading claim.
+  const r = await new FeedSource(
+    FEED_ENV,
+    feedResponse("id,name,cost\n1,Thing,10\n"),
+  ).search("thing");
+  assert.equal(r.status, "error");
+  assert.match(r.detail ?? "", /missing required column/i);
+  // "name" IS a recognised title column, so only url and price are missing —
+  // and the message must name exactly those, not a generic complaint.
+  assert.match(r.detail ?? "", /url/);
+  assert.match(r.detail ?? "", /price/);
+  // And it echoes the header it actually saw, so the fix is obvious.
+  assert.match(r.detail ?? "", /id, name, cost/);
+});
+
+test("rows without a usable price are dropped, not guessed", async () => {
+  const csv =
+    "product_name,search_price,aw_deep_link\n" +
+    "Good Thing,10.00,https://x.invalid/1\n" +
+    "Bad Thing,ask us,https://x.invalid/2\n";
+  const r = await new FeedSource(FEED_ENV, feedResponse(csv)).search("thing");
+  assert.equal(r.listings.length, 1);
+  assert.equal(r.listings[0].title, "Good Thing");
+});
+
+test("an unconfigured feed is not an error", async () => {
+  const r = await new FeedSource({}).search("thing");
+  assert.equal(r.status, "not_configured");
+  assert.match(r.detail ?? "", /FEED_URL/);
+});
+
+test("the feed is loaded once and reused", async () => {
+  // A network feed can be hundreds of megabytes. Re-fetching per search would
+  // make the page unusable and hammer the network provider.
+  let fetches = 0;
+  const fetchImpl = (async () => {
+    fetches++;
+    return new Response(FEED_CSV, { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const src = new FeedSource(FEED_ENV, fetchImpl);
+  await src.search("thinkpad");
+  await src.search("dell");
+  await src.search("yoga");
+  assert.equal(fetches, 1);
+});
+
+test("a feed fetch failure is an error, never silent emptiness", async () => {
+  const fetchImpl = (async () => new Response("nope", { status: 503 })) as unknown as typeof fetch;
+  const r = await new FeedSource(FEED_ENV, fetchImpl).search("thing");
+  assert.equal(r.status, "error");
+  assert.match(r.detail ?? "", /503/);
 });
