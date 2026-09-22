@@ -46,7 +46,21 @@ npx tsx scripts/test-photo-check.ts test-images/wrong.jpg  "handwritten code 7K4
 npx tsx scripts/test-photo-check.ts test-images/screen.jpg "handwritten code 7K4M"
 ```
 
-Needs `ANTHROPIC_API_KEY` in `.env.local`. Each run is one API call.
+Pick a backend with `VISION_BACKEND`. The default, `anthropic`, needs
+`ANTHROPIC_API_KEY` in `.env.local` and costs one API call per run. If the
+machine has no GPU and no Anthropic credit, use a hosted endpoint instead:
+
+```bash
+VISION_BACKEND=remote \
+VISION_API_BASE=https://openrouter.ai/api/v1 \
+VISION_API_KEY=sk-or-v1-... \
+VISION_MODEL=qwen/qwen2.5-vl-72b-instruct \
+npx tsx scripts/test-photo-check.ts test-images/screen.jpg "handwritten code 7K4M"
+```
+
+Run every image through the backend you intend to demo with. A verdict from one
+model is not evidence about another, and the negative cases are the ones that
+change between models.
 
 ## What the results mean
 

@@ -74,13 +74,38 @@ async function main() {
     console.error('  e.g. npx tsx scripts/test-photo-check.ts pass.jpg "handwritten code 7K4M"');
     process.exit(1);
   }
-  const useOllama = (process.env.VISION_BACKEND ?? "anthropic").toLowerCase() === "ollama";
-  if (!useOllama && !process.env.ANTHROPIC_API_KEY) {
+  // Same three-way choice the app makes, so what you test here is what runs.
+  const raw = (process.env.VISION_BACKEND ?? "anthropic").toLowerCase();
+  const choice =
+    raw === "ollama"
+      ? "ollama"
+      : raw === "remote" || raw === "openai" || raw === "openrouter"
+        ? "remote"
+        : "anthropic";
+
+  if (choice === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
     console.error("ANTHROPIC_API_KEY is not set. Either add it to .env.local:");
     console.error("  ANTHROPIC_API_KEY=sk-ant-...");
-    console.error("or run the local backend instead (free):");
+    console.error("or use a hosted OpenAI-compatible endpoint (no local GPU needed):");
+    console.error("  VISION_BACKEND=remote npx tsx scripts/test-photo-check.ts ...");
+    console.error("or run a local model instead (free, needs a GPU):");
     console.error("  VISION_BACKEND=ollama npx tsx scripts/test-photo-check.ts ...");
     process.exit(1);
+  }
+
+  if (choice === "remote") {
+    // Fail here with the missing variable named, rather than after uploading an
+    // image and getting a bare 401 back.
+    const { remoteVisionConfig } = await import("../lib/challenge/verify-remote");
+    const conf = remoteVisionConfig();
+    if (!conf.ok) {
+      console.error(conf.reason);
+      console.error("\nFor example, in .env.local:");
+      console.error("  VISION_API_BASE=https://openrouter.ai/api/v1");
+      console.error("  VISION_API_KEY=sk-or-v1-...");
+      console.error("  VISION_MODEL=qwen/qwen2.5-vl-72b-instruct");
+      process.exit(1);
+    }
   }
 
   const ext = extname(file).toLowerCase();
@@ -99,10 +124,20 @@ async function main() {
   console.log("calling the model…\n");
 
   const { VERIFY_THRESHOLD } = await import("../lib/challenge/verify");
-  const verifyChallengePhoto = useOllama
-    ? (await import("../lib/challenge/verify-local")).verifyChallengePhotoLocal
-    : (await import("../lib/challenge/verify")).verifyChallengePhoto;
-  console.log(`backend   ${useOllama ? "ollama (local, free)" : "anthropic (hosted)"}`);
+  const verifyChallengePhoto =
+    choice === "ollama"
+      ? (await import("../lib/challenge/verify-local")).verifyChallengePhotoLocal
+      : choice === "remote"
+        ? (await import("../lib/challenge/verify-remote")).verifyChallengePhotoRemote
+        : (await import("../lib/challenge/verify")).verifyChallengePhoto;
+
+  const label =
+    choice === "ollama"
+      ? "ollama (local, needs a GPU)"
+      : choice === "remote"
+        ? `remote (${process.env.VISION_MODEL} @ ${process.env.VISION_API_BASE})`
+        : "anthropic (hosted)";
+  console.log(`backend   ${label}`);
 
   const started = Date.now();
   const result = await verifyChallengePhoto(base64, mediaType as never, {

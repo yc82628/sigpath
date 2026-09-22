@@ -27,6 +27,7 @@
 
 import {
   SYSTEM,
+  VERDICT_JSON_SCHEMA,
   VERIFY_THRESHOLD,
   decide,
   type Verdict,
@@ -37,31 +38,6 @@ import type { Challenge } from "./generate";
 
 const DEFAULT_HOST = "http://localhost:11434";
 const DEFAULT_MODEL = "qwen3.5:27b";
-
-/**
- * Ollama takes a JSON Schema in `format` and constrains decoding to it. Same
- * shape the hosted backend gets from zod — keep the two in step by hand, since
- * nothing checks them against each other.
- */
-const VERDICT_SCHEMA = {
-  type: "object",
-  properties: {
-    observed: { type: "string" },
-    shown_on_electronic_display: { type: "boolean" },
-    written_by_hand_on_physical_surface: { type: "boolean" },
-    required_element_present: { type: "boolean" },
-    confidence: { type: "number" },
-    failure_reason: { type: "string" },
-  },
-  required: [
-    "observed",
-    "shown_on_electronic_display",
-    "written_by_hand_on_physical_surface",
-    "required_element_present",
-    "confidence",
-    "failure_reason",
-  ],
-} as const;
 
 export async function verifyChallengePhotoLocal(
   imageBase64: string,
@@ -79,7 +55,9 @@ export async function verifyChallengePhotoLocal(
       body: JSON.stringify({
         model,
         stream: false,
-        format: VERDICT_SCHEMA,
+        // Ollama constrains decoding to this. Shared with the other backends so
+        // the three cannot drift apart — see VERDICT_JSON_SCHEMA in verify.ts.
+        format: VERDICT_JSON_SCHEMA,
         // Deterministic: this is a judgement that should not vary run to run.
         options: { temperature: 0 },
         messages: [

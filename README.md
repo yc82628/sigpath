@@ -566,11 +566,49 @@ prose. Keep all three if you edit that prompt.
 **`lib/crypto/sign.ts`** binds a capture to the issued nonce, so a previously
 prepared photo cannot be replayed against a fresh challenge.
 
-**Two backends, one prompt.** `VISION_BACKEND=anthropic` (hosted, ~$0.01/check)
-or `ollama` (local, free). `verify-local.ts` imports `SYSTEM` and
-`VerdictSchema` from `verify.ts` rather than copying them — two copies of a
-security-relevant prompt drift, and the one you are not testing is the one that
-quietly loses its injection defences.
+### Three backends, one prompt
+
+| `VISION_BACKEND` | Runs where | Needs | Use it when |
+|---|---|---|---|
+| `anthropic` *(default)* | Anthropic | `ANTHROPIC_API_KEY` with credit | You want the strongest reader |
+| `remote` | any OpenAI-compatible host | `VISION_API_BASE` + `VISION_API_KEY` + `VISION_MODEL` | **Deploying anywhere without a GPU** |
+| `ollama` | this machine | a GPU, ≥8 GB VRAM | Developing offline |
+
+All three import `SYSTEM`, `VERDICT_JSON_SCHEMA`, `VERIFY_THRESHOLD` and
+`decide()` from `verify.ts` rather than copying them. Three copies of a
+security-relevant prompt drift, and the one nobody is testing is the one that
+quietly loses its injection defences. **Switching backend changes which model
+answers — never the rules, and never who applies them.**
+
+`tests/verify-remote.test.ts` asserts that the JSON schema and the zod schema
+still describe the same verdict, so dropping a field from one is a test failure
+rather than a silently weaker check.
+
+**Why `remote` exists.** The other two each assume something a stranger cannot be
+assumed to have: credit on an Anthropic account, or a discrete GPU. On an
+ordinary cloud box the capture check could not run at all. `remote` speaks plain
+`POST /v1/chat/completions`, which nearly every inference host implements — so
+OpenRouter, Groq, Together, DeepInfra, Fireworks, a self-hosted vLLM, or Ollama
+on some *other* machine are all one env change apart, with no new dependency.
+
+```bash
+VISION_BACKEND=remote
+VISION_API_BASE=https://openrouter.ai/api/v1
+VISION_API_KEY=sk-or-v1-...
+VISION_MODEL=qwen/qwen2.5-vl-72b-instruct
+```
+
+Two compatibility details are handled for you. Hosts that reject
+`response_format.json_schema` are retried once in plain `json_object` mode —
+but only for that specific complaint, so a genuine 400 still surfaces instead of
+costing you a second round trip. And a response missing any of the three
+observation booleans is reported **unavailable**, not failed: an absent
+`shown_on_electronic_display` is `undefined`, which is falsy, so a malformed
+reply would otherwise let a photo of a screen through on a technicality.
+
+Verified end-to-end against a live model by pointing `remote` at Ollama's own
+`/v1` (`VISION_API_KEY=ollama`) — a real HTTP round trip with a real image, and
+the screen photo was still rejected for being a screen.
 
 **Ollama needs pre-warming before a demo.** Measured on an RTX 5070 Laptop (8 GB)
 with `qwen2.5vl:7b`: **48s cold, 2.5s warm.** A cold start eats half the 90-second

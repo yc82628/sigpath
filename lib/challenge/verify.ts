@@ -78,6 +78,36 @@ export const VerdictSchema = z.object({
 export type Verdict = z.infer<typeof VerdictSchema>;
 
 /**
+ * The same shape as plain JSON Schema, for the backends that cannot take a zod
+ * object: Ollama constrains decoding with it via `format`, and an
+ * OpenAI-compatible host takes it as `response_format.json_schema`.
+ *
+ * It lives HERE, beside VerdictSchema, because the alternative is a copy per
+ * backend — and a copy that loses a field does not fail loudly. It produces a
+ * verdict missing exactly the boolean that stops photos of screens, which is
+ * the bug this whole file exists to prevent. Add a field above, add it here.
+ */
+export const VERDICT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    observed: { type: "string" },
+    shown_on_electronic_display: { type: "boolean" },
+    written_by_hand_on_physical_surface: { type: "boolean" },
+    required_element_present: { type: "boolean" },
+    confidence: { type: "number" },
+    failure_reason: { type: "string" },
+  },
+  required: [
+    "observed",
+    "shown_on_electronic_display",
+    "written_by_hand_on_physical_surface",
+    "required_element_present",
+    "confidence",
+    "failure_reason",
+  ],
+} as const;
+
+/**
  * THE POLICY. Applied here, in code, deliberately.
  *
  * An earlier version asked the model for a single `matches_instruction` boolean,

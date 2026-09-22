@@ -29,19 +29,36 @@ import {
   type ChallengeVerification,
 } from "../challenge/verify";
 import { verifyChallengePhotoLocal } from "../challenge/verify-local";
+import { verifyChallengePhotoRemote } from "../challenge/verify-remote";
 
 /**
  * Which backend judges the photo.
- *   VISION_BACKEND=anthropic  (default) hosted, ~$0.01/check, the one you ship
- *   VISION_BACKEND=ollama     local, free, slower — for development and demos
  *
- * The prompt is shared between them, so switching backends changes the model,
- * never the rules it is asked to apply.
+ *   VISION_BACKEND=anthropic  (default) hosted Claude. Needs ANTHROPIC_API_KEY
+ *                             with credit. The strongest of the three.
+ *   VISION_BACKEND=remote     any OpenAI-compatible vision endpoint — OpenRouter,
+ *                             Groq, Together, vLLM, a remote Ollama. Needs no
+ *                             local GPU, which is what makes the app deployable
+ *                             to an ordinary cloud host.
+ *   VISION_BACKEND=ollama     local, free, needs a GPU on this machine.
+ *
+ * The prompt, the JSON schema and decide() are shared across all three, so
+ * switching backends changes which model answers — never the rules, and never
+ * who applies them.
  */
 function backend() {
-  return (process.env.VISION_BACKEND ?? "anthropic").toLowerCase() === "ollama"
-    ? verifyChallengePhotoLocal
-    : verifyChallengePhoto;
+  switch ((process.env.VISION_BACKEND ?? "anthropic").toLowerCase()) {
+    case "ollama":
+      return verifyChallengePhotoLocal;
+    // "openai" and "openrouter" are the names people reach for first; they all
+    // mean the same OpenAI-compatible path.
+    case "remote":
+    case "openai":
+    case "openrouter":
+      return verifyChallengePhotoRemote;
+    default:
+      return verifyChallengePhoto;
+  }
 }
 
 /**
