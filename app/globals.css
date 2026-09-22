@@ -28,3 +28,67 @@ body {
 .lede { font-size: 1.1rem; }
 .hint { color: var(--muted); font-size: 0.9rem; }
 code { background: var(--border); padding: 2px 6px; border-radius: 4px; }
+
+/* --- marketplace search --------------------------------------------------- */
+
+.wide { max-width: 980px; }
+
+.searchbar { display: flex; gap: 8px; margin: 24px 0 8px; }
+.searchbar input {
+  flex: 1; padding: 12px 14px; font-size: 1rem;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.searchbar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.searchbar button {
+  padding: 12px 22px; font-size: 1rem; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 8px;
+}
+
+/* Coverage is stated, never implied. A source that did not answer is as much
+   a part of the result as one that did. */
+.coverage {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 16px 0; padding: 0; list-style: none;
+  font-size: 0.85rem;
+}
+.coverage li {
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.coverage li.ok { border-color: var(--accent); color: var(--accent); }
+.coverage li.degraded { border-color: #d98b2b; color: #d98b2b; }
+
+.notice {
+  padding: 12px 14px; margin: 16px 0;
+  border: 1px solid var(--border); border-left: 3px solid var(--muted);
+  border-radius: 6px; font-size: 0.9rem; color: var(--muted);
+}
+.notice.withheld { border-left-color: #d98b2b; }
+
+.listing {
+  display: flex; gap: 16px; align-items: flex-start;
+  padding: 16px 0; border-top: 1px solid var(--border);
+}
+.listing .body { flex: 1; min-width: 0; }
+.listing h3 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+.listing h3 a { color: inherit; text-decoration: none; }
+.listing h3 a:hover { text-decoration: underline; }
+.listing .meta { color: var(--muted); font-size: 0.85rem; }
+.price { font-size: 1.15rem; font-weight: 700; white-space: nowrap; text-align: right; }
+.price .ship { display: block; font-size: 0.78rem; font-weight: 400; color: var(--muted); }
+
+/* Deliberately not red and not alarming: these are observations for the buyer
+   to weigh, not accusations against a seller. */
+.flags { margin: 8px 0 0; padding: 0; list-style: none; }
+.flags li {
+  font-size: 0.85rem; color: #d98b2b;
+  padding: 3px 0 3px 18px; position: relative;
+}
+.flags li::before { content: "!"; position: absolute; left: 4px; font-weight: 700; }
+
+.unverified {
+  display: inline-block; font-size: 0.75rem; color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 4px; padding: 1px 6px;
+}
