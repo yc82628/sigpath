@@ -95,9 +95,16 @@ export async function POST(req: NextRequest) {
       //
       // Server-side only. Returning it to the client would tell an attacker
       // exactly what the model saw and what to change on the next attempt.
+      // `kind` and `fingers` are here because without them a PASS cannot be
+      // audited. On 2026-09-22 a capture passed with an `observed` describing a
+      // code on graph paper and no hand at all, and there was no way to tell
+      // afterwards whether that was a code challenge (correct) or a
+      // code_fingers challenge that passed on a count nobody could check.
       console.log(
         `[liveness] ${body.sessionId.slice(0, 8)} ${v.passed ? "PASS" : "FAIL"} ` +
-          `conf=${v.confidence.toFixed(2)} observed="${v.observed.replace(/\s+/g, " ").slice(0, 300)}"` +
+          `kind=${v.kind ?? "?"} conf=${v.confidence.toFixed(2)} ` +
+          `fingers=${v.fingersVisible ?? "?"} ` +
+          `observed="${v.observed.replace(/\s+/g, " ").slice(0, 300)}"` +
           (v.failureReason ? ` reason="${v.failureReason.slice(0, 200)}"` : ""),
       );
 

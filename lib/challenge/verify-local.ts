@@ -141,6 +141,8 @@ export async function verifyChallengePhotoLocal(
       passed: passed && confidence >= VERIFY_THRESHOLD,
       confidence,
       observed: verdict.observed ?? "",
+      kind: challenge.kind,
+      fingersVisible: verdict.fingers_visible,
       failureReason:
         passed && confidence < VERIFY_THRESHOLD
           ? "Observations matched but legibility was too low to accept."

@@ -210,6 +210,17 @@ export interface ChallengeVerification {
   failureReason: string;
   /** Non-null when the check could not run at all — distinct from a fail. */
   unavailable?: string;
+  /**
+   * AUDIT ONLY — never returned to the client.
+   *
+   * Which challenge this was, and the count the model reported. Without them a
+   * PASS is unauditable: on 2026-09-22 a capture passed with an `observed` that
+   * described a code on graph paper and mentioned no hand at all, and there was
+   * no way to tell afterwards whether it had been a code challenge (correct) or
+   * a code_fingers challenge that passed on a count nobody could check.
+   */
+  kind?: string;
+  fingersVisible?: number;
 }
 
 /**
@@ -322,6 +333,8 @@ export async function verifyChallengePhoto(
       passed: passed && confidence >= VERIFY_THRESHOLD,
       confidence,
       observed: verdict.observed,
+      kind: challenge.kind,
+      fingersVisible: verdict.fingers_visible,
       failureReason:
         passed && confidence < VERIFY_THRESHOLD
           ? "Observations matched but legibility was too low to accept."
