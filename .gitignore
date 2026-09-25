@@ -24,3 +24,10 @@ test-ledger/
 test-images/*.jpg
 test-images/*.jpeg
 test-images/*.png
+
+# Delivery addresses for USDC checkout. Encrypted, and deleted after each order
+# settles - but a git history is a copy no deletion reaches, so never commit it.
+.data/
+
+# Local-validator USDC mint written by scripts/orders-roundtrip.ts --write-mint
+usdc-mint.json

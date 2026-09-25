@@ -89,9 +89,16 @@ export function usdcToBaseUnits(value: string): bigint {
   return BigInt(m[1]) * 1_000_000n + BigInt((m[2] ?? "").padEnd(6, "0") || "0");
 }
 
+/**
+ * Exact, never truncated: 155_727_900n -> "155.7279 USDC", 12_340_000n ->
+ * "12.34 USDC". A display cut to two decimals would show 155.72 while the
+ * wallet charges 155.7279 — understating what is taken, however slightly, is
+ * the one direction a price display must never err in.
+ */
 export function formatUsdc(base: bigint): string {
   const whole = base / 1_000_000n;
-  const frac = (base % 1_000_000n).toString().padStart(6, "0").slice(0, 2);
+  let frac = (base % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  if (frac.length < 2) frac = frac.padEnd(2, "0");
   return `${whole}.${frac} USDC`;
 }
 

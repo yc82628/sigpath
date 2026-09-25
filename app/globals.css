@@ -99,3 +99,48 @@ code { background: var(--border); padding: 2px 6px; border-radius: 4px; }
 .linkout li { padding: 6px 0; }
 .linkout a { color: var(--accent); text-decoration: none; font-weight: 600; }
 .linkout a:hover { text-decoration: underline; }
+
+/* --- checkout ------------------------------------------------------------- */
+
+.pay {
+  display: inline-block; margin-top: 8px; padding: 6px 12px;
+  font-size: 0.85rem; font-weight: 600; text-decoration: none;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 6px;
+}
+.pay:hover { background: var(--accent); color: #fff; }
+.pay-blocked { margin: 8px 0 0; font-size: 0.8rem; color: var(--muted); }
+
+button.primary {
+  padding: 12px 22px; font-size: 1rem; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: #fff; border: none; border-radius: 8px;
+}
+button.primary:disabled { opacity: 0.6; cursor: wait; }
+
+.checkout-item h2 { font-size: 1.1rem; margin: 0 0 4px; }
+.checkout-item h2 a { color: inherit; }
+.price-line { font-size: 1.05rem; }
+.guarantees, .privacy { margin: 24px 0; }
+.guarantees h2, .privacy h2 { font-size: 1rem; margin: 0 0 8px; }
+.guarantees ul { margin: 0; padding-left: 20px; }
+.guarantees li { margin: 4px 0; }
+
+.checkout-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 0 0 16px; }
+.checkout-form legend { padding: 0 6px; font-weight: 600; }
+.checkout-form label { display: block; margin: 0 0 12px; }
+.checkout-form label span { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.checkout-form input {
+  width: 100%; padding: 10px 12px; font-size: 1rem;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.checkout-form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* --- order ---------------------------------------------------------------- */
+
+.order-status { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; border: 1px solid var(--border); }
+.order-status.funded { color: var(--accent); border-color: var(--accent); }
+.order-status.fulfilled { color: #2e9d5b; border-color: #2e9d5b; }
+.order-status.refunded { color: #d98b2b; border-color: #d98b2b; }
+.order-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 20px 0; }
+.order-facts dt { color: var(--muted); }
+.order-facts dd { margin: 0; }

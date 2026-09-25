@@ -2,6 +2,9 @@ import { searchAll } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
 import { formatMoney, totalPrice, type Listing } from "@/lib/marketplace/types";
 import type { Flag } from "@/lib/marketplace/anomaly";
+import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
+import { checkoutEligibility } from "@/lib/checkout/eligibility";
+import { AddressStore } from "@/lib/checkout/address-store";
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -34,7 +37,10 @@ const STATUS_LABEL: Record<string, string> = {
   error: "failed",
 };
 
-function ListingRow({ listing, flags }: { listing: Listing; flags: Flag[] }) {
+/** Checkout offer for one listing: a signed quote, a reason there is none, or null when checkout is off. */
+type CheckoutOffer = { token: string } | { reason: string } | null;
+
+function ListingRow({ listing, flags, checkout }: { listing: Listing; flags: Flag[]; checkout: CheckoutOffer }) {
   const total = totalPrice(listing);
   const shipping = listing.shipping?.amount ?? 0;
   const seller = listing.seller;
@@ -73,6 +79,14 @@ function ListingRow({ listing, flags }: { listing: Listing; flags: Flag[] }) {
             ))}
           </ul>
         )}
+        {checkout && "token" in checkout && (
+          // The price travels inside a server signature, so this link cannot
+          // be edited into a cheaper order. See lib/checkout/quote.ts.
+          <a className="pay" href={`/checkout?quote=${encodeURIComponent(checkout.token)}`}>
+            Pay with USDC &rarr;
+          </a>
+        )}
+        {checkout && "reason" in checkout && <p className="pay-blocked">{checkout.reason}</p>}
       </div>
       <div className="price">
         {formatMoney(total)}
@@ -96,6 +110,25 @@ export default async function SearchPage({
   }
 
   const a = result?.analysis;
+
+  // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
+  // encrypt delivery addresses. Missing either, no listing gets a pay button.
+  const checkoutReady = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
+  const checkoutOffer = (l: Listing, flags: Flag[]): CheckoutOffer => {
+    if (!checkoutReady) return null;
+    const e = checkoutEligibility(l, flags);
+    if (!e.eligible) return { reason: e.reason };
+    const total = totalPrice(l);
+    const token = signQuote({
+      source: l.source,
+      id: l.id,
+      url: l.url,
+      title: l.title,
+      amount: total.amount,
+      currency: total.currency,
+    });
+    return token ? { token } : null;
+  };
 
   return (
     <main className="container wide">
@@ -162,9 +195,17 @@ export default async function SearchPage({
           {result.listings.length === 0 ? (
             <p className="hint">No listings found for &ldquo;{q}&rdquo;.</p>
           ) : (
-            result.listings.map((l) => (
-              <ListingRow key={`${l.source}-${l.id}`} listing={l} flags={byListing.get(l.id) ?? []} />
-            ))
+            result.listings.map((l) => {
+              const flags = byListing.get(l.id) ?? [];
+              return (
+                <ListingRow
+                  key={`${l.source}-${l.id}`}
+                  listing={l}
+                  flags={flags}
+                  checkout={checkoutOffer(l, flags)}
+                />
+              );
+            })
           )}
 
           {/* The marketplaces we cover but are not permitted to query. One

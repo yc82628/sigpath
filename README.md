@@ -130,12 +130,12 @@ GITHUB_TOKEN=<a classic token, no scopes ticked>
 Token from https://github.com/settings/tokens. **Tick no scopes** — only public
 data is read.
 
-Both are required:
-
 - Without a real base58 `NEXT_PUBLIC_PROGRAM_ID`, `next build` throws
-  `Non-base58 character` during page-data collection.
-- Without `GITHUB_TOKEN`, GitHub's search API allows ~10 req/min and every
-  attestation returns `rate_limited`.
+  `Non-base58 character` during page-data collection. Required.
+- `GITHUB_TOKEN` is optional but recommended. Without it GitHub's search API
+  allows ~10 requests a minute: a single attestation works, but a few in a row
+  return `rate_limited` — and the collector then issues nothing rather than
+  scoring on partial evidence.
 
 ---
 
@@ -147,7 +147,7 @@ npm test
 npm run dev
 ```
 
-Expect 24 passing tests, then a dev server on http://localhost:3000.
+Expect every test to pass (237 as of 2026-09-25), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
@@ -347,6 +347,68 @@ solana program deploy target/deploy/sigpath_orders.so \
 
 `--max-len` equal to the size keeps the rent at its minimum; a later, larger
 build needs `solana program extend`.
+
+### The checkout
+
+Search → **Pay with USDC** → `/checkout` → Phantom signs → `/order/<address>`.
+
+| Guarantee | How |
+|---|---|
+| The shopper pays exactly the quoted price | The search page **signs** each price (HMAC, `QUOTE_SECRET`); the checkout accepts nothing but a signed quote |
+| The browser never builds the payment | The server builds the unsigned transaction; the wallet only signs it (Solana Pay *transaction request*) |
+| SigPath won't buy a likely scam with its own money | Listings the anomaly checks flagged get **no pay button**, and no quote is ever signed for them |
+| No under-quoting | Listings with unpublished shipping (all of Etsy, some eBay) can't be checked out |
+| The price shown is the price charged | EUR→USDC at the ECB rate, shown with its date, integer arithmetic, rounded **up** |
+
+**Delivery addresses (GDPR).** SigPath buys on the shopper's behalf, so it needs
+an address — and that makes it responsible for personal data in a product whose
+stance is "nothing stored about you". So:
+
+- only name, street, postcode, city, country — unknown fields are **dropped**, not stored
+- AES-256-GCM at rest, with the order address bound in: a record moved onto
+  another order will not decrypt
+- write-once: an address on a paid order can never be replaced (that would
+  redirect someone's parcel)
+- stored **before** the transaction is handed out, so no order can be paid
+  with nowhere to ship it
+- **deleted** when the order is fulfilled (after the transaction confirms) or
+  refunded, when a checkout is abandoned (15 minutes, never paid), and
+  **unconditionally after 31 days** even if the chain can't be read
+- never shown on the public order page — which also withholds the item title,
+  since the order address is public on chain
+
+Deletion removes the file; it does not scrub disk sectors. A production
+deployment would move the store into a database with its own erasure
+guarantees, and needs a real privacy policy reviewed by someone qualified —
+this README is not one.
+
+**Operator workflow:**
+
+```powershell
+npx tsx scripts/orders-admin.ts list                 # paid orders, time left — no addresses shown
+npx tsx scripts/orders-admin.ts show <order>         # item link + delivery address
+# ...buy it on the retailer's site, shipping to that address...
+npx tsx scripts/orders-admin.ts fulfil <order> <retailer order number>   # paid; address deleted
+npx tsx scripts/orders-admin.ts refund <order>       # item unavailable; address deleted
+npx tsx scripts/orders-admin.ts sweep                # delete anything no longer needed
+```
+
+**Prove it** (local validator running, as above):
+
+```powershell
+npx tsx scripts/checkout-e2e.ts
+```
+
+A keypair stands in for Phantom: the server builds each transaction, only the
+buyer signs, the chain decides — then it checks that every way an order ends
+(fulfilled, refunded early, refunded after the deadline by a stranger,
+abandoned) also deletes the address. Measured 2026-09-25: **19 passed, 0
+failed**, store empty at the end.
+
+**Shoppers need:** Phantom set to **Devnet** (Settings → Developer Settings →
+Testnet Mode), devnet USDC from [faucet.circle.com](https://faucet.circle.com),
+and ~0.006 SOL for fees and account rent. The checkout checks all of this
+before asking the wallet to sign.
 
 ---
 
@@ -548,6 +610,8 @@ Point the app at it with `NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899`.
 ```bash
 npx tsx scripts/devnet-roundtrip.ts      # prove the encoding against the live program
 npx tsx scripts/orders-roundtrip.ts --local   # prove the escrow, attacks included (local validator)
+npx tsx scripts/checkout-e2e.ts               # prove checkout + address deletion (local validator)
+npx tsx scripts/orders-admin.ts list          # operator: orders awaiting fulfilment
 npx tsx scripts/sas-read.ts github <handle>   # read a SAS credential with no secret
 npx tsx scripts/ebay-check.ts "<query>"       # prove an eBay keyset in isolation
 GITHUB_TOKEN=... npx tsx scripts/benchmark-scoring.ts

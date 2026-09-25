@@ -183,6 +183,10 @@ test("USDC amounts parse without float arithmetic", () => {
   assert.throws(() => o.usdcToBaseUnits("1.2345678"));
   assert.throws(() => o.usdcToBaseUnits("-1"));
   assert.equal(o.formatUsdc(12_340_000n), "12.34 USDC");
+  // Exact, not truncated: the page must show what the wallet charges.
+  assert.equal(o.formatUsdc(155_727_900n), "155.7279 USDC");
+  assert.equal(o.formatUsdc(1n), "0.000001 USDC");
+  assert.equal(o.formatUsdc(5_000_000n), "5.00 USDC");
 });
 
 test("the listing commitment covers source, id and URL", () => {
