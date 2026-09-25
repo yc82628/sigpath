@@ -18,7 +18,8 @@
  * It refuses when:
  *   - any source is degraded, so the sample is biased (see below)
  *   - the sample is too small for a median to mean anything
- *   - the comparison would mix currencies or conditions
+ *   - the comparison would mix currencies or conditions (new and used are
+ *     compared separately, each against its own median)
  *
  * WHY DEGRADED COVERAGE MUST BLOCK THE WHOLE CHECK
  * This is the same bug that produced three confidently wrong runs in the
@@ -32,7 +33,7 @@
  */
 
 import type { Listing, MarketplaceId, SourceResult } from "./types";
-import { totalPrice } from "./types";
+import { listingKey, totalPrice } from "./types";
 
 /**
  * Below this fraction of the comparable median, a listing is flagged.
@@ -75,11 +76,24 @@ export interface Analysis {
   status: AnalysisStatus;
   /** Why no verdict, when status is not ok. Shown to the buyer. */
   reason?: string;
-  /** Median total price of the comparable set, when one could be computed. */
+  /** Median total price of NEW and refurbished listings, when there were enough. */
   median?: number;
   currency?: string;
-  /** How many listings the median was taken over. */
+  /** How many new/refurbished listings that median was taken over. */
   sampleSize?: number;
+  /**
+   * The same comparison for USED listings, run separately. A used unit is only
+   * ever compared with other used units: against new ones, every honest used
+   * item would look cheap. Absent when there were too few used listings.
+   */
+  used?: { median: number; sampleSize: number };
+  /**
+   * listingKey() of every listing whose price was compared against a
+   * same-condition median — flagged or not. The checkout gate reads this:
+   * SigPath only buys what it could price-check, because a price nobody could
+   * check is exactly where a scam hides.
+   */
+  priceChecked: string[];
   /**
    * Which marketplaces the median actually covers.
    *
@@ -249,33 +263,24 @@ export function analyse(
       degraded,
       notConfigured,
       excludedFromComparison,
+      priceChecked: [],
     };
   }
 
-  // Compare like with like: only comparable sources, one currency, new or
-  // refurbished. A used unit beside new ones is not underpriced, and a handmade
-  // sleeve is not a cheap laptop.
+  // Compare like with like: only comparable sources, one currency, and one
+  // CONDITION at a time. A handmade sleeve is not a cheap laptop, and a used
+  // laptop is not a cheap new one.
   const pooled = results.filter((r) => r.status === "ok" && isComparable(r)).flatMap((r) => r.listings);
   const currency = opts.currency ?? pooled[0]?.price.currency;
-  const comparable = pooled.filter(
-    (l) => l.price.currency === currency && (l.condition === "new" || l.condition === "refurbished"),
-  );
+  const sameCurrency = pooled.filter((l) => l.price.currency === currency);
 
-  if (comparable.length < MIN_SAMPLE) {
-    return {
-      status: "insufficient_sample",
-      reason: `Only ${comparable.length} comparable listing(s); at least ${MIN_SAMPLE} are needed before a price is worth comparing.`,
-      coverage,
-      flags,
-      degraded,
-      notConfigured,
-      excludedFromComparison,
-    };
-  }
-
-  const totals = comparable.map((l) => totalPrice(l).amount);
-  const m = median(totals);
-  const cutoff = m * UNDERPRICED_RATIO;
+  // Refurbished pools with new: it is sold as working-as-new, typically within
+  // the price band the 0.5 ratio already tolerates. "unknown" pools with
+  // nothing — a listing whose condition we cannot tell cannot be compared.
+  const groups: { label: string; listings: Listing[] }[] = [
+    { label: "new", listings: sameCurrency.filter((l) => l.condition === "new" || l.condition === "refurbished") },
+    { label: "used", listings: sameCurrency.filter((l) => l.condition === "used") },
+  ];
 
   // Scope the claim to what was actually searched. Saying "across marketplaces"
   // when one marketplace answered would overstate the evidence.
@@ -284,26 +289,51 @@ export function analyse(
       ? `across ${coverage.length} marketplaces`
       : `on ${coverage[0] ?? "this marketplace"}`;
 
-  for (const l of comparable) {
-    if (totalPrice(l).amount < cutoff) {
-      flags.push({
-        listingId: l.id,
-        kind: "underpriced",
-        // Says what was measured, not what the seller is. The buyer decides.
-        message: `Priced well below the ${comparable.length}-listing median ${scope}.`,
-      });
+  const medians: Record<string, { median: number; sampleSize: number }> = {};
+  const priceChecked: string[] = [];
+
+  for (const g of groups) {
+    // Too few in THIS group means no comparison for THIS group. Borrowing the
+    // other group's median instead would be the used-vs-new mistake again.
+    if (g.listings.length < MIN_SAMPLE) continue;
+
+    const m = median(g.listings.map((l) => totalPrice(l).amount));
+    medians[g.label] = { median: m, sampleSize: g.listings.length };
+    const cutoff = m * UNDERPRICED_RATIO;
+
+    for (const l of g.listings) {
+      priceChecked.push(listingKey(l));
+      if (totalPrice(l).amount < cutoff) {
+        flags.push({
+          listingId: l.id,
+          kind: "underpriced",
+          // Says what was measured, not what the seller is. The buyer decides.
+          message:
+            g.label === "used"
+              ? `Priced well below the ${g.listings.length}-listing median for used items ${scope}.`
+              : `Priced well below the ${g.listings.length}-listing median ${scope}.`,
+        });
+      }
     }
+  }
+
+  const common = { coverage, flags, degraded, notConfigured, excludedFromComparison, priceChecked, currency };
+
+  if (!medians.new && !medians.used) {
+    return {
+      status: "insufficient_sample",
+      reason:
+        `Only ${groups[0].listings.length} new and ${groups[1].listings.length} used comparable listing(s); ` +
+        `at least ${MIN_SAMPLE} of one condition are needed before a price is worth comparing.`,
+      ...common,
+    };
   }
 
   return {
     status: "ok",
-    median: m,
-    currency,
-    sampleSize: comparable.length,
-    coverage,
-    flags,
-    degraded,
-    notConfigured,
-    excludedFromComparison,
+    median: medians.new?.median,
+    sampleSize: medians.new?.sampleSize,
+    used: medians.used,
+    ...common,
   };
 }

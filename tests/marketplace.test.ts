@@ -1034,3 +1034,88 @@ test("the search page and the API route share one source list", () => {
     ["ebay", "amazon", "etsy", "feed"],
   );
 });
+
+// ---------------------------------------------------------------------------
+// Used items: compared with each other, never with new ones
+// ---------------------------------------------------------------------------
+
+function usedAt(n: number, amount: number): Listing[] {
+  return Array.from({ length: n }, (_, i) =>
+    listing({ id: `u-${i}`, condition: "used", price: { amount, currency: "EUR" }, seller: { handle: `u${i}` } }),
+  );
+}
+
+test("a drastically underpriced USED item is flagged against the used median", () => {
+  // THE GAP THIS CLOSES. Used items used to be excluded from every price
+  // check, so a used item at a fraction of the going used price passed silently.
+  const a = analyse([
+    ok([...usedAt(6, 6000), listing({ id: "cheap-used", condition: "used", price: { amount: 1500, currency: "EUR" } })]),
+  ]);
+  assert.equal(a.status, "ok");
+  assert.equal(a.used?.median, 6000);
+  const flag = a.flags.find((f) => f.listingId === "cheap-used");
+  assert.equal(flag?.kind, "underpriced");
+  assert.match(flag!.message, /used items/);
+});
+
+test("an honest used item is NOT flagged for being cheaper than new", () => {
+  // The mistake a single pooled median would make: 60 EUR used beside 100 EUR
+  // new is simply a used item.
+  const a = analyse([ok([...honest(10, 10000), ...usedAt(6, 6000)])]);
+  assert.equal(a.flags.filter((f) => f.kind === "underpriced").length, 0);
+});
+
+test("used listings do not move the new median, and vice versa", () => {
+  const newOnly = analyse([ok(honest(10, 10000))]);
+  const both = analyse([ok([...honest(10, 10000), ...usedAt(6, 6000)])]);
+  assert.equal(both.median, newOnly.median);
+  assert.equal(both.sampleSize, newOnly.sampleSize);
+  assert.equal(both.used?.median, 6000);
+});
+
+test("too few used listings means no used comparison, never a borrowed new one", () => {
+  // Borrowing the new median for a thin used group is the pooled-median
+  // mistake again, one level down.
+  const a = analyse([ok([...honest(10, 10000), ...usedAt(MIN_SAMPLE - 1, 1000)])]);
+  assert.equal(a.used, undefined);
+  assert.equal(a.flags.filter((f) => f.kind === "underpriced").length, 0);
+});
+
+test("the analysis runs when only the used group is big enough", () => {
+  const a = analyse([ok(usedAt(6, 6000))]);
+  assert.equal(a.status, "ok");
+  assert.equal(a.median, undefined, "no new median was computed");
+  assert.equal(a.used?.sampleSize, 6);
+});
+
+test("priceChecked lists every compared listing by source:id, and nothing else", () => {
+  const unknown = listing({ id: "mystery", condition: "unknown" });
+  const a = analyse([ok([...honest(5, 10000), ...usedAt(2, 6000), unknown])]);
+  assert.equal(a.priceChecked.length, 5, "only the new group was big enough to compare");
+  assert.ok(a.priceChecked.every((k) => k.startsWith("stub:")));
+  assert.ok(!a.priceChecked.includes("stub:mystery"));
+  assert.ok(!a.priceChecked.includes("stub:u-0"));
+});
+
+test("the stub's used-item scam is caught once there are enough used listings", async () => {
+  // Deterministic: "thinkpad x1" at the search page's limit of 20 yields enough
+  // used listings for a comparison.
+  // The plant has an old, well-rated account, so only the used-price check can
+  // catch it — this pins that the check exists end to end, not just in analyse().
+  const r = await searchAll("thinkpad x1", [new StubSource()], { limit: 20 });
+  const flag = r.analysis.flags.find((f) => f.listingId === "stub-used-bait");
+  assert.equal(flag?.kind, "underpriced");
+  assert.match(flag!.message, /used items/);
+  assert.ok(!r.analysis.flags.some((f) => f.listingId === "stub-used-bait" && f.kind === "new_account"));
+});
+
+test("when used listings are too few, the used scam is not accused — but not bought either", async () => {
+  // "nikon f3" yields too few used listings. The warning stays silent (a false
+  // accusation is worse than a missed one), while the checkout gate refuses a
+  // price nobody could check (SigPath's own money is worse to lose).
+  const r = await searchAll("nikon f3", [new StubSource()], { limit: 20 });
+  assert.equal(r.analysis.used, undefined);
+  assert.ok(!r.analysis.flags.some((f) => f.listingId === "stub-used-bait" && f.kind === "underpriced"));
+  const bait = r.listings.find((l) => l.id === "stub-used-bait")!;
+  assert.equal(r.analysis.priceChecked.includes(`${bait.source}:${bait.id}`), false);
+});

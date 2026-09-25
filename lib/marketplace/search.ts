@@ -57,6 +57,7 @@ export async function searchAll(
         degraded: [],
         notConfigured: [],
         excludedFromComparison: [],
+        priceChecked: [],
       },
       linkOut: [],
     };

@@ -14,7 +14,8 @@ import {
   RETENTION_MAX_SECONDS,
   type OrderRecord,
 } from "../lib/checkout/address-store";
-import { checkoutEligibility } from "../lib/checkout/eligibility";
+import { checkoutEligibility, priceCheckFor } from "../lib/checkout/eligibility";
+import { analyse } from "../lib/marketplace/anomaly";
 import { prepareCheckout, prepareRefund, MIN_SOL_LAMPORTS } from "../lib/checkout/checkout";
 import * as orders from "../lib/chains/solana/orders";
 import { associatedTokenAddress } from "../lib/chains/solana/spl";
@@ -298,22 +299,92 @@ function listing(over: Partial<Listing> = {}): Listing {
   };
 }
 
+const CHECKED = { checked: true } as const;
+
 test("a flagged listing gets no checkout", () => {
-  const r = checkoutEligibility(listing(), [{ listingId: "1", kind: "underpriced", message: "m" }]);
+  const r = checkoutEligibility(listing(), [{ listingId: "1", kind: "underpriced", message: "m" }], CHECKED);
   assert.equal(r.eligible, false);
 });
 
+test("a listing whose price could not be checked gets no checkout", () => {
+  // THE GATE IS STRICTER THAN THE WARNINGS. Nothing accuses this listing — it
+  // simply could not be compared — and that is exactly where a scam hides when
+  // it is SigPath's own money on the line.
+  const r = checkoutEligibility(listing(), [], { checked: false, reason: "Too few used listings." });
+  assert.equal(r.eligible, false);
+  assert.match(!r.eligible ? r.reason : "", /price-check/);
+  assert.match(!r.eligible ? r.reason : "", /Too few used listings/);
+});
+
 test("unknown shipping blocks checkout rather than under-quoting", () => {
-  assert.equal(checkoutEligibility(listing({ shipping: undefined }), []).eligible, false);
+  assert.equal(checkoutEligibility(listing({ shipping: undefined }), [], CHECKED).eligible, false);
 });
 
 test("unpayable currencies and mixed-currency shipping are refused", () => {
-  assert.equal(checkoutEligibility(listing({ price: { amount: 1, currency: "JPY" }, shipping: { amount: 0, currency: "JPY" } }), []).eligible, false);
-  assert.equal(checkoutEligibility(listing({ shipping: { amount: 1, currency: "USD" } }), []).eligible, false);
+  assert.equal(
+    checkoutEligibility(listing({ price: { amount: 1, currency: "JPY" }, shipping: { amount: 0, currency: "JPY" } }), [], CHECKED).eligible,
+    false,
+  );
+  assert.equal(checkoutEligibility(listing({ shipping: { amount: 1, currency: "USD" } }), [], CHECKED).eligible, false);
 });
 
-test("a clean EUR listing with known shipping is eligible", () => {
-  assert.equal(checkoutEligibility(listing(), []).eligible, true);
+test("a clean, price-checked EUR listing with known shipping is eligible", () => {
+  assert.equal(checkoutEligibility(listing(), [], CHECKED).eligible, true);
+});
+
+// ---------------------------------------------------------------------------
+// priceCheckFor: was the price actually compared, and if not, why not?
+// ---------------------------------------------------------------------------
+
+function used(id: string, amount: number, source: Listing["source"] = "stub"): Listing {
+  return listing({ id, source, condition: "used", price: { amount, currency: "EUR" }, seller: { handle: `u${id}` } });
+}
+
+test("a used item with enough used comparables is price-checked", () => {
+  const ls = [1, 2, 3, 4, 5].map((i) => used(`u${i}`, 5000));
+  const a = analyse([{ source: "stub", status: "ok", listings: ls }]);
+  assert.deepEqual(priceCheckFor(ls[0], a), { checked: true });
+});
+
+test("a used item with too few used comparables is NOT checked, and says why", () => {
+  const news = [1, 2, 3, 4, 5].map((i) => listing({ id: `n${i}`, seller: { handle: `n${i}` } }));
+  const u = used("u1", 3000);
+  const a = analyse([{ source: "stub", status: "ok", listings: [...news, u] }]);
+  const r = priceCheckFor(u, a);
+  assert.equal(r.checked, false);
+  assert.match(!r.checked ? r.reason : "", /enough used listings/);
+  // ...and the new ones beside it were checked, so the gate is per listing.
+  assert.equal(priceCheckFor(news[0], a).checked, true);
+});
+
+test("an item of unknown condition is never checked", () => {
+  const ls = [1, 2, 3, 4, 5].map((i) => listing({ id: `n${i}`, seller: { handle: `n${i}` } }));
+  const odd = listing({ id: "x", condition: "unknown" });
+  const a = analyse([{ source: "stub", status: "ok", listings: [...ls, odd] }]);
+  const r = priceCheckFor(odd, a);
+  assert.equal(r.checked, false);
+  assert.match(!r.checked ? r.reason : "", /condition isn't stated/);
+});
+
+test("one marketplace's checked listing cannot vouch for another's with the same id", () => {
+  // Keys are source:id. A bare id would let an unchecked listing through the
+  // gate just because some other marketplace uses the same number.
+  const checkedEbay = [1, 2, 3, 4, 5].map((i) => listing({ id: `${i}`, source: "ebay", seller: { handle: `e${i}` } }));
+  const a = analyse([{ source: "ebay", status: "ok", listings: checkedEbay }]);
+  const sameIdElsewhere = listing({ id: "1", source: "stub" });
+  assert.equal(priceCheckFor(checkedEbay[0], a).checked, true);
+  assert.equal(priceCheckFor(sameIdElsewhere, a).checked, false);
+});
+
+test("nothing is price-checked while a marketplace is failing", () => {
+  const ls = [1, 2, 3, 4, 5].map((i) => listing({ id: `n${i}`, seller: { handle: `n${i}` } }));
+  const a = analyse([
+    { source: "stub", status: "ok", listings: ls },
+    { source: "ebay", status: "timeout", listings: [] },
+  ]);
+  const r = priceCheckFor(ls[0], a);
+  assert.equal(r.checked, false);
+  assert.match(!r.checked ? r.reason : "", /isn't responding/);
 });
 
 // ---------------------------------------------------------------------------

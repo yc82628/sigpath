@@ -357,8 +357,16 @@ Search → **Pay with USDC** → `/checkout` → Phantom signs → `/order/<addr
 | The shopper pays exactly the quoted price | The search page **signs** each price (HMAC, `QUOTE_SECRET`); the checkout accepts nothing but a signed quote |
 | The browser never builds the payment | The server builds the unsigned transaction; the wallet only signs it (Solana Pay *transaction request*) |
 | SigPath won't buy a likely scam with its own money | Listings the anomaly checks flagged get **no pay button**, and no quote is ever signed for them |
+| SigPath won't buy a price nobody could check | A listing must have been compared against enough listings **of its own condition** — new with new, used with used. Too few comparables, unknown condition, or a marketplace down: no pay button, with the reason shown |
 | No under-quoting | Listings with unpublished shipping (all of Etsy, some eBay) can't be checked out |
 | The price shown is the price charged | EUR→USDC at the ECB rate, shown with its date, integer arithmetic, rounded **up** |
+
+**Why the gate is stricter than the warnings.** A price flag on the search page
+needs solid evidence, because a false one defames an honest seller — so a used
+item with too few used comparables is simply not flagged. The checkout faces the
+opposite trade: a missed scam there is SigPath's own money, while declining an
+honest item only costs a sale. So the page stays silent about a price it could
+not check, and the checkout declines to buy it.
 
 **Delivery addresses (GDPR).** SigPath buys on the shopper's behalf, so it needs
 an address — and that makes it responsible for personal data in a product whose

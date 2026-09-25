@@ -3,7 +3,7 @@ import { defaultSources } from "@/lib/marketplace/sources";
 import { formatMoney, totalPrice, type Listing } from "@/lib/marketplace/types";
 import type { Flag } from "@/lib/marketplace/anomaly";
 import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
-import { checkoutEligibility } from "@/lib/checkout/eligibility";
+import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
 
 /**
@@ -115,8 +115,8 @@ export default async function SearchPage({
   // encrypt delivery addresses. Missing either, no listing gets a pay button.
   const checkoutReady = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
   const checkoutOffer = (l: Listing, flags: Flag[]): CheckoutOffer => {
-    if (!checkoutReady) return null;
-    const e = checkoutEligibility(l, flags);
+    if (!checkoutReady || !a) return null;
+    const e = checkoutEligibility(l, flags, priceCheckFor(l, a));
     if (!e.eligible) return { reason: e.reason };
     const total = totalPrice(l);
     const token = signQuote({
@@ -171,8 +171,21 @@ export default async function SearchPage({
 
           {a?.status === "ok" ? (
             <p className="notice">
-              Median price {formatMoney({ amount: a.median!, currency: a.currency! })} across{" "}
-              {a.sampleSize} comparable listings
+              {/* New and used are compared separately, each against its own
+                  median — so both are shown when both could be computed. */}
+              {a.median !== undefined && (
+                <>
+                  Median price new {formatMoney({ amount: a.median, currency: a.currency! })} across{" "}
+                  {a.sampleSize} listings
+                </>
+              )}
+              {a.median !== undefined && a.used && "; "}
+              {a.used && (
+                <>
+                  {a.median === undefined ? "Median price used " : "used "}
+                  {formatMoney({ amount: a.used.median, currency: a.currency! })} across {a.used.sampleSize} listings
+                </>
+              )}
               {a.coverage.length > 1
                 ? ` on ${a.coverage.length} marketplaces`
                 : ` on ${a.coverage[0]}`}

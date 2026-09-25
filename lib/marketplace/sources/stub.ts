@@ -107,6 +107,24 @@ export class StubSource implements MarketplaceSource {
       listedAt: Math.floor(Date.now() / 1000) - 3600,
     });
 
+    // --- the plant: a USED item far below the going used price ----------------
+    // Priced against other used units, not against new ones: it is a scam
+    // because it is cheap for a USED one. The seller account is deliberately
+    // old and rated, so the only thing that can catch it is the used-item price
+    // comparison — the check this plant exists to demonstrate.
+    listings.push({
+      id: "stub-used-bait",
+      source: this.id,
+      title: `${q} used, like new - quick sale`,
+      url: `https://example.invalid/stub/${encodeURIComponent(q)}/used-bait`,
+      price: { amount: Math.round((base * 0.15) / 100) * 100, currency: this.currency },
+      shipping: { amount: 0, currency: this.currency },
+      condition: "used",
+      imageHash: "img-used-bait",
+      seller: { handle: "long_time_seller", displayName: "Long Time Seller", feedbackScore: 1200, feedbackPercentage: 98 },
+      listedAt: Math.floor(Date.now() / 1000) - 86400,
+    });
+
     // --- the plant: same photo, different seller ----------------------------
     listings.push({
       id: "stub-clone",

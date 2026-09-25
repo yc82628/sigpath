@@ -148,6 +148,16 @@ export interface SearchOptions {
   timeoutMs?: number;
 }
 
+/**
+ * A listing's identity ACROSS sources. A bare id is only unique within one
+ * marketplace — eBay "123" and Etsy "123" are different items — and anything
+ * that gates on identity (the checkout's "was this price checked?") must not
+ * let one source's listing vouch for another's.
+ */
+export function listingKey(l: Pick<Listing, "source" | "id">): string {
+  return `${l.source}:${l.id}`;
+}
+
 /** Total price a buyer actually pays: item + shipping, same currency. */
 export function totalPrice(l: Listing): Money {
   if (!l.shipping) return l.price;
