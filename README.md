@@ -299,7 +299,7 @@ automatically. Disputes about a claimed shipment need an arbiter — the next
 design step, not something this already does.
 
 Devnet program: `3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW` — **not yet
-deployed** (needs ~2.7 SOL, see below). Accepts only Circle's devnet USDC
+deployed** (needs ~2.56 SOL, see below). Accepts only Circle's devnet USDC
 (`4zMMC9…DncDU`). Operator and mint are constants in the code, so the deployed
 program itself states who can be paid and in what.
 
@@ -333,16 +333,18 @@ failed.**
 
 ### Deploy to devnet
 
-Build with `anchor build --no-idl -p sigpath_orders` (WSL). The program is
-281 KB: about **1.3 SOL** of rent for the program itself, and the same again
-held temporarily for the deploy buffer — roughly **2.7 SOL** at peak. The CLI
+Build with `anchor build --no-idl -p sigpath_orders` (WSL). It is built
+size-optimised (`opt-level = "z"`, root `Cargo.toml`), which took it from 281 KB
+to **251 KB** with both end-to-end suites still passing 19/19. That is
+**1.28 SOL** of rent for the program itself, and the same again held
+temporarily for the deploy buffer — about **2.56 SOL** at peak. The CLI
 airdrop is usually rate-limited; use [faucet.solana.com](https://faucet.solana.com)
 for the operator wallet `AaFcCz…dfXg`, then:
 
 ```bash
 solana program deploy target/deploy/sigpath_orders.so \
   --program-id target/deploy/sigpath_orders-keypair.json \
-  --max-len 281064 --url devnet
+  --max-len 251008 --url devnet
 ```
 
 `--max-len` equal to the size keeps the rent at its minimum; a later, larger
