@@ -34,6 +34,7 @@
 export type MarketplaceId =
   | "ebay"
   | "amazon"
+  | "etsy"
   | "idealo"
   | "kleinanzeigen"
   /**
@@ -128,6 +129,14 @@ export interface SourceResult {
   listings: Listing[];
   /** Operator-facing detail. Safe to show; contains no user data. */
   detail?: string;
+  /**
+   * Whether this source's prices may enter the cross-marketplace median.
+   * Set by the orchestrator from the source's own declaration (see
+   * MarketplaceSource.priceComparable), on success AND failure alike, so the
+   * analysis knows whether a missing source actually biases the sample.
+   * Absent means comparable.
+   */
+  comparable?: boolean;
 }
 
 export interface SearchOptions {

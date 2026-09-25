@@ -14,11 +14,15 @@
  * quality and maintenance cost, which are real, rather than for latency, which
  * is not the constraint here.
  *
- * WHY TWO OF THE FOUR ARE LINK-OUTS
+ * WHY TWO ARE LINK-OUTS
  * Wanting a marketplace and being allowed to query it are different things, and
  * the gap is not a technical one we can engineer around:
  *
  *   eBay           Browse API. Application credentials, no user login. Usable.
+ *
+ *   Etsy           Open API v3, application key only. Usable, but its prices are
+ *                  kept out of the median — handmade and vintage goods are not
+ *                  comparable with retail. See sources/etsy.ts.
  *
  *   Amazon         Product Advertising API 5.0 is a real, legitimate API and
  *                  sources/amazon.ts implements it properly. But access
@@ -45,7 +49,7 @@
  *
  * SO WE LINK OUT INSTEAD.
  * For those two, the product shows a one-click deep link into the site's own
- * search. The buyer still gets all four marketplaces from one page, we extract
+ * search. The buyer still gets every marketplace from one page, we extract
  * nothing, and nothing here is something a judge can object to. That is a
  * smaller feature than live results, and it is the honest version of it.
  */
@@ -82,6 +86,14 @@ export const MARKETPLACES: MarketplaceInfo[] = [
   {
     id: "amazon",
     label: "Amazon",
+    access: "api",
+  },
+  {
+    // Open API v3 with an application key. Prices are shown but kept out of the
+    // median: handmade and vintage goods are not comparable with retail. See
+    // sources/etsy.ts.
+    id: "etsy",
+    label: "Etsy",
     access: "api",
   },
   {

@@ -1,9 +1,5 @@
 import { searchAll } from "@/lib/marketplace/search";
-import { StubSource } from "@/lib/marketplace/sources/stub";
-import { EbaySource } from "@/lib/marketplace/sources/ebay";
-import { AmazonSource } from "@/lib/marketplace/sources/amazon";
-import { FeedSource } from "@/lib/marketplace/sources/feed";
-import type { MarketplaceSource } from "@/lib/marketplace/sources/types";
+import { defaultSources } from "@/lib/marketplace/sources";
 import { formatMoney, totalPrice, type Listing } from "@/lib/marketplace/types";
 import type { Flag } from "@/lib/marketplace/anomaly";
 
@@ -29,12 +25,6 @@ import type { Flag } from "@/lib/marketplace/anomaly";
  */
 
 export const dynamic = "force-dynamic";
-
-function sources(): MarketplaceSource[] {
-  const list: MarketplaceSource[] = [new EbaySource(), new AmazonSource(), new FeedSource()];
-  if (process.env.STUB_FEED !== "false") list.push(new StubSource());
-  return list;
-}
 
 const STATUS_LABEL: Record<string, string> = {
   ok: "searched",
@@ -98,7 +88,7 @@ export default async function SearchPage({
   searchParams: { q?: string };
 }) {
   const q = (searchParams.q ?? "").trim().slice(0, 120);
-  const result = q ? await searchAll(q, sources(), { limit: 20 }) : null;
+  const result = q ? await searchAll(q, defaultSources(), { limit: 20 }) : null;
 
   const byListing = new Map<string, Flag[]>();
   for (const f of result?.analysis.flags ?? []) {
@@ -156,6 +146,10 @@ export default async function SearchPage({
               .
               {a.notConfigured.length > 0 && (
                 <> Not searched: {a.notConfigured.join(", ")}.</>
+              )}
+              {a.excludedFromComparison.length > 0 && (
+                // Says why a cheap listing from these carries no price flag.
+                <> Shown but not price-compared: {a.excludedFromComparison.join(", ")} (handmade and vintage goods are not comparable with retail).</>
               )}
             </p>
           ) : (

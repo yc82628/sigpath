@@ -9,6 +9,8 @@ import type { MarketplaceSource } from "../lib/marketplace/sources/types";
 import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
 import { AmazonSource, signPaapiRequest } from "../lib/marketplace/sources/amazon";
 import { FeedSource, parseDelimited, feedPriceToMinorUnits } from "../lib/marketplace/sources/feed";
+import { EtsySource, etsyMoneyToMinorUnits, etsyCondition } from "../lib/marketplace/sources/etsy";
+import { defaultSources } from "../lib/marketplace/sources";
 
 /**
  * The property these tests exist to protect:
@@ -782,4 +784,253 @@ test("a feed fetch failure is an error, never silent emptiness", async () => {
   const r = await new FeedSource(FEED_ENV, fetchImpl).search("thing");
   assert.equal(r.status, "error");
   assert.match(r.detail ?? "", /503/);
+});
+
+// ---------------------------------------------------------------------------
+// Non-comparable sources: shown, checked, never pooled into the median
+// ---------------------------------------------------------------------------
+
+function etsyLike(listings: Listing[]): SourceResult {
+  return { source: "etsy", status: "ok", listings, comparable: false };
+}
+
+test("a non-comparable source's cheap listings are never flagged as underpriced", () => {
+  // THE REASON THIS MECHANISM EXISTS. Search Etsy for a laptop and you get
+  // sleeves and stickers at a tenth of the price. Pooled, each would be flagged
+  // "well below the median" — a false scam flag on an honest maker.
+  const a = analyse([
+    ok(honest(10)),
+    etsyLike([listing({ id: "sleeve", source: "etsy", price: { amount: 1500, currency: "EUR" } })]),
+  ]);
+  assert.equal(a.status, "ok");
+  assert.ok(!a.flags.some((f) => f.listingId === "sleeve" && f.kind === "underpriced"));
+});
+
+test("non-comparable listings do not move the median", () => {
+  // The other half of the damage: cheap handmade goods would sink the median
+  // and blunt the check for every retail listing.
+  const alone = analyse([ok(honest(10))]);
+  const withEtsy = analyse([
+    ok(honest(10)),
+    etsyLike(
+      Array.from({ length: 30 }, (_, i) =>
+        listing({ id: `e${i}`, source: "etsy", price: { amount: 900, currency: "EUR" } }),
+      ),
+    ),
+  ]);
+  assert.equal(withEtsy.median, alone.median);
+  assert.equal(withEtsy.sampleSize, alone.sampleSize);
+});
+
+test("coverage does not claim a non-comparable source", () => {
+  // "Median across 3 marketplaces" must not count one whose prices were set aside.
+  const a = analyse([ok(honest(10)), etsyLike([listing({ id: "x", source: "etsy" })])]);
+  assert.deepEqual(a.coverage, ["stub"]);
+  assert.deepEqual(a.excludedFromComparison, ["etsy"]);
+});
+
+test("a failed non-comparable source does not block the price comparison", () => {
+  // It was never going to contribute to the median, so its absence biases
+  // nothing. Blocking here would throw away a valid comparison for no reason.
+  const a = analyse([
+    ok([...honest(10), listing({ id: "bait", price: { amount: 2000, currency: "EUR" } })]),
+    { source: "etsy", status: "timeout", listings: [], comparable: false },
+  ]);
+  assert.equal(a.status, "ok");
+  assert.deepEqual(a.degraded, []);
+  assert.ok(a.flags.some((f) => f.listingId === "bait" && f.kind === "underpriced"));
+});
+
+test("a failed COMPARABLE source still blocks it", () => {
+  // The exemption must be exactly that narrow.
+  const a = analyse([ok(honest(20)), { source: "ebay", status: "timeout", listings: [], comparable: true }]);
+  assert.equal(a.status, "incomplete_coverage");
+});
+
+test("non-comparable listings still get the price-independent checks", () => {
+  // A two-day-old shop is two days old on any marketplace.
+  const a = analyse([
+    ok(honest(10)),
+    etsyLike([
+      listing({
+        id: "fresh",
+        source: "etsy",
+        seller: { handle: "shop:1", memberSince: Math.floor(Date.now() / 1000) - 2 * 86400 },
+      }),
+    ]),
+  ]);
+  assert.ok(a.flags.some((f) => f.listingId === "fresh" && f.kind === "new_account"));
+});
+
+test("searchAll attaches comparability from the source, even when it throws", async () => {
+  // A thrown error carries nothing, so the orchestrator must supply it — or a
+  // crashed non-comparable source would be treated as comparable and block
+  // the comparison.
+  const exploding: MarketplaceSource = {
+    id: "etsy",
+    priceComparable: false,
+    search: async () => {
+      throw new Error("kaboom");
+    },
+  };
+  const r = await searchAll("thinkpad x1", [new StubSource(), exploding]);
+  assert.equal(r.analysis.status, "ok", r.analysis.reason);
+  assert.deepEqual(r.analysis.degraded, []);
+});
+
+// ---------------------------------------------------------------------------
+// Etsy source
+// ---------------------------------------------------------------------------
+
+const ETSY_ENV = { ETSY_KEYSTRING: "key123", ETSY_SHARED_SECRET: "sec456" };
+
+function etsyFetch(opts: {
+  search?: unknown;
+  batch?: unknown;
+  batchStatus?: number;
+  seen?: { url: string; key?: string }[];
+}) {
+  return (async (url: string, init: RequestInit) => {
+    const headers = init.headers as Record<string, string>;
+    opts.seen?.push({ url: String(url), key: headers?.["x-api-key"] });
+    if (String(url).includes("/listings/batch")) {
+      return new Response(JSON.stringify(opts.batch ?? { results: [] }), { status: opts.batchStatus ?? 200 });
+    }
+    return new Response(JSON.stringify(opts.search ?? { results: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+}
+
+const ETSY_SEARCH = {
+  count: 2,
+  results: [
+    {
+      listing_id: 101,
+      title: "Hand-stitched ThinkPad X1 sleeve",
+      url: "https://www.etsy.com/listing/101",
+      price: { amount: 2499, divisor: 100, currency_code: "eur" },
+      shop_id: 555,
+      when_made: "made_to_order",
+      creation_timestamp: 1790000000,
+      original_creation_timestamp: 1780000000,
+    },
+    {
+      listing_id: 102,
+      title: "Vintage keyboard",
+      url: "https://www.etsy.com/listing/102",
+      price: { amount: 8000, divisor: 100, currency_code: "EUR" },
+      shop_id: 556,
+      when_made: "1990s",
+    },
+  ],
+};
+
+const ETSY_BATCH = {
+  results: [
+    {
+      listing_id: 101,
+      shop: { shop_name: "StitchWorks", create_date: 1700000000, review_count: 312 },
+      images: [{ url_570xN: "https://i.etsystatic.com/101.jpg" }],
+    },
+  ],
+};
+
+test("Etsy is not_configured without BOTH key parts", async () => {
+  const r = await new EtsySource({ ETSY_KEYSTRING: "k" }).search("x");
+  assert.equal(r.status, "not_configured");
+  assert.match(r.detail ?? "", /ETSY_SHARED_SECRET/);
+});
+
+test("Etsy sends x-api-key as keystring:shared_secret on every call", async () => {
+  // The keystring alone — what older guides show — is rejected by v3.
+  const seen: { url: string; key?: string }[] = [];
+  await new EtsySource(ETSY_ENV, etsyFetch({ search: ETSY_SEARCH, batch: ETSY_BATCH, seen })).search("thinkpad");
+  assert.equal(seen.length, 2, "one search call, one batch enrichment call");
+  for (const s of seen) assert.equal(s.key, "key123:sec456");
+  assert.match(seen[0].url, /\/v3\/application\/listings\/active\?keywords=thinkpad/);
+  assert.match(seen[1].url, /\/v3\/application\/listings\/batch\?listing_ids=101,102&includes=Shop,Images/);
+});
+
+test("Etsy declares its prices non-comparable", () => {
+  assert.equal(new EtsySource().priceComparable, false);
+});
+
+test("Etsy listings map with the spec's field names", async () => {
+  const r = await new EtsySource(ETSY_ENV, etsyFetch({ search: ETSY_SEARCH, batch: ETSY_BATCH })).search("thinkpad");
+  assert.equal(r.status, "ok");
+  const l = r.listings.find((x) => x.id === "101")!;
+  assert.equal(l.price.amount, 2499);
+  assert.equal(l.price.currency, "EUR", "currency is upper-cased");
+  assert.equal(l.condition, "new");
+  assert.equal(l.seller.displayName, "StitchWorks");
+  assert.equal(l.seller.memberSince, 1700000000);
+  assert.equal(l.seller.feedbackScore, 312);
+  assert.equal(l.imageUrl, "https://i.etsystatic.com/101.jpg");
+  assert.equal(l.listedAt, 1780000000, "original creation time, not the renewal time");
+  assert.equal(l.shipping, undefined, "shipping is unknown, not zero");
+});
+
+test("the Etsy seller handle is the immutable shop id, not the renameable name", async () => {
+  // An attestation keyed to a shop NAME is orphaned the day the seller renames
+  // their shop. The numeric id never changes.
+  const r = await new EtsySource(ETSY_ENV, etsyFetch({ search: ETSY_SEARCH, batch: ETSY_BATCH })).search("x");
+  assert.equal(r.listings.find((x) => x.id === "101")!.seller.handle, "shop:555");
+});
+
+test("Etsy's star average is not passed off as a positive-feedback percentage", async () => {
+  const batch = { results: [{ listing_id: 101, shop: { shop_name: "S", review_count: 10, review_average: 4.9 } }] };
+  const r = await new EtsySource(ETSY_ENV, etsyFetch({ search: ETSY_SEARCH, batch })).search("x");
+  assert.equal(r.listings.find((x) => x.id === "101")!.seller.feedbackPercentage, undefined);
+});
+
+test("a failed enrichment still returns the listings, and says what is missing", async () => {
+  // Losing a thumbnail must never cost the buyer the listing.
+  const r = await new EtsySource(ETSY_ENV, etsyFetch({ search: ETSY_SEARCH, batchStatus: 500 })).search("x");
+  assert.equal(r.status, "ok");
+  assert.equal(r.listings.length, 2);
+  assert.equal(r.listings[0].seller.displayName, undefined);
+  assert.match(r.detail ?? "", /Shop details could not be loaded/);
+});
+
+test("Etsy money converts via amount/divisor, in integer minor units", () => {
+  assert.equal(etsyMoneyToMinorUnits({ amount: 2499, divisor: 100, currency_code: "EUR" }), 2499);
+  assert.equal(etsyMoneyToMinorUnits({ amount: 24990, divisor: 1000, currency_code: "EUR" }), 2499);
+  assert.equal(etsyMoneyToMinorUnits({ amount: 5, divisor: 1, currency_code: "EUR" }), 500);
+  // Anything that cannot be a real price drops the listing.
+  assert.equal(etsyMoneyToMinorUnits({ amount: 100, divisor: 0, currency_code: "EUR" }), null);
+  assert.equal(etsyMoneyToMinorUnits({ amount: 0, divisor: 100, currency_code: "EUR" }), null);
+  assert.equal(etsyMoneyToMinorUnits(undefined), null);
+});
+
+test("when_made maps to condition without overclaiming 'new'", () => {
+  assert.equal(etsyCondition("made_to_order"), "new");
+  assert.equal(etsyCondition("2020_2026"), "new");
+  assert.equal(etsyCondition("2010_2019"), "unknown");
+  assert.equal(etsyCondition("1990s"), "used");
+  assert.equal(etsyCondition("before_1700"), "used");
+  assert.equal(etsyCondition(undefined), "unknown");
+});
+
+test("an Etsy 401 explains the two-part key", async () => {
+  const fetchImpl = (async () => new Response("Invalid API key", { status: 401 })) as unknown as typeof fetch;
+  const r = await new EtsySource(ETSY_ENV, fetchImpl).search("x");
+  assert.equal(r.status, "error");
+  assert.match(r.detail ?? "", /keystring:shared_secret/);
+});
+
+test("an Etsy 429 is rate_limited", async () => {
+  const fetchImpl = (async () => new Response("slow", { status: 429 })) as unknown as typeof fetch;
+  const r = await new EtsySource(ETSY_ENV, fetchImpl).search("x");
+  assert.equal(r.status, "rate_limited");
+});
+
+test("the search page and the API route share one source list", () => {
+  // Two copies of a list are two lists. Pinned so they cannot drift again.
+  assert.deepEqual(
+    defaultSources({}).map((s) => s.id),
+    ["ebay", "amazon", "etsy", "feed", "stub"],
+  );
+  assert.deepEqual(
+    defaultSources({ STUB_FEED: "false" }).map((s) => s.id),
+    ["ebay", "amazon", "etsy", "feed"],
+  );
 });

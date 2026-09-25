@@ -91,10 +91,20 @@ export interface Analysis {
   coverage: MarketplaceId[];
   flags: Flag[];
   /**
-   * Sources that SHOULD have answered and did not — rate limited, timed out,
-   * errored. These bias the sample and block the price comparison.
+   * Price-comparable sources that SHOULD have answered and did not — rate
+   * limited, timed out, errored. These bias the sample and block the price
+   * comparison. A failed NON-comparable source is not listed here: it was never
+   * going to contribute to the median, so its absence biases nothing. (It still
+   * shows as failed in the search response's per-source status.)
    */
   degraded: { source: MarketplaceId; status: string; detail?: string }[];
+  /**
+   * Sources that answered but whose prices were deliberately kept out of the
+   * median because they describe different goods (see
+   * MarketplaceSource.priceComparable). Named so the buyer can see why a cheap
+   * listing from one of them carries no price flag.
+   */
+  excludedFromComparison: MarketplaceId[];
   /**
    * Sources with no credentials configured.
    *
@@ -207,14 +217,25 @@ export function analyse(
   const now = opts.now ?? Date.now();
   const listings = results.flatMap((r) => r.listings);
 
-  const coverage = results.filter((r) => r.status === "ok").map((r) => r.source);
+  const isComparable = (r: SourceResult) => r.comparable !== false;
+
+  // Coverage is what the MEDIAN rests on, so it counts only comparable sources.
+  // Listing a non-comparable source here would make "across 3 marketplaces"
+  // claim a breadth the number does not have.
+  const coverage = results.filter((r) => r.status === "ok" && isComparable(r)).map((r) => r.source);
+  const excludedFromComparison = results
+    .filter((r) => r.status === "ok" && !isComparable(r))
+    .map((r) => r.source);
   const notConfigured = results.filter((r) => r.status === "not_configured").map((r) => r.source);
-  // Only sources that were expected to answer and failed. See `notConfigured`
-  // on the Analysis type for why an unconfigured source is not one of these.
+  // Only comparable sources that were expected to answer and failed. See
+  // `notConfigured` and `degraded` on the Analysis type for why the others do
+  // not block the comparison.
   const degraded = results
-    .filter((r) => r.status !== "ok" && r.status !== "not_configured")
+    .filter((r) => r.status !== "ok" && r.status !== "not_configured" && isComparable(r))
     .map((r) => ({ source: r.source, status: r.status, detail: r.detail }));
 
+  // Every listing, comparable or not, still gets the checks that do not depend
+  // on a price comparison. A two-day-old shop is two days old on any marketplace.
   const flags = coverageIndependentFlags(listings, now);
 
   if (degraded.length) {
@@ -227,12 +248,16 @@ export function analyse(
       flags,
       degraded,
       notConfigured,
+      excludedFromComparison,
     };
   }
 
-  // Compare like with like. A used unit beside new ones is not underpriced.
-  const currency = opts.currency ?? listings[0]?.price.currency;
-  const comparable = listings.filter(
+  // Compare like with like: only comparable sources, one currency, new or
+  // refurbished. A used unit beside new ones is not underpriced, and a handmade
+  // sleeve is not a cheap laptop.
+  const pooled = results.filter((r) => r.status === "ok" && isComparable(r)).flatMap((r) => r.listings);
+  const currency = opts.currency ?? pooled[0]?.price.currency;
+  const comparable = pooled.filter(
     (l) => l.price.currency === currency && (l.condition === "new" || l.condition === "refurbished"),
   );
 
@@ -244,6 +269,7 @@ export function analyse(
       flags,
       degraded,
       notConfigured,
+      excludedFromComparison,
     };
   }
 
@@ -278,5 +304,6 @@ export function analyse(
     flags,
     degraded,
     notConfigured,
+    excludedFromComparison,
   };
 }

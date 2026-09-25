@@ -56,6 +56,7 @@ export async function searchAll(
         flags: [],
         degraded: [],
         notConfigured: [],
+        excludedFromComparison: [],
       },
       linkOut: [],
     };
@@ -67,19 +68,24 @@ export async function searchAll(
   // than taking the whole search down.
   const settled = await Promise.allSettled(sources.map((s) => s.search(q, opts)));
 
-  const results: SourceResult[] = settled.map((outcome, i) =>
-    outcome.status === "fulfilled"
-      ? outcome.value
+  const results: SourceResult[] = settled.map((outcome, i) => {
+    // Comparability comes from the SOURCE, not the outcome, and is attached on
+    // both paths: the analysis needs to know whether a source that failed was
+    // one whose absence biases the median, and a thrown error carries nothing.
+    const comparable = sources[i].priceComparable !== false;
+    return outcome.status === "fulfilled"
+      ? { ...outcome.value, comparable }
       : {
           source: sources[i].id,
           status: "error" as const,
           listings: [],
+          comparable,
           detail:
             outcome.reason instanceof Error
               ? `source threw: ${outcome.reason.message.slice(0, 160)}`
               : "source threw a non-Error",
-        },
-  );
+        };
+  });
 
   const listings = results.flatMap((r) => r.listings).sort(byTotalAscending);
 

@@ -21,6 +21,21 @@ import type { SearchOptions, SourceResult, MarketplaceId } from "../types";
 export interface MarketplaceSource {
   readonly id: MarketplaceId;
   /**
+   * False when this marketplace's prices describe a different kind of goods
+   * from the retail sources, so pooling them into one median would be wrong.
+   *
+   * Etsy is the case that forced this: a search for a laptop returns sleeves,
+   * stickers and handmade cases at a tenth of the price. Pooled, every one of
+   * them would be flagged "well below the median" and the median itself would
+   * sink. A cross-border marketplace with a different price level has the same
+   * problem from the other direction.
+   *
+   * Non-comparable listings are still shown, and still get every check that
+   * does not depend on a price comparison. They just never reach the median.
+   * Defaults to true.
+   */
+  readonly priceComparable?: boolean;
+  /**
    * Search this marketplace. Resolves with a typed result in every case,
    * including failure — see the note above.
    */
