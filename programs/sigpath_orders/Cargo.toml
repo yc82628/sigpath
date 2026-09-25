@@ -1,0 +1,26 @@
+[package]
+name = "sigpath_orders"
+version = "0.1.0"
+description = "SigPath order escrow: USDC held by the program, released on fulfilment, refunded on timeout"
+edition = "2021"
+rust-version = "1.75"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "sigpath_orders"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+# anchor-lang ONLY — deliberately no anchor-spl. The build uses platform-tools
+# Rust 1.75, which cannot compile the newer crates anchor-spl pulls in, and the
+# workspace Cargo.lock is seeded to avoid exactly that fight. Token transfers
+# are therefore hand-built CPIs into the SPL Token program (see lib.rs), the
+# same approach the attestation program takes with its client instructions.
+[dependencies]
+anchor-lang = "0.30.1"

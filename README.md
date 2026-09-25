@@ -275,6 +275,81 @@ and read back intact.
 
 ---
 
+## Pay with USDC — the order escrow
+
+`programs/sigpath_orders` lets a shopper pay on SigPath with USDC instead of
+typing a card number into every retailer's site. Amazon, eBay and Etsy do not
+take USDC, so SigPath buys the item on the shopper's behalf — which means the
+shopper is trusting SigPath with their money. The program is what earns that
+trust:
+
+| Rule | Enforced by |
+|---|---|
+| USDC sits in a vault only the program can sign for | vault owned by the order PDA |
+| The operator is paid only via `fulfil`, only **before** the deadline | `DeadlinePassed` |
+| After the deadline **anyone** can trigger `refund` — it cannot be withheld | permissionless `refund` |
+| A refund can only go to the **buyer's own** USDC account | parsed and checked, `RefundNotToBuyer` |
+| Stray USDC sent into a vault cannot freeze the order | settlement moves the full balance |
+
+**What it does not prove.** A chain cannot see a parcel arrive. `fulfil` commits
+a hash of the retailer's order or tracking reference, but the program takes the
+operator's word that the purchase happened. The guarantee is narrower and still
+worth a lot: if the operator does *nothing*, the buyer is refunded
+automatically. Disputes about a claimed shipment need an arbiter — the next
+design step, not something this already does.
+
+Devnet program: `3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW` — **not yet
+deployed** (needs ~2.7 SOL, see below). Accepts only Circle's devnet USDC
+(`4zMMC9…DncDU`). Operator and mint are constants in the code, so the deployed
+program itself states who can be paid and in what.
+
+### Prove it locally (no SOL, no faucet)
+
+The round-trip runs against a local validator loaded with the program and a
+copy of the USDC mint **at its real address**, written with the operator as mint
+authority so the test can mint freely.
+
+```powershell
+# Windows: write the local mint account
+npx tsx scripts/orders-roundtrip.ts --write-mint .\usdc-mint.json
+```
+
+```bash
+# WSL Ubuntu — a LOGIN shell, or solana-test-validator is not on PATH
+cd /mnt/c/Users/oyc82/Desktop/sigpath
+solana-test-validator --reset --quiet --ledger ~/sigpath-orders-ledger \
+  --account 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU ./usdc-mint.json \
+  --bpf-program 3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW target/deploy/sigpath_orders.so
+```
+
+```powershell
+# Windows, second terminal
+npx tsx scripts/orders-roundtrip.ts --local
+```
+
+19 checks, including every attack in the table above; the deadline case waits
+65 seconds for a real on-chain clock. Measured 2026-09-25: **19 passed, 0
+failed.**
+
+### Deploy to devnet
+
+Build with `anchor build --no-idl -p sigpath_orders` (WSL). The program is
+281 KB: about **1.3 SOL** of rent for the program itself, and the same again
+held temporarily for the deploy buffer — roughly **2.7 SOL** at peak. The CLI
+airdrop is usually rate-limited; use [faucet.solana.com](https://faucet.solana.com)
+for the operator wallet `AaFcCz…dfXg`, then:
+
+```bash
+solana program deploy target/deploy/sigpath_orders.so \
+  --program-id target/deploy/sigpath_orders-keypair.json \
+  --max-len 281064 --url devnet
+```
+
+`--max-len` equal to the size keeps the rent at its minimum; a later, larger
+build needs `solana program extend`.
+
+---
+
 ## The two-chain split
 
 Solana is the source of truth. Attestations are created, scored and revoked
@@ -472,6 +547,9 @@ Point the app at it with `NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899`.
 
 ```bash
 npx tsx scripts/devnet-roundtrip.ts      # prove the encoding against the live program
+npx tsx scripts/orders-roundtrip.ts --local   # prove the escrow, attacks included (local validator)
+npx tsx scripts/sas-read.ts github <handle>   # read a SAS credential with no secret
+npx tsx scripts/ebay-check.ts "<query>"       # prove an eBay keyset in isolation
 GITHUB_TOKEN=... npx tsx scripts/benchmark-scoring.ts
 ```
 

@@ -6,6 +6,7 @@ skip-lint = false
 
 [programs.devnet]
 sigpath = "Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4"
+sigpath_orders = "3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW"
 
 [registry]
 url = "https://api.apr.dev"
