@@ -22,7 +22,7 @@
 
 import { randomUUID } from "crypto";
 import type { LivenessProvider, LivenessResult, LivenessSession } from "./types";
-import { buildChallenge, checkDeadline, publicChallenge, type Challenge } from "../challenge/generate";
+import { buildChallenge, checkDeadline, publicChallenge, type Challenge, type ChallengeSubject } from "../challenge/generate";
 import {
   verifyChallengePhoto,
   isAcceptedMediaType,
@@ -93,7 +93,7 @@ function isVisionPayload(p: unknown): p is VisionClientPayload {
 export class VisionLivenessProvider implements LivenessProvider {
   readonly name = "vision";
 
-  constructor(private subject: "item" | "person" = "person") {}
+  constructor(private subject: ChallengeSubject = "person") {}
 
   async createSession(_userRef: string): Promise<LivenessSession> {
     const sessionId = randomUUID();
@@ -124,7 +124,10 @@ export class VisionLivenessProvider implements LivenessProvider {
   /** The richer result. Prefer this in API routes. */
   async verify(sessionId: string, clientPayload?: unknown): Promise<ChallengeVerification> {
     const challenge = CHALLENGES.get(sessionId);
-    if (!challenge) {
+    // A session issued for another purpose is treated as unknown — not judged,
+    // and not consumed. Without this, an item-evidence capture (a code beside
+    // an object, no face) submitted here could earn an identity pass.
+    if (!challenge || challenge.subject !== this.subject) {
       return {
         passed: false,
         confidence: 0,

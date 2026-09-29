@@ -63,7 +63,11 @@ export type AnalysisStatus =
   /** Not enough comparable listings for a median to mean anything. */
   | "insufficient_sample";
 
-export type FlagKind = "underpriced" | "duplicate_image" | "new_account";
+/**
+ * `upheld_reports` is added by search, not by analyse(): it comes from reviewed
+ * buyer reports about the SELLER, not from anything in this result set.
+ */
+export type FlagKind = "underpriced" | "duplicate_image" | "new_account" | "upheld_reports";
 
 export interface Flag {
   listingId: string;

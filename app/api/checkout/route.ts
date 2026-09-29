@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Connection } from "@solana/web3.js";
-import { chainStatusReader, ordersRpcUrl, prepareCheckout } from "@/lib/checkout/checkout";
+import { chainStateReader, chainStatusReader, ordersRpcUrl, prepareCheckout } from "@/lib/checkout/checkout";
+import { OrderMetaStore } from "@/lib/reports/order-meta";
+import { DecisionLog } from "@/lib/reports/reports";
 import { AddressStore } from "@/lib/checkout/address-store";
 
 // POST /api/checkout  { quote, buyer, address }
@@ -31,10 +33,12 @@ export async function POST(req: NextRequest) {
   // orders. Best-effort — a failed sweep must not block a purchase, and the
   // retention cap still applies on the next one.
   if (store) await store.sweep(chainStatusReader(conn)).catch(() => undefined);
+  const metaStore = OrderMetaStore.fromEnv();
+  if (metaStore) await metaStore.sweep(chainStateReader(conn)).catch(() => undefined);
 
   const result = await prepareCheckout(
     { quote: body.quote, buyer: body.buyer, address: body.address },
-    { store, conn },
+    { store, metaStore, conn, upheldReports: await DecisionLog.fromEnv().upheldCounts() },
   );
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 

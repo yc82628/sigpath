@@ -129,7 +129,8 @@ function extractLogs(err: unknown, depth = 0): string[] {
 }
 
 /** A message with the cause in it, not just "simulation failed". */
-function describeError(err: unknown): string {
+/** Shared with sas-reports.ts. */
+export function describeError(err: unknown): string {
   const base = err instanceof Error ? err.message : String(err);
   const logs = extractLogs(err);
   if (!logs.length) return base;
@@ -155,7 +156,8 @@ export function sasConfigFromEnv(): SasConfig | null {
   };
 }
 
-async function signer(cfg: SasConfig): Promise<KeyPairSigner> {
+/** Shared with sas-reports.ts. */
+export async function signer(cfg: SasConfig): Promise<KeyPairSigner> {
   return createKeyPairSignerFromBytes(cfg.secretKey);
 }
 
@@ -192,7 +194,7 @@ export async function deriveSubjectAttestation(
 }
 
 /** 32 raw bytes -> an Address. Used to carry the subject hash as the nonce. */
-function addressFromBytes(bytes: Uint8Array): Address {
+export function addressFromBytes(bytes: Uint8Array): Address {
   // Addresses are base58 of 32 bytes; kit's `address()` validates that for us.
   return address(base58Encode(bytes));
 }
@@ -215,7 +217,8 @@ function base58Encode(bytes: Uint8Array): string {
   return out;
 }
 
-async function send(cfg: SasConfig, instructions: unknown[], payer: KeyPairSigner) {
+/** Shared with sas-reports.ts. */
+export async function send(cfg: SasConfig, instructions: unknown[], payer: KeyPairSigner) {
   const rpc = createSolanaRpc(cfg.rpcUrl);
   const rpcSubscriptions = createSolanaRpcSubscriptions(cfg.wsUrl);
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -437,7 +440,7 @@ export async function readSasAttestation(
   }
 }
 
-function explorerUrl(addr: string, rpcUrl: string): string {
+export function explorerUrl(addr: string, rpcUrl: string): string {
   const cluster = rpcUrl.includes("devnet")
     ? "?cluster=devnet"
     : rpcUrl.includes("localhost") || rpcUrl.includes("127.0.0.1")

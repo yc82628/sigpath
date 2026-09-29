@@ -422,6 +422,97 @@ before asking the wallet to sign.
 
 ---
 
+## Fake-product reports — a penalty that follows the seller
+
+Fake products get listed and sold, and the seller faces nothing: at worst the
+listing comes down and they list again. SigPath cannot ban anyone from eBay.
+What it can do is make an upheld finding follow the seller:
+
+- **flagged on every SigPath search** result from that seller
+- **no SigPath checkout** for their listings — the same flag removes the pay
+  button, and checkout re-checks at payment time in case a report was upheld
+  after the quote was signed
+- **published on Solana** (SAS schema `fake-report`, devnet
+  `2Vs8y7A1cvNjWepMGDzRhz4HoK4mehzKX3VtkLFCUgsG`), readable by any app
+
+### Why a report is hard to file, on purpose
+
+A false report is as harmful as a fake product — a competitor filing against a
+rival, or a buyer inventing one, damages an honest seller, and in Germany
+publicly accusing someone of selling counterfeits without solid grounds is a
+legal problem. So every report must clear three bars, and **nothing is public
+until a reviewer upholds it**:
+
+| Bar | How |
+|---|---|
+| Proof of purchase | Only a SigPath order that was paid and **fulfilled on chain**, within **30 days** of fulfilment, **one report per order** |
+| Proof it's the buyer | A signature from **the wallet that paid**, over a message naming the order (a signed message, not a transaction — nothing moves) |
+| Proof of possession | A **live photo** of the item beside a handwritten code issued moments earlier — camera only, no upload |
+
+The seller a report lands on comes from **checkout's own record**, not from the
+reporter: quotes now sign the seller's handle alongside the price, and checkout
+keeps an encrypted "who sold this" record for the report window.
+
+**What the photo check does not do:** it proves the photo is live and the code
+is right. It cannot tell a fake from a genuine article. That judgement is the
+reviewer's — and the reviewer's decision is the only thing that publishes.
+
+**Capture sessions are purpose-bound.** Challenges now record what they were
+issued for, and each verifier accepts only its own kind. Without that, an
+evidence photo — a code beside an object, no face — could be submitted to the
+identity route and come back as a `LIVE_CAPTURE` pass.
+
+### Reviewing
+
+```powershell
+npx tsx scripts/reports-admin.ts list                  # pending reports — no buyer data shown
+npx tsx scripts/reports-admin.ts show <order>          # evidence, description, what the photo check saw
+npx tsx scripts/reports-admin.ts uphold <order>        # publish on chain, flag the seller
+npx tsx scripts/reports-admin.ts dismiss <order>       # publish nothing
+npx tsx scripts/reports-admin.ts sweep                 # expire unreviewed (90 days), clear old order records
+npx tsx scripts/reports-admin.ts seller ebay <handle>  # a seller's upheld reports, read from chain
+```
+
+When in doubt, dismiss: a missed fake costs less than a false accusation.
+
+Upholding publishes **first** and records the decision only if that succeeded,
+so SigPath's count and the chain can't disagree; the chain decides the report's
+index. Either decision then **deletes the buyer's photo, words and wallet**.
+What remains — seller, category, date, evidence and listing hashes — holds
+nothing about the buyer.
+
+### Anyone can check a seller
+
+Each upheld report about a seller takes the next index, and its attestation's
+nonce is `sha256("sigpath-report-v1" || sellerSubject || index)`. So any app
+can hash `ebay:<handle>`, derive the addresses for index 0, 1, 2… and stop at
+the first that doesn't exist — no API, no indexer, no trust in SigPath's copy:
+
+```powershell
+npx tsx scripts/sas-report-roundtrip.ts
+```
+
+registers the schema and publishes two reports against a throwaway test seller,
+then counts them back from the handle alone. Measured 2026-09-29 on devnet:
+**0 before, 2 after**, looked up with the handle in a different case, and
+report #0 decoded intact (category, date, evidence and listing hashes, expiry
+never).
+
+### Not built yet — say so before a judge does
+
+- **No right of reply for the seller.** Sellers aren't SigPath users and can't
+  be notified through marketplace APIs. Before real use, there must be a way for
+  a seller to see and contest a finding.
+- **No reversal.** An upheld report can't be withdrawn on chain: indices are
+  contiguous, so deleting #1 would hide #2. Reversal needs its own schema.
+- **Only SigPath purchases count.** Buyers from eBay directly can't report,
+  because SigPath can't verify those purchases. Reputation builds as SigPath's
+  own orders do.
+- **One instance.** Signed report sessions are held in memory, like capture
+  challenges.
+
+---
+
 ## The two-chain split
 
 Solana is the source of truth. Attestations are created, scored and revoked
@@ -622,6 +713,8 @@ npx tsx scripts/devnet-roundtrip.ts      # prove the encoding against the live p
 npx tsx scripts/orders-roundtrip.ts --local   # prove the escrow, attacks included (local validator)
 npx tsx scripts/checkout-e2e.ts               # prove checkout + address deletion (local validator)
 npx tsx scripts/orders-admin.ts list          # operator: orders awaiting fulfilment
+npx tsx scripts/reports-admin.ts list         # reviewer: fake-product reports awaiting review
+npx tsx scripts/sas-report-roundtrip.ts       # prove upheld reports are readable on chain from a handle
 npx tsx scripts/sas-read.ts github <handle>   # read a SAS credential with no secret
 npx tsx scripts/ebay-check.ts "<query>"       # prove an eBay keyset in isolation
 GITHUB_TOKEN=... npx tsx scripts/benchmark-scoring.ts

@@ -21,6 +21,20 @@ export interface PhantomProvider {
   publicKey: { toBase58(): string } | null;
   connect(): Promise<{ publicKey: { toBase58(): string } }>;
   signAndSendTransaction(tx: Transaction): Promise<{ signature: string }>;
+  /**
+   * Sign a plain-text message — NOT a transaction. Used to prove "I am the
+   * wallet that paid for this order" without moving anything. Phantom shows the
+   * text to the user before they sign, which is why the report message spells
+   * out exactly what it is for.
+   */
+  signMessage(message: Uint8Array, display?: "utf8" | "hex"): Promise<{ signature: Uint8Array }>;
+}
+
+/** Signature bytes -> base64 for the server, without Buffer. */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 export function getPhantom(): PhantomProvider | null {

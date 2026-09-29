@@ -30,6 +30,8 @@ import { associatedTokenAddress, tokenAmountFromData } from "../chains/solana/sp
 import { verifyQuote, type QuotedListing } from "./quote";
 import { eurUsdRate, toUsdcBaseUnits, type FxRate } from "./fx";
 import { AddressStore, validateAddress } from "./address-store";
+import { OrderMetaStore, type ChainOrderView } from "../reports/order-meta";
+import { sellerKey } from "../marketplace/types";
 
 /** How long the operator has to buy and ship before the refund opens. */
 export const DEFAULT_WINDOW_SECS = 7 * 24 * 3600;
@@ -84,6 +86,18 @@ export async function readOrder(conn: Connection, order: PublicKey): Promise<Cha
   return { found: true, ...orders.decodeOrder(info.data) };
 }
 
+/** For OrderMetaStore.sweep: status AND settlement time, since the report window runs from settlement. */
+export function chainStateReader(conn: Connection) {
+  return async (order: string): Promise<ChainOrderView> => {
+    try {
+      const s = await readOrder(conn, new PublicKey(order));
+      return s.found ? { status: s.status, settledAt: s.settledAt } : "missing";
+    } catch {
+      return "unknown";
+    }
+  };
+}
+
 /** For AddressStore.sweep: never throws, maps RPC failure to "unknown". */
 export function chainStatusReader(conn: Connection) {
   return async (order: string): Promise<"funded" | "fulfilled" | "refunded" | "missing" | "unknown"> => {
@@ -125,12 +139,16 @@ export async function prepareCheckout(
     env?: Record<string, string | undefined>;
     conn?: Connection;
     store?: AddressStore | null;
+    metaStore?: OrderMetaStore | null;
+    /** Sellers with upheld fake-product reports, by sellerKey. */
+    upheldReports?: ReadonlyMap<string, number>;
     fetchImpl?: typeof fetch;
     now?: number;
   } = {},
 ): Promise<PreparedCheckout | CheckoutError> {
   const env = deps.env ?? process.env;
   const store = deps.store === undefined ? AddressStore.fromEnv(env) : deps.store;
+  const metaStore = deps.metaStore === undefined ? OrderMetaStore.fromEnv(env) : deps.metaStore;
   if (!store) {
     // Without a key there is nowhere safe to put an address. Refuse to take
     // money for an order that could not be shipped.
@@ -150,6 +168,17 @@ export async function prepareCheckout(
     return { ok: false, status: q.reason === "not_configured" ? 503 : 400, error: messages[q.reason] };
   }
   const listing = q.listing;
+
+  // Re-checked HERE, not only when the pay button was drawn: a quote lives
+  // thirty minutes, and a report upheld in that time must still stop SigPath
+  // paying this seller.
+  if ((deps.upheldReports?.get(sellerKey(listing.source, listing.seller)) ?? 0) > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: "SigPath no longer buys from this seller: a verified buyer's fake-product report against them was upheld.",
+    };
+  }
 
   // 2. buyer and address
   let buyer: PublicKey;
@@ -214,7 +243,34 @@ export async function prepareCheckout(
     }),
   );
 
-  // 6. store the address — before the transaction leaves the server
+  // 6a. record who the seller was — kept for the report window after
+  // fulfilment, so a fake-product report can land on the right seller. Stored
+  // BEFORE the address: if this fails nothing is stored at all; if the address
+  // then fails, this record is orphaned and the sweep removes it.
+  if (metaStore) {
+    try {
+      await metaStore.put(
+        order.toBase58(),
+        {
+          buyer: buyer.toBase58(),
+          seller: { source: listing.source, handle: listing.seller },
+          listing: {
+            source: listing.source,
+            id: listing.id,
+            url: listing.url,
+            title: listing.title,
+            amount: listing.amount,
+            currency: listing.currency,
+          },
+        },
+        deps.now,
+      );
+    } catch {
+      return { ok: false, status: 500, error: "Could not record the order; nothing was charged." };
+    }
+  }
+
+  // 6b. store the address — before the transaction leaves the server
   try {
     await store.put(
       order.toBase58(),

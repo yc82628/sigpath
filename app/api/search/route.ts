@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchAll } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
+import { DecisionLog } from "@/lib/reports/reports";
 
 // GET /api/search?q=thinkpad+x1
 //
@@ -35,10 +36,12 @@ export async function GET(req: NextRequest) {
   const limitParam = Number(req.nextUrl.searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : 20;
 
-  const result = await searchAll(q, defaultSources(), {
-    limit,
-    currency: req.nextUrl.searchParams.get("currency")?.toUpperCase() || undefined,
-  });
+  const result = await searchAll(
+    q,
+    defaultSources(),
+    { limit, currency: req.nextUrl.searchParams.get("currency")?.toUpperCase() || undefined },
+    { upheldReports: await DecisionLog.fromEnv().upheldCounts() },
+  );
 
   // A search where every source failed is a 503: the caller asked a reasonable
   // question and we could not answer it. Returning 200 with an empty list would

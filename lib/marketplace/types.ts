@@ -158,6 +158,15 @@ export function listingKey(l: Pick<Listing, "source" | "id">): string {
   return `${l.source}:${l.id}`;
 }
 
+/**
+ * A seller's identity across SigPath: marketplace plus handle, canonicalised
+ * the same way subjectHash() canonicalises (lower-case, trimmed), so the key a
+ * report is recorded under is the key a search looks up.
+ */
+export function sellerKey(source: string, handle: string): string {
+  return `${source.toLowerCase()}:${handle.trim().toLowerCase()}`;
+}
+
 /** Total price a buyer actually pays: item + shipping, same currency. */
 export function totalPrice(l: Listing): Money {
   if (!l.shipping) return l.price;

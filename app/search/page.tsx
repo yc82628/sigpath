@@ -5,6 +5,7 @@ import type { Flag } from "@/lib/marketplace/anomaly";
 import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
 import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
+import { DecisionLog } from "@/lib/reports/reports";
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -102,7 +103,10 @@ export default async function SearchPage({
   searchParams: { q?: string };
 }) {
   const q = (searchParams.q ?? "").trim().slice(0, 120);
-  const result = q ? await searchAll(q, defaultSources(), { limit: 20 }) : null;
+  // Upheld fake-product reports flag their seller's listings — and a flag
+  // removes the pay button, so the same finding closes SigPath's checkout to them.
+  const upheldReports = q ? await DecisionLog.fromEnv().upheldCounts() : new Map<string, number>();
+  const result = q ? await searchAll(q, defaultSources(), { limit: 20 }, { upheldReports }) : null;
 
   const byListing = new Map<string, Flag[]>();
   for (const f of result?.analysis.flags ?? []) {
@@ -124,6 +128,7 @@ export default async function SearchPage({
       id: l.id,
       url: l.url,
       title: l.title,
+      seller: l.seller.handle,
       amount: total.amount,
       currency: total.currency,
     });

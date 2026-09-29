@@ -10,9 +10,9 @@
  */
 
 import type { Listing, SearchOptions, SourceResult } from "./types";
-import { totalPrice } from "./types";
+import { sellerKey, totalPrice } from "./types";
 import type { MarketplaceSource } from "./sources/types";
-import { analyse, type Analysis } from "./anomaly";
+import { analyse, type Analysis, type Flag } from "./anomaly";
 import { linkOutTargets } from "./registry";
 
 export interface SearchResponse {
@@ -38,10 +38,37 @@ function byTotalAscending(a: Listing, b: Listing): number {
   return totalPrice(a).amount - totalPrice(b).amount;
 }
 
+/**
+ * Flag every listing from a seller with upheld fake-product reports.
+ *
+ * This is the penalty buyers see. It rests only on reports a reviewer UPHELD —
+ * filed by a verified buyer, with live evidence — never on pending ones, and
+ * the wording says exactly that. A flag also removes the listing's pay button,
+ * so the same finding keeps SigPath's own money away from the seller.
+ */
+export function upheldReportFlags(listings: Listing[], upheld: ReadonlyMap<string, number>): Flag[] {
+  const flags: Flag[] = [];
+  for (const l of listings) {
+    const n = upheld.get(sellerKey(l.source, l.seller.handle)) ?? 0;
+    if (n > 0) {
+      flags.push({
+        listingId: l.id,
+        kind: "upheld_reports",
+        message:
+          n === 1
+            ? "A verified buyer's fake-product report against this seller was upheld after review."
+            : `${n} verified buyers' fake-product reports against this seller were upheld after review.`,
+      });
+    }
+  }
+  return flags;
+}
+
 export async function searchAll(
   query: string,
   sources: MarketplaceSource[],
   opts: SearchOptions = {},
+  context: { upheldReports?: ReadonlyMap<string, number> } = {},
 ): Promise<SearchResponse> {
   const q = query.trim();
   if (!q) {
@@ -101,7 +128,12 @@ export async function searchAll(
     })),
     // Pass the FULL results, failures included. Passing only the ok ones would
     // silently re-enable the biased comparison this design exists to prevent.
-    analysis: analyse(results, { currency: opts.currency }),
+    analysis: withReportFlags(analyse(results, { currency: opts.currency }), listings, context.upheldReports),
     linkOut: linkOutTargets(q),
   };
+}
+
+function withReportFlags(a: Analysis, listings: Listing[], upheld?: ReadonlyMap<string, number>): Analysis {
+  if (!upheld || upheld.size === 0) return a;
+  return { ...a, flags: [...a.flags, ...upheldReportFlags(listings, upheld)] };
 }

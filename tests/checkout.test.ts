@@ -17,6 +17,7 @@ import {
 import { checkoutEligibility, priceCheckFor } from "../lib/checkout/eligibility";
 import { analyse } from "../lib/marketplace/anomaly";
 import { prepareCheckout, prepareRefund, MIN_SOL_LAMPORTS } from "../lib/checkout/checkout";
+import { OrderMetaStore } from "../lib/reports/order-meta";
 import * as orders from "../lib/chains/solana/orders";
 import { associatedTokenAddress } from "../lib/chains/solana/spl";
 import type { Listing } from "../lib/marketplace/types";
@@ -34,7 +35,7 @@ const ENV = {
   EUR_USD_RATE: "1.1367",
 };
 const ADDRESS = { name: "Ada Lovelace", line1: "Hauptstr. 1", postcode: "10115", city: "Berlin", country: "de" };
-const LISTING = { source: "ebay", id: "v1|1|0", url: "https://www.ebay.de/itm/1", title: "ThinkPad X1", amount: 24900, currency: "EUR" };
+const LISTING = { source: "ebay", id: "v1|1|0", url: "https://www.ebay.de/itm/1", title: "ThinkPad X1", seller: "laptop_depot", amount: 24900, currency: "EUR" };
 
 function tmpStore() {
   const dir = mkdtempSync(join(tmpdir(), "sigpath-store-"));
@@ -158,7 +159,7 @@ test("control characters are stripped", () => {
 // ---------------------------------------------------------------------------
 
 const RECORD: OrderRecord = {
-  address: { name: "Ada", line1: "Hauptstr. 1", postcode: "10115", city: "Berlin", country: "DE" },
+  address: { name: "Ada Lovelace", line1: "Hauptstr. 1", postcode: "10115", city: "Berlin", country: "DE" },
   buyer: Keypair.generate().publicKey.toBase58(),
   listing: { ...LISTING },
   usdc: "283038300",
@@ -171,7 +172,11 @@ test("a record round-trips, and nothing personal is on disk in the clear", async
   const got = await store.get(order);
   assert.deepEqual(got?.record, RECORD);
   const raw = readFileSync(join(dir, `${order}.json`), "utf8");
-  for (const leak of ["Ada", "Hauptstr", "Berlin", "10115", RECORD.buyer]) {
+  // Every probe must be unable to appear in base64 or base58 by chance. The
+  // file is random-looking ciphertext: a short probe like "Ada" turns up in it
+  // roughly one run in 700, which made this test fail on noise, not a leak.
+  // Spaces and dots never occur in either alphabet; the rest are long enough.
+  for (const leak of ["Ada Lovelace", "Hauptstr. 1", "Berlin", "10115", RECORD.buyer]) {
     assert.ok(!raw.includes(leak), `"${leak}" is readable on disk`);
   }
 });
@@ -434,6 +439,23 @@ test("a valid checkout returns a transaction for exactly the quoted amount", asy
 
   // The address was stored BEFORE the transaction was handed back.
   assert.equal((await store.get(r.order))?.record.address.city, "Berlin");
+});
+
+test("checkout records who the seller was, for fake-product reports later", async () => {
+  // The escrow stores only a hash of the listing, and the delivery record is
+  // deleted at fulfilment — without this record a report after delivery would
+  // have nobody to land on.
+  const { store } = tmpStore();
+  const metaDir = mkdtempSync(join(tmpdir(), "sigpath-meta-"));
+  const metaStore = OrderMetaStore.withKey(metaDir, randomBytes(32));
+  const r = await prepareCheckout(
+    { quote: signQuote(LISTING, ENV)!, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { env: ENV, store, metaStore, conn: rich(), fetchImpl: noFetch },
+  );
+  assert.ok(r.ok);
+  const meta = r.ok ? await metaStore.get(r.order) : null;
+  assert.deepEqual(meta?.record.seller, { source: "ebay", handle: "laptop_depot" });
+  assert.equal(meta?.record.listing.url, LISTING.url);
 });
 
 test("every checkout gets a fresh, unpredictable order address", async () => {

@@ -36,11 +36,9 @@
  * public order page — only the operator tooling reads a record back.
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
-import { mkdir, readFile, readdir, unlink, writeFile } from "fs/promises";
 import { join } from "path";
-import { PublicKey } from "@solana/web3.js";
 import { MAX_WINDOW_SECS } from "../chains/solana/orders";
+import { EncryptedStore, keyFromEnv } from "./encrypted-store";
 
 /** A checkout that never reached the chain is forgotten after this. */
 export const PENDING_TTL_SECONDS = 15 * 60;
@@ -109,115 +107,24 @@ export function validateAddress(input: unknown): { ok: true; address: ShippingAd
 // Store
 // ---------------------------------------------------------------------------
 
-interface StoredFile {
-  v: 1;
-  order: string;
-  createdAt: number;
-  iv: string;
-  tag: string;
-  ct: string;
-}
-
-export class AddressStore {
-  private readonly dir: string;
-  private readonly key: Buffer;
-
-  private constructor(dir: string, key: Buffer) {
-    this.dir = dir;
-    this.key = key;
-  }
-
+/**
+ * Delivery addresses. The encryption, write-once rule and path safety live in
+ * EncryptedStore; this adds the retention policy that is specific to them.
+ *
+ * Purpose is "" so the authenticated data is the bare order id, exactly as
+ * before the shared store existed — records written then still decrypt.
+ */
+export class AddressStore extends EncryptedStore<OrderRecord> {
   /** Null when ADDRESS_KEY is missing or malformed — the checkout then refuses to run. */
   static fromEnv(env: Record<string, string | undefined> = process.env): AddressStore | null {
-    const raw = env.ADDRESS_KEY?.trim();
-    if (!raw) return null;
-    const key = Buffer.from(raw, "base64");
-    if (key.length !== 32) return null;
-    return new AddressStore(env.ADDRESS_STORE_DIR?.trim() || join(process.cwd(), ".data", "checkout"), key);
+    const key = keyFromEnv(env);
+    if (!key) return null;
+    return new AddressStore(env.ADDRESS_STORE_DIR?.trim() || join(process.cwd(), ".data", "checkout"), key, "");
   }
 
   static withKey(dir: string, key: Buffer): AddressStore {
     if (key.length !== 32) throw new Error("ADDRESS_KEY must be 32 bytes.");
-    return new AddressStore(dir, key);
-  }
-
-  /**
-   * The ONLY way an order id becomes a filename. A base58 public key cannot
-   * contain a path separator or "..", and re-encoding it through PublicKey
-   * rejects anything that merely looks like one. Without this, "../../x" as an
-   * order id is a path traversal.
-   */
-  private path(order: string): string {
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(order)) throw new Error("Invalid order id.");
-    const canonical = new PublicKey(order).toBase58();
-    if (canonical !== order) throw new Error("Invalid order id.");
-    return join(this.dir, `${canonical}.json`);
-  }
-
-  /** Write-once: an existing record for this order is never overwritten. */
-  async put(order: string, record: OrderRecord, now = Date.now()): Promise<void> {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv("aes-256-gcm", this.key, iv);
-    cipher.setAAD(Buffer.from(order, "utf8"));
-    const ct = Buffer.concat([cipher.update(JSON.stringify(record), "utf8"), cipher.final()]);
-    const file: StoredFile = {
-      v: 1,
-      order,
-      createdAt: Math.floor(now / 1000),
-      iv: iv.toString("base64"),
-      tag: cipher.getAuthTag().toString("base64"),
-      ct: ct.toString("base64"),
-    };
-    await mkdir(this.dir, { recursive: true });
-    // "wx": fail if it exists. The order id is derived from a server-chosen
-    // nonce, so a collision means something is wrong, and replacing the
-    // address on an existing order would redirect someone's parcel.
-    await writeFile(this.path(order), JSON.stringify(file), { flag: "wx", mode: 0o600 });
-  }
-
-  async get(order: string): Promise<{ record: OrderRecord; createdAt: number } | null> {
-    let file: StoredFile;
-    try {
-      file = JSON.parse(await readFile(this.path(order), "utf8"));
-    } catch {
-      return null;
-    }
-    const decipher = createDecipheriv("aes-256-gcm", this.key, Buffer.from(file.iv, "base64"));
-    decipher.setAAD(Buffer.from(order, "utf8"));
-    decipher.setAuthTag(Buffer.from(file.tag, "base64"));
-    // Throws if the ciphertext, the tag, or the bound order id was altered.
-    const pt = Buffer.concat([decipher.update(Buffer.from(file.ct, "base64")), decipher.final()]);
-    return { record: JSON.parse(pt.toString("utf8")), createdAt: file.createdAt };
-  }
-
-  /** True if a record existed and is now gone. */
-  async delete(order: string): Promise<boolean> {
-    try {
-      await unlink(this.path(order));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async list(): Promise<{ order: string; createdAt: number }[]> {
-    let names: string[];
-    try {
-      names = await readdir(this.dir);
-    } catch {
-      return [];
-    }
-    const out: { order: string; createdAt: number }[] = [];
-    for (const n of names) {
-      if (!n.endsWith(".json")) continue;
-      try {
-        const f: StoredFile = JSON.parse(await readFile(join(this.dir, n), "utf8"));
-        out.push({ order: f.order, createdAt: f.createdAt });
-      } catch {
-        /* a file that is not a record is not ours to judge; leave it */
-      }
-    }
-    return out;
+    return new AddressStore(dir, key, "");
   }
 
   /**

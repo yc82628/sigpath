@@ -30,6 +30,12 @@ export interface QuotedListing {
   id: string;
   url: string;
   title: string;
+  /**
+   * The seller's handle on that marketplace. Signed with the price for the
+   * same reason: it decides who a fake-product report is held against, so the
+   * browser must not be able to swap it for a competitor's.
+   */
+  seller: string;
   /** Total the buyer pays (item + shipping), integer minor units. */
   amount: number;
   currency: string;
@@ -106,6 +112,8 @@ export function verifyQuote(
     return { ok: false, reason: "malformed" };
   }
   if (
+    typeof listing.seller !== "string" ||
+    !listing.seller ||
     typeof listing.amount !== "number" ||
     !Number.isInteger(listing.amount) ||
     listing.amount <= 0 ||

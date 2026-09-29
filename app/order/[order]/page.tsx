@@ -4,6 +4,7 @@ import { NotAnOrderError, ordersRpcUrl, readOrder } from "@/lib/checkout/checkou
 import { AddressStore } from "@/lib/checkout/address-store";
 import { formatUsdc, ORDERS_PROGRAM_ID } from "@/lib/chains/solana/orders";
 import RefundButton from "./RefundButton";
+import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
 
 /**
  * app/order/[order]/page.tsx — an order, as the chain sees it.
@@ -138,10 +139,19 @@ export default async function OrderPage({
         ))}
 
       {state.status === "fulfilled" && (
-        <p className="hint">
-          SigPath committed a hash of the retailer&apos;s order reference on chain when it fulfilled
-          this. If what arrives doesn&apos;t match, that reference is your evidence.
-        </p>
+        <>
+          <p className="hint">
+            SigPath committed a hash of the retailer&apos;s order reference on chain when it fulfilled
+            this. If what arrives doesn&apos;t match, that reference is your evidence.
+          </p>
+          {now <= state.settledAt + REPORT_WINDOW_SECS && (
+            <p>
+              <Link className="pay" href={`/report/${order.toBase58()}`}>
+                Received a fake? Report it &rarr;
+              </Link>
+            </p>
+          )}
+        </>
       )}
 
       <p className="hint">

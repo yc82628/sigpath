@@ -144,3 +144,18 @@ button.primary:disabled { opacity: 0.6; cursor: wait; }
 .order-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 20px 0; }
 .order-facts dt { color: var(--muted); }
 .order-facts dd { margin: 0; }
+
+/* --- reports -------------------------------------------------------------- */
+
+.report-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 0 0 16px; }
+.report-form legend { padding: 0 6px; font-weight: 600; }
+.report-form .radio { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0; cursor: pointer; }
+.report-form .radio input { margin-top: 5px; }
+.report-form .stacked { display: block; margin-top: 14px; }
+.report-form .stacked span { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.report-form textarea {
+  width: 100%; padding: 10px 12px; font: inherit;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px; resize: vertical;
+}
+.report-form textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }

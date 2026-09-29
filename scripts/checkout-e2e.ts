@@ -75,7 +75,7 @@ async function main() {
 
   const address = { name: "Ada Lovelace", line1: "Hauptstr. 1", postcode: "10115", city: "Berlin", country: "DE" };
   const quote = (amount: number, currency: string, id: string) =>
-    signQuote({ source: "ebay", id, url: `https://www.ebay.de/itm/${id}`, title: `Item ${id}`, amount, currency }, env)!;
+    signQuote({ source: "ebay", id, url: `https://www.ebay.de/itm/${id}`, title: `Item ${id}`, seller: "e2e_seller", amount, currency }, env)!;
   const bal = async (acct: PublicKey) => spl.tokenAmountFromData((await conn.getAccountInfo(acct))?.data) ?? 0n;
 
   /** What Phantom does: sign the server's transaction as the buyer, send it. */

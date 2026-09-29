@@ -60,9 +60,20 @@ export const CHALLENGE_GRACE_SECONDS = 10;
  */
 export type ChallengeKind = "code" | "fingers" | "code_fingers" | "adjacent" | "angle";
 
+/**
+ * What a challenge was issued FOR. Recorded on the challenge and checked by the
+ * verifier, because challenges of every kind share one session pool — and a
+ * capture that satisfies one purpose must not be accepted for another. The
+ * case that forced this: an "evidence" capture is a code beside an object, no
+ * face in it, and without this check it could be submitted to the identity
+ * route and come back as a LIVE_CAPTURE pass.
+ */
+export type ChallengeSubject = "item" | "person" | "evidence";
+
 export interface Challenge {
   /** Opaque id for this challenge, safe to log. */
   challengeId: string;
+  subject: ChallengeSubject;
   kind: ChallengeKind;
   /** What the user is told to do. Shown verbatim in the capture UI. */
   instruction: string;
@@ -96,10 +107,30 @@ function code(len = 4): string {
  * it requires physical handwriting co-located with the object. The others exist
  * for variety so a returning user does not memorise one routine.
  */
-export function buildChallenge(subject: "item" | "person" = "item"): Challenge {
+export function buildChallenge(subject: ChallengeSubject = "item"): Challenge {
   const challengeId = randomBytes(8).toString("hex");
   const expiresAt = Date.now() + CHALLENGE_TTL_SECONDS * 1000;
-  const base = { challengeId, expiresAt, ttlSeconds: CHALLENGE_TTL_SECONDS };
+  const base = { challengeId, subject, expiresAt, ttlSeconds: CHALLENGE_TTL_SECONDS };
+
+  if (subject === "evidence") {
+    // Proof that a buyer filing a fake-product report is holding the item
+    // RIGHT NOW, not re-using a photo from the listing or from someone else's
+    // complaint. Always the handwritten code: the other item kinds are weaker
+    // ("next to something blue" has six possible answers), and a report can
+    // cost a seller their reputation, so the evidence bar is the highest one.
+    //
+    // What this proves and what it does not: the vision check confirms a live
+    // photo with the right code beside an object. It cannot tell whether that
+    // object is counterfeit. That judgement is the reviewer's, and nothing is
+    // published until a reviewer makes it.
+    const c = code();
+    return {
+      ...base,
+      kind: "code",
+      instruction: `Write ${c} on a piece of paper, place it next to the item you received, and photograph both.`,
+      expected: `handwritten code ${c}`,
+    };
+  }
 
   if (subject === "person") {
     const c = code();

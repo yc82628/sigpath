@@ -31,24 +31,46 @@ const JPEG_QUALITY = 0.92;
 
 type Phase = "idle" | "starting" | "live" | "submitting" | "done" | "error";
 
-interface Challenge {
+export interface CaptureChallenge {
   sessionId: string;
   instruction: string;
   expiresAt: number;
   ttlSeconds: number;
 }
 
+type Challenge = CaptureChallenge;
+
 interface Outcome {
   passed: boolean;
-  confidence: number;
+  confidence?: number;
   reason: string;
 }
 
+/** What a custom submitFrame reports back. "unavailable" keeps the challenge alive for a retry. */
+export type FrameResult =
+  | { kind: "judged"; passed: boolean; reason: string }
+  | { kind: "unavailable"; detail: string };
+
 export default function CameraCapture({
   onComplete,
+  requestChallenge,
+  submitFrame,
+  facingMode = "user",
+  intro,
 }: {
   /** Fires with the sessionId once a capture PASSES, for /api/attest to consume. */
   onComplete?: (sessionId: string) => void;
+  /**
+   * Where the challenge comes from. Defaults to the identity check
+   * (/api/liveness). The report flow supplies its own, which issues an
+   * evidence challenge only after the wallet signature is verified.
+   */
+  requestChallenge?: () => Promise<CaptureChallenge>;
+  /** Where the frame is judged. Defaults to /api/liveness complete. */
+  submitFrame?: (frame: { sessionId: string; imageBase64: string; mediaType: string }) => Promise<FrameResult>;
+  /** "user" for a selfie, "environment" (rear camera) for photographing an item. */
+  facingMode?: "user" | "environment";
+  intro?: React.ReactNode;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -132,13 +154,19 @@ export default function CameraCapture({
     try {
       // Request the challenge FIRST. The clock starts server-side at issuance,
       // so acquiring the camera before this would eat the window.
-      const res = await fetch("/api/liveness", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not start a capture.");
+      let data: Challenge;
+      if (requestChallenge) {
+        data = await requestChallenge();
+      } else {
+        const res = await fetch("/api/liveness", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "create" }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error ?? "Could not start a capture.");
+        data = body;
+      }
       if (!data.expiresAt) {
         throw new Error(
           "This provider issues no challenge — set LIVENESS_PROVIDER=vision. " +
@@ -147,7 +175,7 @@ export default function CameraCapture({
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
       // Do NOT touch videoRef here: the <video> renders only once phase is
@@ -202,6 +230,21 @@ export default function CameraCapture({
       const dataUrl = canvas.toDataURL(MEDIA_TYPE, JPEG_QUALITY);
       const imageBase64 = dataUrl.split(",")[1];
 
+      if (submitFrame) {
+        const r = await submitFrame({ sessionId: challenge.sessionId, imageBase64, mediaType: MEDIA_TYPE });
+        if (r.kind === "unavailable") {
+          // The check did not run; the challenge is still alive — retry, don't burn it.
+          setPhase("live");
+          setError(`Verification unavailable: ${r.detail}`);
+          return;
+        }
+        stopStream();
+        setOutcome({ passed: r.passed, reason: r.reason });
+        setPhase("done");
+        if (r.passed) onComplete?.(challenge.sessionId);
+        return;
+      }
+
       const res = await fetch("/api/liveness", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,11 +284,13 @@ export default function CameraCapture({
     <div className="capture">
       {phase === "idle" && (
         <>
-          <p>
-            You will be given a one-time instruction and <strong>90 seconds</strong> to
-            photograph yourself following it. The photo must come from your camera —
-            there is no upload option.
-          </p>
+          {intro ?? (
+            <p>
+              You will be given a one-time instruction and <strong>90 seconds</strong> to
+              photograph yourself following it. The photo must come from your camera —
+              there is no upload option.
+            </p>
+          )}
           <button onClick={start}>Start camera</button>
         </>
       )}
@@ -261,7 +306,9 @@ export default function CameraCapture({
             playsInline
             muted
             autoPlay
-            className="preview"
+            // Mirror only a selfie. A mirrored rear-camera view shows the
+            // handwritten code backwards, which makes it hard to frame.
+            className={facingMode === "user" ? "preview mirrored" : "preview"}
             onLoadedMetadata={() => setStreaming(true)}
           />
           <button onClick={capture} disabled={phase === "submitting" || !streaming}>
@@ -295,7 +342,8 @@ export default function CameraCapture({
         .instruction { font-size: 1.15rem; font-weight: 600; margin: 8px 0; }
         .timer { font-variant-numeric: tabular-nums; color: var(--muted); margin: 4px 0 12px; }
         .timer.urgent { color: #d29922; font-weight: 700; }
-        .preview { width: 100%; border-radius: 8px; background: #000; transform: scaleX(-1); }
+        .preview { width: 100%; border-radius: 8px; background: #000; }
+        .preview.mirrored { transform: scaleX(-1); }
         button { margin-top: 12px; padding: 10px 18px; font: inherit; border: 0;
                  border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
         button:disabled { opacity: 0.5; cursor: default; }
