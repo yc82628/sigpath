@@ -41,6 +41,11 @@ export default async function ReportPage({ params }: { params: { order: string }
                 from them, and the finding is recorded on Solana where any app can read it.
               </li>
               <li>
+                The seller is told about the report and gets <strong>7 days to reply</strong> before it
+                can be upheld. They&apos;ll see your description of the problem — never your photo or
+                your wallet — so write it about the item, not about yourself.
+              </li>
+              <li>
                 Your photo, words and wallet are deleted as soon as it&apos;s decided. The public record
                 names the seller, never you.
               </li>

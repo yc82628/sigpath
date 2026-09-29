@@ -18,15 +18,19 @@ import {
   decideReport,
   expireStaleReports,
   reportMessage,
+  reverseDecision,
   PENDING_REPORT_MAX_SECS,
   _clearIntents,
   type ReportDeps,
 } from "../lib/reports/reports";
 import { OrderMetaStore, REPORT_WINDOW_SECS, ORDER_META_RETENTION_SECS, type OrderMeta } from "../lib/reports/order-meta";
+import { CaseLog } from "../lib/reports/cases";
+import { signSellerToken, verifySellerToken, sellerLink } from "../lib/reports/seller-access";
+import { sellerFindings, publicFindings, respondAsSeller } from "../lib/reports/seller";
 import { AddressStore } from "../lib/checkout/address-store";
 import { buildChallenge } from "../lib/challenge/generate";
 import { VisionLivenessProvider } from "../lib/liveness/vision";
-import { reportNonce } from "../lib/chains/solana/sas-reports";
+import { reportNonce, reversalNonce } from "../lib/chains/solana/sas-reports";
 import { upheldReportFlags, searchAll } from "../lib/marketplace/search";
 import { StubSource } from "../lib/marketplace/sources/stub";
 import { sellerKey } from "../lib/marketplace/types";
@@ -79,15 +83,17 @@ async function world(opts: { status?: number; settledAt?: number; withMeta?: boo
   const metaStore = OrderMetaStore.withKey(join(root, "meta"), key);
   const reportStore = ReportStore.withKey(join(root, "pending"), key);
   const decisions = new DecisionLog(join(root, "decisions.json"));
+  const cases = new CaseLog(join(root, "cases.json"));
   if (opts.withMeta !== false) await metaStore.put(order, { ...META, buyer: buyer.publicKey.toBase58() });
   const deps: ReportDeps = {
     conn: conn(orderAccount({ status: opts.status ?? 1, buyer: buyer.publicKey, settledAt: opts.settledAt })),
     metaStore,
     reportStore,
     decisions,
+    cases,
     now: NOW,
   };
-  return { root, key, buyer, order, deps, metaStore, reportStore, decisions };
+  return { root, key, buyer, order, deps, metaStore, reportStore, decisions, cases };
 }
 
 function sign(kp: Keypair, message: string): string {
@@ -266,11 +272,17 @@ test("an order can be reported once", async () => {
 // Review
 // ---------------------------------------------------------------------------
 
-async function filed() {
+/**
+ * A filed report whose seller was notified eight days ago and never replied —
+ * the reply window has closed, so it can be decided. Tests about the window
+ * itself set their own notice times.
+ */
+async function filed(opts: { notified?: boolean } = {}) {
   const w = await world();
   const s = await signedIntent(w);
   const r = await submitReport({ ...s, ...GOOD }, { ...w.deps, verify: passes });
   assert.ok(r.ok && r.passed);
+  if (opts.notified !== false) await w.cases.markNotified(w.order, NOW_S - 8 * 86400);
   return w;
 }
 
@@ -282,6 +294,7 @@ test("nothing is public while a report is pending", async () => {
 test("upholding publishes first, then records, then deletes the buyer's data", async () => {
   const w = await filed();
   const r = await decideReport(w.order, "upheld", {
+    cases: w.cases,
     reportStore: w.reportStore,
     decisions: w.decisions,
     publish: async () => ({ attestation: "AttestationAddr", index: 0 }),
@@ -300,6 +313,7 @@ test("if publishing fails, nothing is recorded and the report stays pending", as
   // The local count and the chain must never disagree.
   const w = await filed();
   const r = await decideReport(w.order, "upheld", {
+    cases: w.cases,
     reportStore: w.reportStore,
     decisions: w.decisions,
     publish: async () => ({ error: "rpc down" }),
@@ -312,6 +326,7 @@ test("if publishing fails, nothing is recorded and the report stays pending", as
 test("the chain's index is what gets recorded, not the local count", async () => {
   const w = await filed();
   const r = await decideReport(w.order, "upheld", {
+    cases: w.cases,
     reportStore: w.reportStore,
     decisions: w.decisions,
     publish: async (_r, localIndex) => {
@@ -437,4 +452,198 @@ test("a record copied between stores will not decrypt, even under the same key",
   mkdirSync(join(root, "meta"), { recursive: true });
   copyFileSync(join(root, "addr", `${order}.json`), join(root, "meta", `${order}.json`));
   await assert.rejects(OrderMetaStore.withKey(join(root, "meta"), key).get(order));
+});
+
+// ---------------------------------------------------------------------------
+// The seller's right of reply
+// ---------------------------------------------------------------------------
+
+const SECRET_ENV = { QUOTE_SECRET: "s".repeat(40) };
+const SELLER = sellerKey("ebay", "Fake_Goods_24");
+
+test("a report opens the seller's side of the case when it is filed", async () => {
+  const w = await filed({ notified: false });
+  const c = await w.cases.get(w.order);
+  assert.equal(c?.sellerKey, SELLER);
+  assert.equal(c?.notifiedAt, undefined);
+});
+
+test("a report cannot be upheld before the seller is notified", async () => {
+  const w = await filed({ notified: false });
+  const r = await decideReport(w.order, "upheld", { reportStore: w.reportStore, decisions: w.decisions, cases: w.cases, now: NOW });
+  assert.equal(r.ok, false);
+  assert.match(!r.ok ? r.error : "", /hasn't been notified/);
+});
+
+test("a notified seller has seven days before a report can be upheld without them", async () => {
+  const w = await filed({ notified: false });
+  await w.cases.markNotified(w.order, NOW_S - 2 * 86400);
+  const r = await decideReport(w.order, "upheld", { reportStore: w.reportStore, decisions: w.decisions, cases: w.cases, now: NOW });
+  assert.equal(r.ok, false);
+  assert.match(!r.ok ? r.error : "", /5 days left/);
+  assert.equal(await w.reportStore.has(w.order), true, "still pending");
+});
+
+test("a seller's reply ends the wait — the reviewer has their answer", async () => {
+  const w = await filed({ notified: false });
+  await w.cases.markNotified(w.order, NOW_S - 86400);
+  await w.cases.respond(w.order, "reply", { text: "This is a genuine item, here is the invoice number.", at: NOW_S });
+  const r = await decideReport(w.order, "upheld", {
+    reportStore: w.reportStore,
+    decisions: w.decisions,
+    cases: w.cases,
+    now: NOW,
+    publish: async () => ({ attestation: "A", index: 0 }),
+  });
+  assert.ok(r.ok);
+});
+
+test("a report can be DISMISSED at any time, notice or not", async () => {
+  // An obviously unfounded report needs no reply to reject.
+  const w = await filed({ notified: false });
+  const r = await decideReport(w.order, "dismissed", { reportStore: w.reportStore, decisions: w.decisions, now: NOW });
+  assert.ok(r.ok);
+});
+
+test("re-sending the notice does not restart the reply window", async () => {
+  const w = await filed({ notified: false });
+  await w.cases.markNotified(w.order, 1000);
+  const c = await w.cases.markNotified(w.order, 2000);
+  assert.equal(c.notifiedAt, 1000);
+});
+
+// --- links -------------------------------------------------------------------
+
+test("a seller link verifies, and names its seller", () => {
+  const t = signSellerToken(SELLER, SECRET_ENV)!;
+  const v = verifySellerToken(t, SECRET_ENV);
+  assert.ok(v.ok && v.sellerKey === SELLER);
+});
+
+test("a tampered, expired or foreign link is refused", () => {
+  const t = signSellerToken(SELLER, SECRET_ENV)!;
+  assert.equal(verifySellerToken(t.slice(0, -2) + "xx", SECRET_ENV).ok, false);
+  assert.equal(verifySellerToken(signSellerToken(SELLER, SECRET_ENV, NOW, -1), SECRET_ENV).ok, false);
+  assert.equal(verifySellerToken(signSellerToken(SELLER, { QUOTE_SECRET: "o".repeat(40) }), SECRET_ENV).ok, false);
+});
+
+test("a price quote cannot pass as a seller link, though they share a secret", () => {
+  const quote = signQuote({ source: "ebay", id: "1", url: "u", title: "t", seller: "x", amount: 1, currency: "USD" }, SECRET_ENV)!;
+  assert.equal(verifySellerToken(quote, SECRET_ENV).ok, false);
+});
+
+test("the link carries its token in the fragment, which browsers never send to a server", () => {
+  const link = sellerLink("https://sigpath.example/", "TOKEN");
+  assert.equal(link, "https://sigpath.example/seller/respond#t=TOKEN");
+  assert.ok(!link.includes("?"));
+});
+
+// --- what the seller sees and says ---------------------------------------------
+
+test("the seller sees a pending report's substance, never the buyer's photo or wallet", async () => {
+  const w = await filed();
+  const [f] = await sellerFindings(SELLER, w);
+  assert.equal(f.status, "pending");
+  assert.match(f.buyerDescription ?? "", /Stitching/);
+  assert.equal(f.listing?.url, META.listing.url);
+  assert.equal(f.canReply, true);
+  const json = JSON.stringify(f);
+  assert.ok(!json.includes(w.buyer.publicKey.toBase58()), "no wallet");
+  assert.ok(!json.includes(GOOD.imageBase64), "no photo");
+});
+
+test("a link only answers reports about its own seller", async () => {
+  const w = await filed();
+  const other = signSellerToken(sellerKey("ebay", "someone_else"), SECRET_ENV);
+  const r = await respondAsSeller({ token: other, order: w.order, text: "This isn't about me at all." }, { ...w, env: SECRET_ENV });
+  assert.equal(!r.ok && r.status, 404);
+});
+
+test("before a decision the seller replies; the reply is write-once", async () => {
+  const w = await filed();
+  const token = signSellerToken(SELLER, SECRET_ENV);
+  const r = await respondAsSeller({ token, order: w.order, text: "Genuine stock, bought from the brand's distributor." }, { ...w, env: SECRET_ENV });
+  assert.ok(r.ok && r.kind === "reply");
+  const again = await respondAsSeller({ token, order: w.order, text: "Actually, a different story now." }, { ...w, env: SECRET_ENV });
+  assert.equal(!again.ok && again.status, 409);
+});
+
+test("after an upheld finding the seller can appeal; after a dismissal there is nothing to answer", async () => {
+  const token = signSellerToken(SELLER, SECRET_ENV);
+
+  const up = await filed();
+  await decideReport(up.order, "upheld", { reportStore: up.reportStore, decisions: up.decisions, cases: up.cases, now: NOW, publish: async () => ({ attestation: "A", index: 0 }) });
+  const appeal = await respondAsSeller({ token, order: up.order, text: "The buyer returned a different item." }, { ...up, env: SECRET_ENV });
+  assert.ok(appeal.ok && appeal.kind === "appeal");
+
+  const dis = await filed();
+  await decideReport(dis.order, "dismissed", { reportStore: dis.reportStore, decisions: dis.decisions, now: NOW });
+  const none = await respondAsSeller({ token, order: dis.order, text: "Thank you for reviewing this." }, { ...dis, env: SECRET_ENV });
+  assert.equal(!none.ok && none.status, 409);
+});
+
+test("an invalid link or a too-short response is refused", async () => {
+  const w = await filed();
+  assert.equal((await respondAsSeller({ token: "nope", order: w.order, text: "long enough text" }, { ...w, env: SECRET_ENV })).ok, false);
+  const t = signSellerToken(SELLER, SECRET_ENV);
+  assert.equal((await respondAsSeller({ token: t, order: w.order, text: "short" }, { ...w, env: SECRET_ENV })).ok, false);
+});
+
+// --- what the public sees -------------------------------------------------------
+
+test("the public page never shows a pending report", async () => {
+  const w = await filed();
+  assert.deepEqual(await publicFindings(SELLER, w), []);
+});
+
+test("an upheld finding is public with the seller's reply beside it", async () => {
+  const w = await filed({ notified: false });
+  await w.cases.markNotified(w.order, NOW_S - 86400);
+  await w.cases.respond(w.order, "reply", { text: "We dispute this.", at: NOW_S });
+  await decideReport(w.order, "upheld", { reportStore: w.reportStore, decisions: w.decisions, cases: w.cases, now: NOW, publish: async () => ({ attestation: "A", index: 0 }) });
+  const [f] = await publicFindings(SELLER, w);
+  assert.equal(f.status, "upheld");
+  assert.equal(f.reply?.text, "We dispute this.");
+});
+
+// --- reversal -------------------------------------------------------------------
+
+async function upheld() {
+  const w = await filed();
+  const r = await decideReport(w.order, "upheld", { reportStore: w.reportStore, decisions: w.decisions, cases: w.cases, now: NOW, publish: async () => ({ attestation: "A", index: 0 }) });
+  assert.ok(r.ok);
+  return w;
+}
+
+test("a reversal publishes first, then stops the finding counting — without deleting it", async () => {
+  const w = await upheld();
+  assert.equal((await w.decisions.upheldCounts()).get(SELLER), 1);
+  const r = await reverseDecision(w.order, { decisions: w.decisions, now: NOW, publishReversal: async () => ({ attestation: "R" }) });
+  assert.ok(r.ok && r.decision.reversal?.attestation === "R");
+  assert.equal((await w.decisions.upheldCounts()).get(SELLER), undefined, "the flag and checkout ban lift");
+  const [f] = await publicFindings(SELLER, w);
+  assert.equal(f.status, "reversed", "still listed, marked reversed");
+});
+
+test("if the reversal can't be published, nothing changes", async () => {
+  const w = await upheld();
+  const r = await reverseDecision(w.order, { decisions: w.decisions, publishReversal: async () => ({ error: "rpc down" }) });
+  assert.equal(r.ok, false);
+  assert.equal((await w.decisions.upheldCounts()).get(SELLER), 1);
+});
+
+test("only an upheld finding can be reversed, and only once", async () => {
+  const w = await upheld();
+  assert.ok((await reverseDecision(w.order, { decisions: w.decisions })).ok);
+  assert.equal((await reverseDecision(w.order, { decisions: w.decisions })).ok, false);
+  const d = await filed();
+  await decideReport(d.order, "dismissed", { reportStore: d.reportStore, decisions: d.decisions });
+  assert.equal((await reverseDecision(d.order, { decisions: d.decisions })).ok, false);
+});
+
+test("a reversal lives at a derivable address, distinct from the report it reverses", () => {
+  const s = Buffer.alloc(32, 7);
+  assert.equal(reversalNonce(s, 1), reversalNonce(s, 1));
+  assert.notEqual(reversalNonce(s, 1), reportNonce(s, 1));
+  assert.notEqual(reversalNonce(s, 1), reversalNonce(s, 2));
 });

@@ -16,6 +16,7 @@ import { VisionLivenessProvider } from "../liveness/vision";
 import { ordersRpcUrl } from "../checkout/checkout";
 import { OrderMetaStore } from "./order-meta";
 import { DecisionLog, ReportStore, type ReportDeps } from "./reports";
+import { CaseLog } from "./cases";
 
 let provider: VisionLivenessProvider | null = null;
 
@@ -34,5 +35,6 @@ export function reportDepsFromEnv(env: Record<string, string | undefined> = proc
     metaStore,
     reportStore,
     decisions: DecisionLog.fromEnv(env),
+    cases: CaseLog.fromEnv(env),
   };
 }

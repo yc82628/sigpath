@@ -2,12 +2,22 @@
  * scripts/reports-admin.ts — review fake-product reports.
  *
  *   npx tsx scripts/reports-admin.ts list                  pending reports (no buyer data)
- *   npx tsx scripts/reports-admin.ts show <order>          the evidence, for review
+ *   npx tsx scripts/reports-admin.ts show <order>          the evidence and the seller's reply, for review
+ *   npx tsx scripts/reports-admin.ts notify <order>        the notice to send the seller; starts their 7 days
  *   npx tsx scripts/reports-admin.ts uphold <order>        publish on chain, flag the seller
  *   npx tsx scripts/reports-admin.ts dismiss <order>       close it, publish nothing
+ *   npx tsx scripts/reports-admin.ts reverse <order>       overturn an upheld finding (e.g. on appeal)
+ *   npx tsx scripts/reports-admin.ts seller-link <src> <h> a reply link for a seller who contacted you
  *   npx tsx scripts/reports-admin.ts sweep                 expire stale reports, clear old order records
  *   npx tsx scripts/reports-admin.ts bootstrap             register the report schema on SAS
- *   npx tsx scripts/reports-admin.ts seller <src> <handle> count a seller's upheld reports ON CHAIN
+ *   npx tsx scripts/reports-admin.ts seller <src> <handle> a seller's findings ON CHAIN, reversals included
+ *
+ * THE SELLER'S RIGHT OF REPLY
+ * A report cannot be upheld until the seller has been notified and has either
+ * replied or had seven days to. SigPath is the buyer of record on the
+ * marketplace, so `notify` prints a message to send through THAT ORDER's
+ * messaging — the one channel that reaches exactly this seller — with a
+ * private link. Holding the link is what proves they are the seller.
  *
  * THE REVIEWER'S JOB
  * The photo check proved the buyer had the item and took the photo just now.
@@ -50,14 +60,19 @@ function days(secs: number) {
 
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
-  const { ReportStore, DecisionLog, decideReport, expireStaleReports, PENDING_REPORT_MAX_SECS } = await import(
-    "../lib/reports/reports"
-  );
+  const { ReportStore, DecisionLog, decideReport, reverseDecision, expireStaleReports, PENDING_REPORT_MAX_SECS } =
+    await import("../lib/reports/reports");
   const { OrderMetaStore } = await import("../lib/reports/order-meta");
-  const { reportPublisher } = await import("../lib/reports/publish");
+  const { reportPublisher, reversalPublisher } = await import("../lib/reports/publish");
+  const { CaseLog, REPLY_WINDOW_SECS } = await import("../lib/reports/cases");
+  const { signSellerToken, sellerLink } = await import("../lib/reports/seller-access");
+  const { sellerKey } = await import("../lib/marketplace/types");
+  const cases = CaseLog.fromEnv();
+  const baseUrl = process.env.PUBLIC_BASE_URL?.trim() || "http://localhost:3000";
+  const date = (s: number) => new Date(s * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
   const { chainStateReader, ordersRpcUrl } = await import("../lib/checkout/checkout");
   const { sasConfigFromEnv, signer } = await import("../lib/chains/solana/sas");
-  const { bootstrapReportSchema, countSellerReportsOnChain } = await import("../lib/chains/solana/sas-reports");
+  const { bootstrapReportSchema, sellerFindingsOnChain } = await import("../lib/chains/solana/sas-reports");
   const { subjectHash } = await import("../lib/crypto/hash");
   const { Connection } = await import("@solana/web3.js");
   const { address } = await import("@solana/kit");
@@ -80,10 +95,19 @@ async function main() {
       for (const { order, createdAt } of pending) {
         const got = await needStore().get(order).catch(() => null);
         const left = PENDING_REPORT_MAX_SECS - (now - createdAt);
+        const c = await cases.get(order);
+        const seller = !c?.notifiedAt
+          ? "NOT NOTIFIED — run notify"
+          : c.reply
+            ? "seller replied — can be decided"
+            : now >= c.notifiedAt + REPLY_WINDOW_SECS
+              ? "reply window closed — can be decided"
+              : `awaiting seller until ${date(c.notifiedAt + REPLY_WINDOW_SECS)}`;
         console.log(order);
         console.log(
           `   ${got ? `${got.record.category.padEnd(17)} seller ${got.record.seller.source}:${got.record.seller.handle}` : "(record unreadable)"}`,
         );
+        console.log(`   ${seller}`);
         console.log(`   filed ${days(now - createdAt)} ago · expires unreviewed in ${days(Math.max(0, left))}\n`);
       }
       return;
@@ -107,7 +131,66 @@ async function main() {
       console.log(`  saw: ${r.evidence.observed}`);
       console.log(`\nevidence   ${evidencePath(order)}`);
       console.log(`sha256     ${r.evidence.sha256}`);
+
+      const c = await cases.get(order);
+      console.log(`\nseller's side:`);
+      if (!c?.notifiedAt) console.log(`  not notified yet — run: notify ${order}`);
+      else {
+        console.log(`  notified   ${date(c.notifiedAt)} · reply window until ${date(c.notifiedAt + REPLY_WINDOW_SECS)}`);
+        console.log(c.reply ? `  replied    ${date(c.reply.at)}:\n    ${c.reply.text.replace(/\n/g, "\n    ")}` : "  no reply yet");
+      }
       console.log(`\nThen:  uphold ${order}   or   dismiss ${order}`);
+      return;
+    }
+
+    case "notify": {
+      const order = args[0];
+      if (!order) throw new Error("Usage: notify <order>");
+      const got = await needStore().get(order);
+      if (!got) throw new Error("No pending report for that order.");
+      const r = got.record;
+      const key = sellerKey(r.seller.source, r.seller.handle);
+      const token = signSellerToken(key);
+      if (!token) throw new Error("QUOTE_SECRET is not set — seller links can't be signed.");
+      const c = await cases.markNotified(order, Math.floor(Date.now() / 1000));
+      const replyBy = date(c.notifiedAt! + REPLY_WINDOW_SECS);
+
+      console.log(`Send this to ${r.seller.source}:${r.seller.handle} through the ${r.seller.source} messages`);
+      console.log(`on the order SigPath placed for:\n  ${r.listing.title}\n  ${r.listing.url}\n`);
+      console.log("-------------------------------------------------------------------------------");
+      console.log(`Hello — a buyer we purchased this item for has reported it as`);
+      console.log(`${r.category === "counterfeit" ? "not genuine" : "materially different from the listing"}. Before anything is decided, you have`);
+      console.log(`until ${replyBy} to respond. You can read the report and reply here:`);
+      console.log(`\n${sellerLink(baseUrl, token)}\n`);
+      console.log(`The link is private to you. Nothing is published unless the report is`);
+      console.log(`upheld after review, and your reply is shown alongside any finding.`);
+      console.log("-------------------------------------------------------------------------------");
+      console.log(`\nReply window recorded: until ${replyBy}. Re-running this does not restart it.`);
+      return;
+    }
+
+    case "seller-link": {
+      const [source, handle] = args;
+      if (!source || !handle) throw new Error("Usage: seller-link <source> <handle>");
+      const token = signSellerToken(sellerKey(source, handle));
+      if (!token) throw new Error("QUOTE_SECRET is not set — seller links can't be signed.");
+      console.log("Only send this after confirming it is really the seller — ideally by replying");
+      console.log("through the marketplace's own messages to that account, not to an email address");
+      console.log("someone gave you. The link lets its holder reply as this seller.\n");
+      console.log(sellerLink(baseUrl, token));
+      return;
+    }
+
+    case "reverse": {
+      const order = args[0];
+      if (!order) throw new Error("Usage: reverse <order>");
+      const res = await reverseDecision(order, { decisions, publishReversal: reversalPublisher() });
+      if (!res.ok) throw new Error(res.error);
+      console.log(`reversed   ${order}`);
+      console.log(`seller     ${res.decision.sellerKey} — no longer flagged for this finding`);
+      if (res.decision.reversal?.attestation) {
+        console.log(`on chain   ${res.decision.reversal.attestation}  (reverses report #${res.decision.index})`);
+      }
       return;
     }
 
@@ -119,6 +202,7 @@ async function main() {
       const res = await decideReport(order, status, {
         reportStore: needStore(),
         decisions,
+        cases,
         publish: status === "upheld" ? reportPublisher() : undefined,
       });
       if (!res.ok) throw new Error(res.error);
@@ -168,8 +252,11 @@ async function main() {
         authority = (await signer(cfg)).address;
       }
       const rpc = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
-      const n = await countSellerReportsOnChain(authority, await subjectHash(source, handle), rpc);
-      console.log(`${source}:${handle}  upheld fake-product reports on chain: ${n}`);
+      const f = await sellerFindingsOnChain(authority, await subjectHash(source, handle), rpc);
+      console.log(`${source}:${handle}  on chain:`);
+      console.log(`  findings upheld  ${f.upheld}`);
+      console.log(`  reversed         ${f.reversed.length}${f.reversed.length ? ` (report #${f.reversed.join(", #")})` : ""}`);
+      console.log(`  ACTIVE           ${f.active}`);
       return;
     }
 

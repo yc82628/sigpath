@@ -159,3 +159,10 @@ button.primary:disabled { opacity: 0.6; cursor: wait; }
   border: 1px solid var(--border); border-radius: 6px; resize: vertical;
 }
 .report-form textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.quote {
+  margin: 10px 0; padding: 8px 12px;
+  border-left: 3px solid var(--border); color: var(--fg);
+  font-size: 0.92rem; white-space: pre-wrap;
+}
+.quote .hint { font-size: 0.8rem; }

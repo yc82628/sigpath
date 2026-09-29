@@ -21,12 +21,14 @@
  * Only a hash of the evidence, so the evidence SigPath holds can later be shown
  * to be the evidence the decision was made on.
  *
- * THE LIMIT, STATED HONESTLY
- * Contiguous indices make enumeration trivial, and they mean a report cannot
- * simply be deleted if a decision is later overturned — closing index 1 would
- * hide index 2. Overturning needs its own schema ("report reversed", same
- * nonce scheme) rather than a deletion. That is not built yet; nothing
- * published here is ever removed.
+ * REVERSAL WITHOUT DELETION
+ * Contiguous indices make enumeration trivial, and they mean a report can
+ * never be deleted — closing index 1 would hide index 2. So a finding that is
+ * overturned on appeal gets a REVERSAL attestation under a second schema, with
+ * the same index and a parallel nonce scheme. A reader counts a seller's
+ * reports, then checks each index for a reversal: active findings are the
+ * difference. Nothing published here is ever removed, including the fact that
+ * a finding was made and then reversed.
  */
 
 import { createHash } from "crypto";
@@ -96,9 +98,28 @@ export async function reportAttestationAddress(
 
 /** Register the report schema once per cluster. Safe to re-run: checks first, pays nothing if it exists. */
 export async function bootstrapReportSchema(cfg: SasConfig): Promise<SasResult> {
+  return bootstrapSchema(
+    cfg,
+    REPORT_SCHEMA_NAME,
+    REPORT_SCHEMA_VERSION,
+    REPORT_SCHEMA_DESCRIPTION,
+    REPORT_SCHEMA_LAYOUT,
+    REPORT_SCHEMA_FIELDS,
+  );
+}
+
+async function bootstrapSchema(
+  cfg: SasConfig,
+  name: string,
+  version: number,
+  description: string,
+  layout: Uint8Array,
+  fieldNames: string[],
+): Promise<SasResult> {
   try {
     const authority = await signer(cfg);
-    const { credential, schema } = await deriveReportSchema(authority.address);
+    const { credential } = await deriveSigPathAddresses(authority.address);
+    const [schema] = await deriveSchemaPda({ credential, name, version });
     const rpc = createSolanaRpc(cfg.rpcUrl);
 
     if ((await fetchMaybeSchema(rpc, schema)).exists) {
@@ -117,10 +138,10 @@ export async function bootstrapReportSchema(cfg: SasConfig): Promise<SasResult> 
       authority,
       credential,
       schema,
-      name: REPORT_SCHEMA_NAME,
-      description: REPORT_SCHEMA_DESCRIPTION,
-      layout: REPORT_SCHEMA_LAYOUT,
-      fieldNames: REPORT_SCHEMA_FIELDS,
+      name,
+      description,
+      layout,
+      fieldNames,
     });
     const signature = await send(cfg, [ix], authority);
     return { status: "ok", attestation: schema, signature, explorer: explorerUrl(schema, cfg.rpcUrl) };
@@ -201,4 +222,117 @@ export async function countSellerReportsOnChain(
     if (firstMissing !== -1) return start + firstMissing;
   }
   return max;
+}
+
+// ---------------------------------------------------------------------------
+// Reversals: an upheld finding overturned on appeal
+// ---------------------------------------------------------------------------
+
+export const REVERSAL_SCHEMA_NAME = "fake-report-reversal";
+export const REVERSAL_SCHEMA_VERSION = 1;
+export const REVERSAL_SCHEMA_DESCRIPTION =
+  "Reverses a fake-report finding against a seller, after the seller's appeal or a review error.";
+/** sellerSubject: String (hex) | reportIndex: i64 | reversedAt: i64. */
+export const REVERSAL_SCHEMA_LAYOUT = new Uint8Array([12, 8, 8]);
+export const REVERSAL_SCHEMA_FIELDS = ["sellerSubject", "reportIndex", "reversedAt"];
+
+export async function deriveReversalSchema(authority: Address) {
+  const { credential } = await deriveSigPathAddresses(authority);
+  const [schema] = await deriveSchemaPda({ credential, name: REVERSAL_SCHEMA_NAME, version: REVERSAL_SCHEMA_VERSION });
+  return { credential, schema };
+}
+
+/** Parallel to reportNonce: the reversal of report N lives at a derivable address too. */
+export function reversalNonce(sellerSubject: Uint8Array, index: number): Address {
+  if (sellerSubject.length !== 32) throw new Error("sellerSubject must be 32 bytes.");
+  if (!Number.isInteger(index) || index < 0) throw new Error("index must be a non-negative integer.");
+  const idx = Buffer.alloc(4);
+  idx.writeUInt32LE(index);
+  const h = createHash("sha256").update("sigpath-report-reversal-v1").update(sellerSubject).update(idx).digest();
+  return addressFromBytes(new Uint8Array(h));
+}
+
+export async function reversalAttestationAddress(authority: Address, sellerSubject: Uint8Array, index: number): Promise<Address> {
+  const { credential, schema } = await deriveReversalSchema(authority);
+  const [attestation] = await deriveAttestationPda({ credential, schema, nonce: reversalNonce(sellerSubject, index) });
+  return attestation;
+}
+
+export async function bootstrapReversalSchema(cfg: SasConfig): Promise<SasResult> {
+  return bootstrapSchema(
+    cfg,
+    REVERSAL_SCHEMA_NAME,
+    REVERSAL_SCHEMA_VERSION,
+    REVERSAL_SCHEMA_DESCRIPTION,
+    REVERSAL_SCHEMA_LAYOUT,
+    REVERSAL_SCHEMA_FIELDS,
+  );
+}
+
+export async function issueReversalAttestation(
+  cfg: SasConfig,
+  r: { sellerSubject: Uint8Array; index: number; reversedAt: number },
+): Promise<SasResult> {
+  try {
+    const authority = await signer(cfg);
+    const rpc = createSolanaRpc(cfg.rpcUrl);
+
+    // Only a finding that exists can be reversed — otherwise a reversal at an
+    // index nobody has used yet would silently pre-cancel the next report.
+    const original = await reportAttestationAddress(authority.address, r.sellerSubject, r.index);
+    const [exists] = await fetchAllMaybeAttestation(rpc, [original]);
+    if (!exists.exists) return { status: "error", reason: `There is no report #${r.index} on chain for this seller.` };
+
+    const { credential, schema } = await deriveReversalSchema(authority.address);
+    const nonce = reversalNonce(r.sellerSubject, r.index);
+    const [attestation] = await deriveAttestationPda({ credential, schema, nonce });
+    const onChainSchema = await fetchSchema(rpc, schema);
+    const data = serializeAttestationData(onChainSchema.data, {
+      sellerSubject: Buffer.from(r.sellerSubject).toString("hex"),
+      reportIndex: r.index,
+      reversedAt: r.reversedAt,
+    } as never);
+
+    const ix = getCreateAttestationInstruction({
+      payer: authority,
+      authority,
+      credential,
+      schema,
+      attestation,
+      nonce,
+      data,
+      expiry: 0n,
+    });
+    const signature = await send(cfg, [ix], authority);
+    return { status: "ok", attestation, signature, explorer: explorerUrl(attestation, cfg.rpcUrl) };
+  } catch (err) {
+    const reason = describeError(err);
+    return {
+      status: "error",
+      reason: reason.includes("already in use") ? `Report #${r.index} has already been reversed.` : reason,
+    };
+  }
+}
+
+/**
+ * What any app should read: a seller's findings, which were reversed, and the
+ * ACTIVE count that should affect how the seller is treated.
+ */
+export async function sellerFindingsOnChain(
+  authority: Address,
+  sellerSubject: Uint8Array,
+  rpcUrl: string,
+): Promise<{ upheld: number; reversed: number[]; active: number }> {
+  const upheld = await countSellerReportsOnChain(authority, sellerSubject, rpcUrl);
+  const reversed: number[] = [];
+  const rpc = createSolanaRpc(rpcUrl);
+  for (let start = 0; start < upheld; start += 100) {
+    const idxs = Array.from({ length: Math.min(100, upheld - start) }, (_, i) => start + i);
+    const addrs = await Promise.all(idxs.map((i) => reversalAttestationAddress(authority, sellerSubject, i)));
+    const found = await fetchAllMaybeAttestation(rpc, addrs);
+    found.forEach((a, i) => {
+      if (a.exists) reversed.push(idxs[i]);
+    });
+  }
+  return { upheld, reversed, active: upheld - reversed.length };
 }

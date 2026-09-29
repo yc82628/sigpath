@@ -469,6 +469,9 @@ npx tsx scripts/reports-admin.ts list                  # pending reports — no 
 npx tsx scripts/reports-admin.ts show <order>          # evidence, description, what the photo check saw
 npx tsx scripts/reports-admin.ts uphold <order>        # publish on chain, flag the seller
 npx tsx scripts/reports-admin.ts dismiss <order>       # publish nothing
+npx tsx scripts/reports-admin.ts notify <order>        # the notice to send the seller; starts their 7 days
+npx tsx scripts/reports-admin.ts reverse <order>       # overturn an upheld finding, e.g. on appeal
+npx tsx scripts/reports-admin.ts seller-link <src> <h> # a reply link for a seller who contacted you directly
 npx tsx scripts/reports-admin.ts sweep                 # expire unreviewed (90 days), clear old order records
 npx tsx scripts/reports-admin.ts seller ebay <handle>  # a seller's upheld reports, read from chain
 ```
@@ -498,13 +501,48 @@ then counts them back from the handle alone. Measured 2026-09-29 on devnet:
 report #0 decoded intact (category, date, evidence and listing hashes, expiry
 never).
 
+### The seller's right of reply
+
+A finding against someone isn't made without them having had the chance to
+answer it.
+
+**Reaching the seller.** Sellers aren't SigPath users, and marketplace APIs
+don't let a stranger message them. But SigPath is the **buyer of record**: for
+every fulfilled order the operator bought the item from exactly this seller,
+so the operator can always reach them through **that order's own messages**.
+`reports-admin notify <order>` prints the notice to send there, with a private
+link — and holding the link is the proof of being the seller, since only they
+receive messages on that order. No marketplace login integration needed.
+
+**The link** is HMAC-signed, scoped to one seller, valid 45 days, and carried
+in the URL **fragment** (`#t=…`), which browsers never send to a server — so it
+doesn't end up in access logs. It is a bearer credential: whoever holds it can
+reply as that seller, and it grants nothing else.
+
+| Rule | Enforced by |
+|---|---|
+| No finding before the seller is notified | `decideReport` refuses to uphold without a notice |
+| Seven days to reply | ...or until they reply, whichever is first; re-sending the notice doesn't restart the clock |
+| The seller sees what they're answering | category, listing and the buyer's description — never the buyer's photo or wallet |
+| One reply before a decision, one appeal after | write-once, so a statement can't be rewritten after it's been seen |
+| Both sides in public | `/seller/<source>/<handle>` shows every finding with the seller's reply and appeal beside it; search links there from flagged listings |
+| A report can still be **dismissed** at any time | an unfounded report needs no reply to reject |
+
+**Reversal.** `reports-admin reverse <order>` overturns an upheld finding —
+usually on appeal. A reversal attestation is published under a second schema
+(`fake-report-reversal`) at the **same index**, with a parallel nonce, so a
+reader counts a seller's findings and subtracts the reversed ones. Nothing is
+deleted from chain or log: the record shows a finding was made and corrected.
+The flag and the checkout ban lift immediately. A reversal can only target a
+finding that exists on chain, and only once.
+
+Verified on devnet (`scripts/sas-report-roundtrip.ts`): two findings published,
+#1 reversed, reversing #1 again refused ("already been reversed"), reversing a
+never-issued #7 refused ("no report #7") — then, from the handle alone:
+**2 upheld, reversed [#1], active 1**.
+
 ### Not built yet — say so before a judge does
 
-- **No right of reply for the seller.** Sellers aren't SigPath users and can't
-  be notified through marketplace APIs. Before real use, there must be a way for
-  a seller to see and contest a finding.
-- **No reversal.** An upheld report can't be withdrawn on chain: indices are
-  contiguous, so deleting #1 would hide #2. Reversal needs its own schema.
 - **Only SigPath purchases count.** Buyers from eBay directly can't report,
   because SigPath can't verify those purchases. Reputation builds as SigPath's
   own orders do.

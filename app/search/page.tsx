@@ -88,6 +88,15 @@ function ListingRow({ listing, flags, checkout }: { listing: Listing; flags: Fla
           </a>
         )}
         {checkout && "reason" in checkout && <p className="pay-blocked">{checkout.reason}</p>}
+        {flags.some((f) => f.kind === "upheld_reports") && (
+          // Every finding is shown with the seller's own reply beside it — a
+          // buyer judging this seller should see both sides, not just ours.
+          <p className="pay-blocked">
+            <a href={`/seller/${encodeURIComponent(listing.source)}/${encodeURIComponent(seller.handle)}`}>
+              See the findings and the seller&apos;s response &rarr;
+            </a>
+          </p>
+        )}
       </div>
       <div className="price">
         {formatMoney(total)}

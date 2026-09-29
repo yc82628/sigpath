@@ -46,6 +46,7 @@ import { readOrder } from "../checkout/checkout";
 import { OrderMetaStore, REPORT_WINDOW_SECS, type OrderMeta } from "./order-meta";
 import type { ChallengeVerification } from "../challenge/verify";
 import { listingHash } from "../chains/solana/orders";
+import { CaseLog, REPLY_WINDOW_SECS } from "./cases";
 import type { ReportCategory } from "../chains/solana/sas-reports";
 
 export const REPORT_CATEGORIES: readonly ReportCategory[] = ["counterfeit", "not_as_described"];
@@ -107,6 +108,12 @@ export interface Decision {
   /** Upheld only: the seller's report index and its on-chain attestation. */
   index?: number;
   attestation?: string;
+  /**
+   * Set when an upheld finding is overturned — on the seller's appeal, or when
+   * a reviewer finds their own mistake. The finding stays in the log (and on
+   * chain) with this beside it; it just stops counting against the seller.
+   */
+  reversal?: { at: number; attestation?: string };
 }
 
 /**
@@ -149,9 +156,29 @@ export class DecisionLog {
   async upheldCounts(): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
     for (const d of Object.values(await this.all())) {
-      if (d.status === "upheld") counts.set(d.sellerKey, (counts.get(d.sellerKey) ?? 0) + 1);
+      // A reversed finding no longer counts. It is still in the log.
+      if (d.status === "upheld" && !d.reversal) counts.set(d.sellerKey, (counts.get(d.sellerKey) ?? 0) + 1);
     }
     return counts;
+  }
+
+  /**
+   * The one change a decision can ever receive: an upheld finding reversed.
+   * Everything else about it is left exactly as recorded, so the log still
+   * shows that the finding was made, and when it was overturned.
+   */
+  async markReversed(order: string, reversal: { at: number; attestation?: string }): Promise<Decision> {
+    const all = await this.all();
+    const d = all[order];
+    if (!d) throw new Error("No decision for that order.");
+    if (d.status !== "upheld") throw new Error("Only an upheld finding can be reversed.");
+    if (d.reversal) throw new Error("That finding has already been reversed.");
+    d.reversal = reversal;
+    await mkdir(dirname(this.file), { recursive: true });
+    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
+    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
+    await rename(tmp, this.file);
+    return d;
   }
 }
 
@@ -164,6 +191,8 @@ export interface ReportDeps {
   metaStore: OrderMetaStore;
   reportStore: ReportStore;
   decisions: DecisionLog;
+  /** The seller's side of each report: notice, reply, appeal. */
+  cases: CaseLog;
   now?: number;
 }
 
@@ -207,7 +236,11 @@ export async function checkReportable(
   if (nowS > state.settledAt + REPORT_WINDOW_SECS) {
     return { ok: false, status: 409, error: "The 30-day window for reporting this order has closed." };
   }
-  if ((await deps.decisions.get(orderStr)) || (await deps.reportStore.has(orderStr))) {
+  if (
+    (await deps.decisions.get(orderStr)) ||
+    (await deps.reportStore.has(orderStr)) ||
+    (await deps.cases.get(orderStr))
+  ) {
     return { ok: false, status: 409, error: "This order has already been reported." };
   }
 
@@ -389,6 +422,15 @@ export async function submitReport(
   } catch {
     return { ok: false, status: 409, error: "This order has already been reported." };
   }
+  // Open the seller's side of the case. If this fails, the report is withdrawn
+  // rather than left without a place for the seller's reply — a report the
+  // seller cannot answer must not be able to reach a reviewer.
+  try {
+    await deps.cases.open(it.order, sellerKey(record.seller.source, record.seller.handle), Math.floor(now / 1000));
+  } catch {
+    await deps.reportStore.delete(it.order);
+    return { ok: false, status: 500, error: "The report could not be filed. Try again." };
+  }
   INTENTS.delete(it.id);
   return { ok: true, passed: true };
 }
@@ -419,6 +461,8 @@ export async function decideReport(
   deps: {
     reportStore: ReportStore;
     decisions: DecisionLog;
+    /** Required to uphold: the seller's right of reply is checked here. */
+    cases?: CaseLog;
     /**
      * Writes the on-chain record. Gets the local count as a hint and returns
      * the index it ACTUALLY used — the chain's count is authoritative, since
@@ -450,6 +494,28 @@ export async function decideReport(
   };
 
   if (status === "upheld") {
+    // THE SELLER'S RIGHT OF REPLY. A finding against someone is not made
+    // without them having had the chance to answer it: they must have been
+    // notified, and must either have replied or had the full window to. The
+    // reviewer can still DISMISS at any time — a report that is plainly
+    // unfounded needs no reply to reject.
+    if (!deps.cases) return { ok: false, error: "The case record is needed to uphold a report." };
+    const c = await deps.cases.get(order);
+    if (!c?.notifiedAt) {
+      return {
+        ok: false,
+        error: "The seller hasn't been notified yet. Send the notice first (reports-admin notify), then wait for their reply or the 7-day window.",
+      };
+    }
+    const opensAt = c.notifiedAt + REPLY_WINDOW_SECS;
+    if (!c.reply && decidedAt < opensAt) {
+      const days = Math.ceil((opensAt - decidedAt) / 86400);
+      return {
+        ok: false,
+        error: `The seller has until ${new Date(opensAt * 1000).toISOString().slice(0, 10)} to reply (${days} day${days === 1 ? "" : "s"} left). It can be upheld once they reply or the window closes.`,
+      };
+    }
+
     const index = (await deps.decisions.upheldCounts()).get(key) ?? 0;
     decision.index = index;
     if (deps.publish) {
@@ -463,6 +529,37 @@ export async function decideReport(
   await deps.decisions.record(order, decision);
   await deps.reportStore.delete(order);
   return { ok: true, decision };
+}
+
+/**
+ * Reverse an upheld finding — usually on the seller's appeal.
+ *
+ * Like upholding, the chain goes first: the reversal is published, and only
+ * then recorded here, so SigPath and any app reading the chain agree about
+ * whether the finding still stands. The finding itself is never deleted, from
+ * the log or the chain; the reversal sits beside it.
+ */
+export async function reverseDecision(
+  order: string,
+  deps: {
+    decisions: DecisionLog;
+    publishReversal?: (d: Decision, reversedAt: number) => Promise<{ attestation: string } | { error: string }>;
+    now?: number;
+  },
+): Promise<{ ok: true; decision: Decision } | { ok: false; error: string }> {
+  const d = await deps.decisions.get(order);
+  if (!d) return { ok: false, error: "No decision for that order." };
+  if (d.status !== "upheld") return { ok: false, error: "Only an upheld finding can be reversed." };
+  if (d.reversal) return { ok: false, error: "That finding has already been reversed." };
+
+  const at = Math.floor((deps.now ?? Date.now()) / 1000);
+  let attestation: string | undefined;
+  if (deps.publishReversal) {
+    const pub = await deps.publishReversal(d, at);
+    if ("error" in pub) return { ok: false, error: `Not published, so not recorded: ${pub.error}` };
+    attestation = pub.attestation;
+  }
+  return { ok: true, decision: await deps.decisions.markReversed(order, { at, attestation }) };
 }
 
 /** Reports nobody reviewed in time are closed, not kept: recorded as expired, evidence deleted. */

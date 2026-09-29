@@ -91,7 +91,46 @@ async function main() {
   console.log(`  expiry         ${first.data.expiry === 0n ? "never" : String(first.data.expiry)}`);
 
   if (after !== before + 2) throw new Error(`expected ${before + 2}, counted ${after}`);
-  console.log("\nON-CHAIN PENALTY WORKS — readable from the handle alone");
+
+  // --- reversal: report #1 overturned on appeal --------------------------------
+  const { reversalPublisher } = await import("../lib/reports/publish");
+  const { sellerFindingsOnChain } = await import("../lib/chains/solana/sas-reports");
+  const { sellerKey } = await import("../lib/marketplace/types");
+
+  const rev = await reversalPublisher(cfg)(
+    { sellerKey: sellerKey(seller.source, seller.handle), index: 1, attestation: "published" } as never,
+    Math.floor(Date.now() / 1000),
+  );
+  if ("error" in rev) throw new Error(rev.error);
+  console.log(`\nreversed   report #1  ${rev.attestation}`);
+
+  const again = await reversalPublisher(cfg)(
+    { sellerKey: sellerKey(seller.source, seller.handle), index: 1, attestation: "published" } as never,
+    Math.floor(Date.now() / 1000),
+  );
+  console.log(`reverse #1 twice: ${"error" in again ? `refused (${again.error})` : "ACCEPTED — should not be"}`);
+
+  const bogus = await reversalPublisher(cfg)(
+    { sellerKey: sellerKey(seller.source, seller.handle), index: 7, attestation: "published" } as never,
+    Math.floor(Date.now() / 1000),
+  );
+  console.log(`reverse #7 (never issued): ${"error" in bogus ? `refused (${bogus.error})` : "ACCEPTED — should not be"}`);
+
+  const f = await sellerFindingsOnChain(authority, subject, cfg.rpcUrl);
+  console.log(`\nfrom the handle alone: ${f.upheld} upheld, reversed [${f.reversed.map((i) => `#${i}`).join(", ")}], ACTIVE ${f.active}`);
+  // Each refusal must be refused for ITS reason. "Any error" would also be
+  // satisfied by an RPC rate limit — which is exactly what happened the first
+  // time this ran, and would have passed a broken safeguard.
+  const refusedFor = (r: { error: string } | { attestation: string }, re: RegExp) => "error" in r && re.test(r.error);
+  if (
+    f.active !== 1 ||
+    f.reversed.join() !== "1" ||
+    !refusedFor(again, /already been reversed/) ||
+    !refusedFor(bogus, /no report #7/)
+  ) {
+    throw new Error("reversal did not behave as specified");
+  }
+  console.log("\nON-CHAIN PENALTY AND REVERSAL WORK — readable from the handle alone");
 }
 
 main().catch((e) => {
