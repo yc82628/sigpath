@@ -16,8 +16,8 @@ incremental = false
 codegen-units = 1
 
 # The orders program is optimised for SIZE, not speed. Deploy rent scales with
-# the binary (~1.4 SOL for the program plus the same again held for the deploy
-# buffer at 281 KB), while its instructions are a handful of token CPIs that
+# the binary (1.04 SOL at the deployed 204 KB, with the IDL features also off —
+# see its Cargo.toml), while its instructions are a handful of token CPIs that
 # are nowhere near the compute limit either way. Every KB saved is rent not
 # spent. The attestation program keeps the default: it is already deployed,
 # and changing its build would change the binary a redeploy would ship.

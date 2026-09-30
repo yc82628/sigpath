@@ -10,7 +10,12 @@ crate-type = ["cdylib", "lib"]
 name = "sigpath_orders"
 
 [features]
-default = []
+# Both on by default, to cut deploy rent: 251 KB -> 204 KB, 1.276 -> 1.038 SOL.
+# no-idl drops Anchor's on-chain IDL instructions (nothing here publishes an
+# IDL; the TS clients build instructions by hand), no-log-ix-name drops the
+# "Instruction: X" log line per call (nothing parses it). Behaviour is
+# otherwise identical: orders-roundtrip and checkout-e2e pass 19/19 on it.
+default = ["no-idl", "no-log-ix-name"]
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []

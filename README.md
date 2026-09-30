@@ -298,8 +298,9 @@ worth a lot: if the operator does *nothing*, the buyer is refunded
 automatically. Disputes about a claimed shipment need an arbiter — the next
 design step, not something this already does.
 
-Devnet program: `3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW` — **not yet
-deployed** (needs ~2.56 SOL, see below). Accepts only Circle's devnet USDC
+Devnet program: [`3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW`](https://explorer.solana.com/address/3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW?cluster=devnet)
+— **deployed 2026-09-30** (slot 505717243, 204,168 bytes, upgrade authority
+the operator). Accepts only Circle's devnet USDC
 (`4zMMC9…DncDU`). Operator and mint are constants in the code, so the deployed
 program itself states who can be paid and in what.
 
@@ -333,22 +334,28 @@ failed.**
 
 ### Deploy to devnet
 
-Build with `anchor build --no-idl -p sigpath_orders` (WSL). It is built
-size-optimised (`opt-level = "z"`, root `Cargo.toml`), which took it from 281 KB
-to **251 KB** with both end-to-end suites still passing 19/19. That is
-**1.28 SOL** of rent for the program itself, and the same again held
-temporarily for the deploy buffer — about **2.56 SOL** at peak. The CLI
-airdrop is usually rate-limited; use [faucet.solana.com](https://faucet.solana.com)
-for the operator wallet `AaFcCz…dfXg`, then:
+Build with `anchor build --no-idl -p sigpath_orders` (WSL). Rent scales with
+the binary, so it is built for size: `opt-level = "z"` (root `Cargo.toml`) took
+it from 281 KB to 251 KB, and the `no-idl` + `no-log-ix-name` features (on by
+default in `programs/sigpath_orders/Cargo.toml`) drop Anchor's on-chain IDL
+instructions and per-call name logs, which nothing here uses — **204 KB**.
+Both end-to-end suites pass 19/19 on exactly that binary.
+
+The deploy cost **1.0399 SOL** in total: 1.0381 SOL rent for the program data
+(recoverable with `solana program close` if the program is ever retired), the
+rest the program account and write fees. The upload buffer's rent is handed
+back into the program data at deploy, so the peak need is about the same
+~1.04 SOL, not double. The CLI airdrop is usually rate-limited; use
+[faucet.solana.com](https://faucet.solana.com) for the operator wallet
+`AaFcCz…dfXg`, then:
 
 ```bash
-solana program deploy target/deploy/sigpath_orders.so \
-  --program-id target/deploy/sigpath_orders-keypair.json \
-  --max-len 251008 --url devnet
+solana program deploy target/deploy/sigpath_orders.so   --program-id target/deploy/sigpath_orders-keypair.json   --max-len 204168 --url devnet
 ```
 
 `--max-len` equal to the size keeps the rent at its minimum; a later, larger
-build needs `solana program extend`.
+build needs `solana program extend`. If an upload fails partway, its buffer
+keeps the rent until `solana program close --buffers --url devnet` returns it.
 
 ### The checkout
 
