@@ -1,16 +1,108 @@
 # SigPath
 
-A Solana-first (Base-mirrored) attestation engine that turns a developer's
-verifiable digital footprint into a public, re-derivable on-chain score — gated
-by a live camera challenge whose pass/fail policy lives in code rather than in a
-prompt, and published both to its own Anchor program and to the Solana
-Attestation Service so any app can read it without integrating with SigPath.
+**Every deal compared. Every deal checked.**
 
-Deployed on devnet: [`Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4`](https://explorer.solana.com/address/Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4?cluster=devnet)
+SigPath searches eBay, Amazon and Etsy at once and shows the best price, with
+shipping included. It then checks every result before you buy: is the price
+plausible for the condition, is the photo recycled from another seller, is the
+account brand new, has a verified buyer reported this seller for fakes? Pay
+through SigPath and your money waits in an on-chain escrow until the order
+ships, or comes back to you automatically. No account, no sign-in, no tracking.
+
+Built for the **Solana × Superteam Germany** hackathon.
+
+| | Live on devnet |
+|---|---|
+| Order escrow (Anchor) | [`3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW`](https://explorer.solana.com/address/3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW?cluster=devnet) |
+| Fake-product findings, reversals, verified-seller badges | Solana Attestation Service, credential `SigPath` |
+| Identity attestations (the original engine) | [`Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4`](https://explorer.solana.com/address/Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4?cluster=devnet) |
 
 ---
 
-## Quickstart — exact commands
+## What a shopper gets
+
+- **One search, every marketplace.** eBay, Amazon and Etsy through their
+  official APIs, with prices compared including shipping. idealo and
+  Kleinanzeigen have no API SigPath may use, so they get a one-click link
+  instead of scraping.
+- **One verdict per listing.** ✓ **SigPath-checked**: the price matches the market
+  for its condition and nothing was flagged. **! Look closer**: with the reason,
+  such as a photo on two seller accounts, a three-day-old account, or a price far
+  below the median. **Not price-checked**: neutral, for listings with nothing to
+  compare against. "Checked" means checked, not guaranteed, and the page says so.
+- **The best checked deal**, for new and for used, with how far below the typical
+  price it is. A flagged bargain never wins.
+- **Price-drop alerts with no account.** A browser notification when a
+  *checked* deal hits your price. Bait listings never trigger "price dropped!".
+- **Pay with USDC, protected by escrow.** The seller isn't paid until the order is
+  fulfilled. If it isn't fulfilled in time, anyone can trigger the refund, and
+  it can only go back to the buyer. Your delivery address is stored encrypted and
+  deleted when the order ends.
+
+## How fakes are kept out, and why it needs a blockchain
+
+1. **Checked before you buy:** cross-marketplace checks no single marketplace can
+   run on itself.
+2. **Reported by real buyers:** only a wallet that paid for the order can report
+   it, with a live photo of what arrived beside a code issued on the spot.
+3. **The seller's right of reply:** a report can't be upheld until the seller was
+   notified and either answered or had 7 days.
+4. **Penalties that follow the seller:** an upheld finding is published to the
+   **Solana Attestation Service**, keyed to the seller's marketplace handle.
+   Anyone can read it from the handle alone, with no SigPath API and no trust in
+   SigPath's database. It flags the seller on every search and closes SigPath's
+   checkout to them. A finding reversed on appeal stays visible, marked reversed.
+5. **Verified sellers:** sellers can prove the account is theirs and earn a
+   **soulbound badge**, a Token-2022 token that can't be transferred or sold. An
+   upheld report burns it.
+
+## Try it in two minutes (no keys needed)
+
+```powershell
+npm install
+if (-not (Test-Path .env.local)) { Copy-Item .env.local.example .env.local }
+npm run dev
+```
+
+Open http://localhost:3000 and search for anything. A **demo feed** is on by
+default (`STUB_FEED=true`). It deliberately includes a bait listing, a recycled
+photo and a brand-new account, so every verdict is on screen without any keys.
+For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`,
+`ETSY_KEYSTRING`/`ETSY_SHARED_SECRET` or Amazon PA-API keys to `.env.local` (see
+`.env.local.example`), then set `STUB_FEED=false` once they answer.
+
+```powershell
+npm test                                   # 362 tests, as of 2026-10-02
+npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
+npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
+npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
+```
+
+The devnet scripts need an operator key in `.env.local`, and they create a test
+wallet to fund from faucet.circle.com.
+
+**Pages:** `/search` · `/alerts` · `/seller/verify` · `/seller/<marketplace>/<handle>`
+(a seller's public record) · `/checkout` · `/order/<address>` · `/report/<order>`
+
+## Contents
+
+The rest of this README is the engineering detail:
+
+- [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
+- [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
+- [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
+- [Known toolchain traps](#known-toolchain-traps) · [Scripts](#scripts)
+
+---
+
+## Identity engine quickstart — exact commands
+
+SigPath began as an identity-attestation engine, which turns a developer's
+public footprint into an on-chain score gated by a live camera check. The
+shopping product reuses its camera check and SAS credential. These steps build
+and deploy *that* program; the shopping app needs only the two-minute setup above.
+
 
 Every block below is labelled with the shell it must run in. **The shell matters
 more than usual on this project**: `cp` does not exist in cmd.exe, and `npm`
@@ -147,7 +239,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (237 as of 2026-09-25), then a dev server on http://localhost:3000.
+Expect every test to pass (362 as of 2026-10-02), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
@@ -218,7 +310,7 @@ npm run dev
 
 ---
 
-## What it does
+## The identity engine — what it does
 
 Gathers public evidence about a subject, scores how well-corroborated that
 evidence is, and records the result on-chain so a third party can check it
