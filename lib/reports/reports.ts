@@ -474,9 +474,18 @@ export async function decideReport(
       localIndex: number,
       upheldAt: number,
     ) => Promise<{ attestation: string; index: number } | { error: string }>;
+    /**
+     * Upheld only: revoke the seller's verified badge, if they hold one. Runs
+     * AFTER the decision is recorded and never undoes it — a failed burn is
+     * reported, and the badge is hidden anyway because it has an upheld report.
+     */
+    revokeBadge?: (sellerKey: string, reason: string) => Promise<{ revoked: boolean; signature?: string; chainError?: string }>;
     now?: number;
   },
-): Promise<{ ok: true; decision: Decision } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; decision: Decision; badge?: { revoked: boolean; signature?: string; chainError?: string } }
+  | { ok: false; error: string }
+> {
   const pending = await deps.reportStore.get(order);
   if (!pending) return { ok: false, error: "No pending report for that order." };
   if (await deps.decisions.get(order)) return { ok: false, error: "That report has already been decided." };
@@ -528,6 +537,13 @@ export async function decideReport(
 
   await deps.decisions.record(order, decision);
   await deps.reportStore.delete(order);
+  if (status === "upheld" && deps.revokeBadge) {
+    const badge = await deps.revokeBadge(key, `fake-product report upheld (order ${order})`).catch((e: unknown) => ({
+      revoked: false,
+      chainError: e instanceof Error ? e.message : String(e),
+    }));
+    return { ok: true, decision, badge };
+  }
   return { ok: true, decision };
 }
 

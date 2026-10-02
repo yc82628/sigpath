@@ -18,6 +18,15 @@
 
 import type { SearchOptions, SourceResult, MarketplaceId } from "../types";
 
+/**
+ * One listing, as the marketplace itself reports it: who sells it, and the
+ * seller-written text on it. The verified-seller claim uses this to check that
+ * a claimant put SigPath's code into a listing — which only the account that
+ * owns the listing can do. The handle comes from the marketplace, never from
+ * the claimant.
+ */
+export type ListingProof = { ok: true; handle: string; text: string } | { ok: false; error: string };
+
 export interface MarketplaceSource {
   readonly id: MarketplaceId;
   /**

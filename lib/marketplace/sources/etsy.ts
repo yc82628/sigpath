@@ -38,7 +38,7 @@
  */
 
 import type { Condition, Listing, SearchOptions, SourceResult } from "../types";
-import type { MarketplaceSource } from "./types";
+import type { ListingProof, MarketplaceSource } from "./types";
 
 const BASE = "https://openapi.etsy.com/v3/application";
 
@@ -138,6 +138,27 @@ export class EtsySource implements MarketplaceSource {
       return { ok: true, byId };
     } catch {
       return { ok: false, byId };
+    }
+  }
+
+  /** For the verified-seller claim: a listing's shop (the handle search uses) and its text. */
+  async listingForProof(listingId: string, timeoutMs = 8000): Promise<ListingProof> {
+    const key = this.apiKey();
+    if (!key) return { ok: false, error: "Etsy isn't configured on this SigPath instance." };
+    if (!/^\d{5,15}$/.test(listingId)) return { ok: false, error: "That isn't an Etsy listing id (the number in the listing's URL)." };
+    try {
+      const res = await this.fetchImpl(`${BASE}/listings/${listingId}`, {
+        headers: { "x-api-key": key },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status === 404) return { ok: false, error: "Etsy has no listing with that id." };
+      if (!res.ok) return { ok: false, error: `Etsy returned ${res.status}.` };
+      const l = (await res.json()) as EtsyListing & { description?: string; state?: string };
+      if (typeof l.shop_id !== "number") return { ok: false, error: "Etsy didn't say which shop sells that listing." };
+      if (l.state && l.state !== "active") return { ok: false, error: "That listing isn't active." };
+      return { ok: true, handle: `shop:${l.shop_id}`, text: [l.title, l.description].filter(Boolean).join("\n") };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Etsy couldn't be reached." };
     }
   }
 

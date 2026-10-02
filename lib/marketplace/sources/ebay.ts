@@ -31,7 +31,7 @@
  */
 
 import type { Condition, Listing, Money, SearchOptions, SourceResult } from "../types";
-import type { MarketplaceSource } from "./types";
+import type { ListingProof, MarketplaceSource } from "./types";
 
 /**
  * Sandbox and production are separate accounts with separate keysets.
@@ -167,6 +167,33 @@ export class EbaySource implements MarketplaceSource {
       expiresAt: Date.now() + (body.expires_in ?? 7200) * 1000,
     };
     return this.token.value;
+  }
+
+  /**
+   * For the verified-seller claim. Takes the item number eBay shows on the
+   * listing page (the "legacy" id) and returns its seller and description.
+   */
+  async listingForProof(itemNumber: string, timeoutMs = 8000): Promise<ListingProof> {
+    const creds = this.credentials();
+    if (!creds) return { ok: false, error: "eBay isn't configured on this SigPath instance." };
+    if (!/^\d{9,15}$/.test(itemNumber)) return { ok: false, error: "That isn't an eBay item number (the 12-digit number on the listing)." };
+    try {
+      const token = await this.accessToken(creds.id, creds.secret, creds.env);
+      const res = await this.fetchImpl(
+        `${HOSTS[creds.env]}/buy/browse/v1/item/get_item_by_legacy_id?legacy_item_id=${itemNumber}`,
+        {
+          headers: { authorization: `Bearer ${token}`, "X-EBAY-C-MARKETPLACE-ID": creds.marketplace },
+          signal: AbortSignal.timeout(timeoutMs),
+        },
+      );
+      if (res.status === 404) return { ok: false, error: "eBay has no live listing with that item number." };
+      if (!res.ok) return { ok: false, error: `eBay returned ${res.status}.` };
+      const it = (await res.json()) as { seller?: { username?: string }; title?: string; shortDescription?: string; description?: string };
+      if (!it.seller?.username) return { ok: false, error: "eBay didn't say who sells that listing." };
+      return { ok: true, handle: it.seller.username, text: [it.title, it.shortDescription, it.description].filter(Boolean).join("\n") };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "eBay couldn't be reached." };
+    }
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<SourceResult> {

@@ -558,6 +558,100 @@ never-issued #7 refused ("no report #7") — then, from the handle alone:
 
 ---
 
+## Verified sellers — a soulbound badge, earned and revocable
+
+Reports are the stick; this is the carrot. A seller on eBay or Etsy can prove
+the account is theirs and that a real person runs it, and their listings show
+a **Verified seller** badge on every SigPath search. The badge is a
+**non-transferable token** in the seller's wallet: it can't be sold, given away
+or moved to a fresh wallet, and an upheld fake-product report burns it.
+
+It is built from the attestation SigPath already issues, not a separate NFT
+program. The Solana Attestation Service can *tokenize* an attestation: next to
+the attestation account it mints one Token-2022 token, from a mint it creates
+itself with **NonTransferable**, a **PermanentDelegate** and a
+**MintCloseAuthority**, all SAS's own PDA. Only SAS, on the issuer's instruction,
+can burn it.
+
+### The claim proves three things, each with its own evidence
+
+| What | How |
+|---|---|
+| **The account is theirs** | SigPath gives a one-time code (`SIGPATH-XXXX-XXXX`). The seller puts it in one of their live listings; SigPath reads that listing through the marketplace's own API (eBay Browse `get_item_by_legacy_id`, Etsy `listings/{id}`). Only the account that owns a listing can edit it, and **the handle comes from the marketplace's answer**: the claimant never types it, so there's nothing to misspell or impersonate. |
+| **The wallet is theirs** | The wallet signs a message naming the handle and the code. |
+| **A real person runs it** | The same camera check as the identity flow, on its own `person` provider. The frame is checked and discarded: no picture or face data is kept. |
+
+It must also be **eligible**: no badge already on the handle, and **no active
+upheld report** against it. A penalised seller can't buy back a clean look by
+verifying. Both are checked when the listing is proved and again just before
+the badge is issued.
+
+Claim state lives in two HMAC-signed tokens, so nothing is stored until the badge
+is issued. Each token has its own domain string: neither can pass as the
+other, as a price quote or as a seller link (tested). The claim token holds the
+wallet and code, and lasts 48 hours to give the seller time to edit a listing.
+The proven token holds the wallet and handle, and lasts 30 minutes to sign and
+take the photo.
+
+### One badge per handle, readable from the handle alone
+
+The attestation's nonce is `sha256("sigpath-verified-seller-v1" ‖ sellerSubject)`,
+so a handle's badge lives at one address anyone can derive, exactly like the
+report indices. `readVerifiedSeller` checks that the attestation exists, hasn't
+lapsed (badges last a year) and that **the token is still held**. Holders may burn
+their own Token-2022 tokens, so "the attestation exists" isn't enough.
+
+### Revocation
+
+`reports-admin uphold` burns the token **after** the finding is recorded, and a
+failed burn never undoes the finding. The badge is hidden either way, because
+`badgeFor` refuses to show a badge beside any upheld report. A failed burn is
+recorded and can be retried with `reports-admin revoke-badge <source:handle>`.
+Burning returns the mint's and attestation's rent to the issuer, so a badge
+costs SigPath nothing permanent except the seller's token-account rent, which
+the seller gets back if they close the empty account. If the finding is
+reversed on appeal, the seller can claim again.
+
+### Where it shows
+
+- **Search:** a quiet green badge beside the seller. It vouches for the
+  account, not the item, so it **removes no flag** and changes nothing about the
+  price check or checkout.
+- **The seller's page** (`/seller/<source>/<handle>`): shown only when SigPath's
+  log **and the chain** agree. Search reads the log alone, for speed;
+  `reports-admin badges` compares every active badge against the chain and names
+  any that disagree.
+- **Claim page:** `/seller/verify`. With the stub feed on, a demo marketplace
+  stands in for eBay. Its "listing id" is `handle:listing text`.
+
+### What it doesn't do
+
+- **It doesn't stop someone opening a new account.** It makes "verified"
+  visibly different from "no track record", and it costs something a throwaway
+  account doesn't have.
+- **Amazon isn't supported.** Its API doesn't show listing text, so control of the
+  account can't be proved.
+- It vouches for **the account, not any item**. The page says so.
+
+```bash
+npx tsx scripts/reports-admin.ts bootstrap          # once per cluster: registers and tokenizes the schema
+npx tsx scripts/sas-verified-roundtrip.ts           # issue, read, prove non-transferable, revoke
+npx tsx scripts/devnet-verified-seller.ts           # the full claim -> badge -> uphold burns it -> reversal
+```
+
+Verified on devnet, 2026-10-02:
+- `sas-verified-roundtrip`: 6/6. The mint carries NonTransferable (9) and
+  PermanentDelegate (12). A simulated transfer to another wallet failed with
+  **Token-2022 error 37, NonTransferable**, on the transfer instruction itself.
+  A second badge for the same handle was refused. After revocation the handle
+  reads as unverified.
+- `devnet-verified-seller`: 14/14. The badge was claimed and shown. An upheld
+  report published the finding and burned the token in the same uphold, after
+  which the badge was gone and re-verifying was refused. After reversal the
+  seller was eligible again.
+
+---
+
 ## The two-chain split
 
 Solana is the source of truth. Attestations are created, scored and revoked
@@ -760,6 +854,11 @@ npx tsx scripts/checkout-e2e.ts               # prove checkout + address deletio
 npx tsx scripts/orders-admin.ts list          # operator: orders awaiting fulfilment
 npx tsx scripts/reports-admin.ts list         # reviewer: fake-product reports awaiting review
 npx tsx scripts/sas-report-roundtrip.ts       # prove upheld reports are readable on chain from a handle
+npx tsx scripts/sas-verified-roundtrip.ts     # prove the verified-seller token: soulbound, one per handle, revocable
+npx tsx scripts/devnet-checkout.ts            # the checkout on devnet, against the deployed escrow
+npx tsx scripts/devnet-report.ts              # the report flow on devnet: right of reply, penalty, reversal
+npx tsx scripts/devnet-verified-seller.ts     # the badge on devnet: claim, show, burned by an upheld report
+npx tsx scripts/reports-admin.ts badges       # verified sellers, checked against the chain
 npx tsx scripts/sas-read.ts github <handle>   # read a SAS credential with no secret
 npx tsx scripts/ebay-check.ts "<query>"       # prove an eBay keyset in isolation
 GITHUB_TOKEN=... npx tsx scripts/benchmark-scoring.ts

@@ -9,8 +9,10 @@
  *   npx tsx scripts/reports-admin.ts reverse <order>       overturn an upheld finding (e.g. on appeal)
  *   npx tsx scripts/reports-admin.ts seller-link <src> <h> a reply link for a seller who contacted you
  *   npx tsx scripts/reports-admin.ts sweep                 expire stale reports, clear old order records
- *   npx tsx scripts/reports-admin.ts bootstrap             register the report schema on SAS
- *   npx tsx scripts/reports-admin.ts seller <src> <handle> a seller's findings ON CHAIN, reversals included
+ *   npx tsx scripts/reports-admin.ts bootstrap             register the report and verified-seller schemas on SAS
+ *   npx tsx scripts/reports-admin.ts seller <src> <handle> a seller's findings and badge ON CHAIN
+ *   npx tsx scripts/reports-admin.ts badges                verified sellers, and any badge whose burn failed
+ *   npx tsx scripts/reports-admin.ts revoke-badge <src:h>  burn a seller's verified-seller token
  *
  * THE SELLER'S RIGHT OF REPLY
  * A report cannot be upheld until the seller has been notified and has either
@@ -76,6 +78,9 @@ async function main() {
   const { subjectHash } = await import("../lib/crypto/hash");
   const { Connection } = await import("@solana/web3.js");
   const { address } = await import("@solana/kit");
+  const { VerifiedSellerLog } = await import("../lib/sellers/verified-log");
+  const { badgeRevoker, sellerSubject } = await import("../lib/sellers/badges");
+  const { bootstrapVerifiedSchema, readVerifiedSeller } = await import("../lib/chains/solana/sas-verified");
 
   const reportStore = ReportStore.fromEnv();
   const decisions = DecisionLog.fromEnv();
@@ -204,6 +209,7 @@ async function main() {
         decisions,
         cases,
         publish: status === "upheld" ? reportPublisher() : undefined,
+        revokeBadge: status === "upheld" ? badgeRevoker(VerifiedSellerLog.fromEnv()) : undefined,
       });
       if (!res.ok) throw new Error(res.error);
       rmSync(evidencePath(order), { force: true });
@@ -211,6 +217,13 @@ async function main() {
       console.log(`seller     ${res.decision.sellerKey}`);
       if (res.decision.attestation) {
         console.log(`on chain   ${res.decision.attestation}  (report #${res.decision.index} against this seller)`);
+      }
+      if (res.badge?.revoked) {
+        console.log(
+          res.badge.chainError
+            ? `badge      revoked in SigPath; burning the token FAILED (${res.badge.chainError}) — retry: revoke-badge ${res.decision.sellerKey}`
+            : `badge      verified-seller token burned  ${res.badge.signature}`,
+        );
       }
       console.log(`buyer data deleted: photo, description, wallet`);
       return;
@@ -235,6 +248,49 @@ async function main() {
       if (r.status === "error" || r.status === "disabled") throw new Error(r.reason);
       console.log(`report schema ${r.status === "exists" ? "already registered" : "registered"}: ${r.attestation}`);
       if (r.status === "ok") console.log(`tx ${r.signature}`);
+      const v = await bootstrapVerifiedSchema(cfg);
+      if (v.status === "error" || v.status === "disabled") throw new Error(v.reason);
+      console.log(`verified-seller schema ${v.status === "exists" ? "already tokenized" : "registered and tokenized"}: mint ${v.attestation}`);
+      return;
+    }
+
+    case "badges": {
+      const all = await VerifiedSellerLog.fromEnv().all();
+      const now = Math.floor(Date.now() / 1000);
+      if (!Object.keys(all).length) console.log("No verified sellers.");
+      for (const [key, { current: b }] of Object.entries(all)) {
+        const state = b.revoked
+          ? b.revoked.chainError
+            ? `REVOKED, burn FAILED — run: revoke-badge ${key}`
+            : `revoked ${date(b.revoked.at)} (${b.revoked.reason})`
+          : now >= b.expiresAt
+            ? `lapsed ${date(b.expiresAt)}`
+            : `verified ${date(b.verifiedAt)}, until ${date(b.expiresAt)}`;
+        // Search shows badges from this log alone; the seller page also asks the
+        // chain. They can only disagree if the holder burned their own token —
+        // so check, and say so, rather than let search show a badge the chain doesn't back.
+        let chain = "";
+        const cfg = sasConfigFromEnv();
+        if (cfg && !b.revoked && now < b.expiresAt) {
+          const onChain = await readVerifiedSeller((await signer(cfg)).address, await sellerSubject(key), cfg.rpcUrl).catch(() => null);
+          chain = !onChain
+            ? "   chain: couldn't be read\n"
+            : onChain.status === "valid"
+              ? "   chain: valid, token held\n"
+              : `   chain: ${onChain.status.toUpperCase()} — search still shows this badge; run: revoke-badge ${key}\n`;
+        }
+        console.log(`${key}\n   ${state}\n   wallet ${b.wallet} · attestation ${b.attestation}\n${chain}`);
+      }
+      return;
+    }
+
+    case "revoke-badge": {
+      const key = args[0];
+      if (!key || !key.includes(":")) throw new Error("Usage: revoke-badge <source:handle>");
+      const r = await badgeRevoker(VerifiedSellerLog.fromEnv())(key, args.slice(1).join(" ") || "revoked by reviewer");
+      if (!r.revoked) throw new Error("That seller holds no active badge in SigPath's log.");
+      if (r.chainError) throw new Error(`Recorded as revoked, but burning the token failed: ${r.chainError}`);
+      console.log(`revoked    ${key}\ntoken burned ${r.signature}`);
       return;
     }
 
@@ -257,11 +313,13 @@ async function main() {
       console.log(`  findings upheld  ${f.upheld}`);
       console.log(`  reversed         ${f.reversed.length}${f.reversed.length ? ` (report #${f.reversed.join(", #")})` : ""}`);
       console.log(`  ACTIVE           ${f.active}`);
+      const b = await readVerifiedSeller(authority, await sellerSubject(`${source}:${handle}`), rpc);
+      console.log(`  verified badge   ${b.status}${b.status === "valid" ? ` — held by ${b.holder}, until ${date(b.expiresAt)}` : ""}`);
       return;
     }
 
     default:
-      console.error("Usage: reports-admin.ts list | show | uphold | dismiss | sweep | bootstrap | seller");
+      console.error("Usage: reports-admin.ts list | show | notify | uphold | dismiss | reverse | seller-link | sweep | bootstrap | seller | badges | revoke-badge");
       process.exit(1);
   }
 }

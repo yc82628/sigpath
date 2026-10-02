@@ -3,6 +3,10 @@ import { publicFindings } from "@/lib/reports/seller";
 import { DecisionLog } from "@/lib/reports/reports";
 import { CaseLog } from "@/lib/reports/cases";
 import { sellerKey } from "@/lib/marketplace/types";
+import { VerifiedSellerLog, badgeFor } from "@/lib/sellers/verified-log";
+import { sellerSubject } from "@/lib/sellers/badges";
+import { sasConfigFromEnv, signer } from "@/lib/chains/solana/sas";
+import { readVerifiedSeller, type OnChainBadge } from "@/lib/chains/solana/sas-verified";
 
 /**
  * app/seller/[source]/[handle] — the public record of a seller.
@@ -33,11 +37,36 @@ export default async function SellerPage({ params }: { params: { source: string;
   });
   const active = findings.filter((f) => f.status === "upheld").length;
 
+  // The badge is shown only when SigPath's log AND the chain agree: issued,
+  // not revoked or lapsed, no upheld report — and the token still held.
+  const key = sellerKey(source, handle);
+  const decisions = DecisionLog.fromEnv();
+  const local = badgeFor(key, await VerifiedSellerLog.fromEnv().all(), await decisions.upheldCounts());
+  let onChain: OnChainBadge | null = null;
+  const cfg = sasConfigFromEnv();
+  if (local && cfg) {
+    onChain = await readVerifiedSeller((await signer(cfg)).address, await sellerSubject(key), cfg.rpcUrl).catch(() => null);
+  }
+  const verified = local && (!cfg || onChain?.status === "valid") ? local : null;
+
   return (
     <main className="container">
       <h1>
         {handle} <span className="hint">on {source}</span>
       </h1>
+
+      {verified && (
+        <p className="notice">
+          <span className="verified">&#10003; Verified seller</span> since {day(verified.verifiedAt)} — this
+          seller proved control of the account and passed a live check. The badge is a non-transferable
+          token{onChain?.status === "valid" ? <> held by <code>{onChain.holder.slice(0, 4)}…{onChain.holder.slice(-4)}</code></> : null}{" "}
+          (
+          <a href={`https://explorer.solana.com/address/${verified.attestation}?cluster=devnet`} target="_blank" rel="noopener noreferrer">
+            on chain
+          </a>
+          ), valid until {day(verified.expiresAt)}. It vouches for the account, not for any item.
+        </p>
+      )}
 
       <p className={active ? "notice withheld" : "notice"}>
         {active === 0
@@ -100,7 +129,13 @@ export default async function SellerPage({ params }: { params: { source: string;
 
       <p className="hint" style={{ marginTop: 24 }}>
         Are you this seller? SigPath contacts sellers through the marketplace&apos;s own messages on the
-        order it placed, with a private link to respond. <Link href="/search">Back to search</Link>
+        order it placed, with a private link to respond.{" "}
+        {!verified && !active && (
+          <>
+            You can also <Link href="/seller/verify">become a verified seller</Link>.{" "}
+          </>
+        )}
+        <Link href="/search">Back to search</Link>
       </p>
     </main>
   );

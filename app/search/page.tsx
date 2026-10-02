@@ -6,6 +6,8 @@ import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
 import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
 import { DecisionLog } from "@/lib/reports/reports";
+import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
+import { sellerKey } from "@/lib/marketplace/types";
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -41,7 +43,17 @@ const STATUS_LABEL: Record<string, string> = {
 /** Checkout offer for one listing: a signed quote, a reason there is none, or null when checkout is off. */
 type CheckoutOffer = { token: string } | { reason: string } | null;
 
-function ListingRow({ listing, flags, checkout }: { listing: Listing; flags: Flag[]; checkout: CheckoutOffer }) {
+function ListingRow({
+  listing,
+  flags,
+  checkout,
+  badge,
+}: {
+  listing: Listing;
+  flags: Flag[];
+  checkout: CheckoutOffer;
+  badge: BadgeView | null;
+}) {
   const total = totalPrice(listing);
   const shipping = listing.shipping?.amount ?? 0;
   const seller = listing.seller;
@@ -58,6 +70,22 @@ function ListingRow({ listing, flags, checkout }: { listing: Listing; flags: Fla
         </h3>
         <p className="meta">
           {listing.source} &middot; {listing.condition} &middot; {seller.displayName ?? seller.handle}
+          {badge && (
+            // Earned, not reported: the seller proved control of this account,
+            // holds the non-transferable token, and passed a live check. It
+            // vouches for the account, not the item — so it removes no flag
+            // and changes nothing about the price check or checkout.
+            <>
+              {" "}
+              <a
+                className="verified"
+                href={`/seller/${encodeURIComponent(listing.source)}/${encodeURIComponent(seller.handle)}`}
+                title="This seller proved control of the account and passed a live check. It vouches for the account, not this item."
+              >
+                &#10003; Verified seller
+              </a>
+            </>
+          )}
           {seller.feedbackScore !== undefined && (
             <>
               {" "}
@@ -116,6 +144,7 @@ export default async function SearchPage({
   // removes the pay button, so the same finding closes SigPath's checkout to them.
   const upheldReports = q ? await DecisionLog.fromEnv().upheldCounts() : new Map<string, number>();
   const result = q ? await searchAll(q, defaultSources(), { limit: 20 }, { upheldReports }) : null;
+  const badgeEntries = q ? await VerifiedSellerLog.fromEnv().all() : {};
 
   const byListing = new Map<string, Flag[]>();
   for (const f of result?.analysis.flags ?? []) {
@@ -230,6 +259,7 @@ export default async function SearchPage({
                   listing={l}
                   flags={flags}
                   checkout={checkoutOffer(l, flags)}
+                  badge={badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports)}
                 />
               );
             })

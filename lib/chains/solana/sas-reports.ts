@@ -108,7 +108,7 @@ export async function bootstrapReportSchema(cfg: SasConfig): Promise<SasResult> 
   );
 }
 
-async function bootstrapSchema(
+export async function bootstrapSchema(
   cfg: SasConfig,
   name: string,
   version: number,

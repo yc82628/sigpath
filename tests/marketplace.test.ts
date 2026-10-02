@@ -1119,3 +1119,41 @@ test("when used listings are too few, the used scam is not accused — but not b
   const bait = r.listings.find((l) => l.id === "stub-used-bait")!;
   assert.equal(r.analysis.priceChecked.includes(`${bait.source}:${bait.id}`), false);
 });
+
+// ---------------------------------------------------------------------------
+// Listing proofs, for the verified-seller claim
+// ---------------------------------------------------------------------------
+
+test("eBay listing proof reads seller and text by item number, via the Browse API", async () => {
+  const seen: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    seen.push(String(url));
+    if (String(url).includes("oauth2/token")) return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    return new Response(JSON.stringify({ seller: { username: "Honest_Boots" }, title: "Boots", description: "<p>SIGPATH-ABCD-EFGH</p>" }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const r = await new EbaySource({ EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "s" }, fetchImpl).listingForProof("123456789012");
+  assert.deepEqual(r, { ok: true, handle: "Honest_Boots", text: "Boots\n<p>SIGPATH-ABCD-EFGH</p>" });
+  assert.match(seen[1], /\/buy\/browse\/v1\/item\/get_item_by_legacy_id\?legacy_item_id=123456789012$/);
+});
+
+test("eBay listing proof refuses a non-number before calling anything, and reports a missing listing", async () => {
+  let calls = 0;
+  const fetchImpl = (async (url: string) => {
+    calls++;
+    if (String(url).includes("oauth2/token")) return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    return new Response("{}", { status: 404 });
+  }) as unknown as typeof fetch;
+  const src = new EbaySource({ EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "s" }, fetchImpl);
+  assert.equal((await src.listingForProof("../../evil")).ok, false);
+  assert.equal(calls, 0);
+  const missing = await src.listingForProof("123456789012");
+  assert.ok(!missing.ok && /no live listing/.test(missing.error));
+});
+
+test("Etsy listing proof names the shop the way search does, and needs an active listing", async () => {
+  const listing = (state: string) =>
+    (async () => new Response(JSON.stringify({ listing_id: 101, shop_id: 777, title: "Mug", description: "SIGPATH-ABCD-EFGH", state }), { status: 200 })) as unknown as typeof fetch;
+  const ok = await new EtsySource(ETSY_ENV, listing("active")).listingForProof("1012345");
+  assert.deepEqual(ok, { ok: true, handle: "shop:777", text: "Mug\nSIGPATH-ABCD-EFGH" });
+  assert.equal((await new EtsySource(ETSY_ENV, listing("sold_out")).listingForProof("1012345")).ok, false);
+});

@@ -93,6 +93,14 @@ code { background: var(--border); padding: 2px 6px; border-radius: 4px; }
   border: 1px dashed var(--border); border-radius: 4px; padding: 1px 6px;
 }
 
+/* Earned, not reported: solid where .unverified is dashed. Green, but quiet —
+   it vouches for an account, not an item, and must not outshout a flag. */
+.verified {
+  display: inline-block; font-size: 0.75rem; font-weight: 600; color: #2f9e5b;
+  border: 1px solid #2f9e5b; border-radius: 4px; padding: 1px 6px; text-decoration: none;
+}
+.code-display code { font-size: 1.25rem; letter-spacing: 0.08em; padding: 6px 12px; }
+
 .linkout { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
 .linkout h2 { font-size: 1rem; margin: 0 0 4px; }
 .linkout ul { list-style: none; padding: 0; margin: 12px 0 0; }

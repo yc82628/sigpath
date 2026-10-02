@@ -647,3 +647,55 @@ test("a reversal lives at a derivable address, distinct from the report it rever
   assert.notEqual(reversalNonce(s, 1), reportNonce(s, 1));
   assert.notEqual(reversalNonce(s, 1), reversalNonce(s, 2));
 });
+
+// ---------------------------------------------------------------------------
+// The verified-seller badge and upheld reports
+// ---------------------------------------------------------------------------
+
+test("upholding a report revokes the seller's verified badge, after the decision is recorded", async () => {
+  const w = await filed();
+  const calls: string[] = [];
+  const r = await decideReport(w.order, "upheld", {
+    cases: w.cases,
+    reportStore: w.reportStore,
+    decisions: w.decisions,
+    publish: async () => ({ attestation: "A", index: 0 }),
+    revokeBadge: async (key) => {
+      calls.push(key);
+      assert.ok(await w.decisions.get(w.order), "the decision is already recorded when revocation runs");
+      return { revoked: true, signature: "BurnSig" };
+    },
+  });
+  assert.ok(r.ok && r.badge?.revoked && r.badge.signature === "BurnSig");
+  assert.deepEqual(calls, [sellerKey("ebay", "Fake_Goods_24")]);
+});
+
+test("a failed revocation never undoes the finding", async () => {
+  const w = await filed();
+  const r = await decideReport(w.order, "upheld", {
+    cases: w.cases,
+    reportStore: w.reportStore,
+    decisions: w.decisions,
+    publish: async () => ({ attestation: "A", index: 0 }),
+    revokeBadge: async () => {
+      throw new Error("rpc down");
+    },
+  });
+  assert.ok(r.ok && r.badge?.chainError === "rpc down");
+  assert.equal((await w.decisions.upheldCounts()).get(sellerKey("ebay", "Fake_Goods_24")), 1);
+});
+
+test("dismissing a report leaves the badge alone", async () => {
+  const w = await filed();
+  let called = false;
+  const r = await decideReport(w.order, "dismissed", {
+    reportStore: w.reportStore,
+    decisions: w.decisions,
+    revokeBadge: async () => {
+      called = true;
+      return { revoked: true };
+    },
+  });
+  assert.ok(r.ok);
+  assert.equal(called, false);
+});
