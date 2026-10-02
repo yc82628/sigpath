@@ -4,33 +4,35 @@
    Every colour on the site comes from these variables. Two kinds:
 
    BRAND (--brand*, --bg, --surface*, --fg, --muted, --border)
-     The look. Swap these to re-theme the whole site. The values below are a
-     neutral placeholder until the chosen palette's hex codes are in.
+     The look: Cool Earthy — petrol teal on warm stone (chosen 2026-10-02 on
+     /palettes). Our interpretation of that style; if the source palette's
+     exact codes come in, they replace these values, re-checked to WCAG AA.
 
    TRUST (--ok*, --warn*)
      What the checks MEAN: green for SigPath-checked, amber for "look closer".
      Keep these readable and distinct from the brand colours whatever palette
      is chosen — a shopper must never confuse a brand accent with a verdict.
+     That is why the brand is a bluer petrol, not a green-teal.
    ========================================================================== */
 
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-2: #f0f2f5;
-  --fg: #14171c;
-  --muted: #5b6471;
-  --border: #e1e4e9;
+  --bg: #f3f1ec;
+  --surface: #fbfaf7;
+  --surface-2: #eeebe4;
+  --fg: #1f2a28;
+  --muted: #5c6763;
+  --border: #dcd8ce;
 
-  --brand: #2453d6;
+  --brand: #2f5868;
   --brand-ink: #ffffff;   /* text on --brand */
-  --brand-soft: #e9eefc;  /* tinted backgrounds */
+  --brand-soft: #e3ebee;  /* tinted backgrounds */
   /* The identity pages and the camera component still say --accent. */
   --accent: var(--brand);
 
-  --ok: #1d7f46;
-  --ok-soft: #e5f3ea;
-  --warn: #965a0c;
-  --warn-soft: #fbf0e1;
+  --ok: #2d6e45;
+  --ok-soft: #e4efe6;
+  --warn: #8e5a14;
+  --warn-soft: #f6ecdb;
 
   --radius: 14px;
   --radius-sm: 8px;
@@ -41,21 +43,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1014;
-    --surface: #151a20;
-    --surface-2: #1c222a;
-    --fg: #e9ebee;
-    --muted: #9ba4af;
-    --border: #262d36;
+    /* Cool Earthy by night: deep green-slate, light petrol brand. Every text
+       pair checked to WCAG AA (lowest 6.9:1). */
+    --bg: #111614;
+    --surface: #181e1c;
+    --surface-2: #1f2624;
+    --fg: #e7ebe8;
+    --muted: #9ea8a3;
+    --border: #2b3330;
 
-    --brand: #7196ff;
-    --brand-ink: #0d1014;
-    --brand-soft: #1b2440;
+    --brand: #86b6c6;
+    --brand-ink: #0f1513;
+    --brand-soft: #1a2a30;
 
-    --ok: #4cc583;
-    --ok-soft: #13271c;
-    --warn: #e6a650;
-    --warn-soft: #2b2113;
+    --ok: #5fc08a;
+    --ok-soft: #14271c;
+    --warn: #e2a95c;
+    --warn-soft: #2a2114;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 16px rgba(0, 0, 0, 0.25);
     --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.35);
@@ -393,3 +397,44 @@ button { font-family: var(--font-sans); }
   color: var(--fg); font-size: 0.92rem; white-space: pre-wrap;
 }
 .quote .hint { font-size: 0.8rem; }
+
+/* ==========================================================================
+   Palette candidates — compared side by side on /palettes
+   --------------------------------------------------------------------------
+   Each class redefines the tokens for everything inside it, so the real
+   components render in that palette. These are INTERPRETATIONS of the two
+   styles under consideration, not the source palettes' exact codes: replace
+   the hex values once those are in. Every text pair here is checked to WCAG
+   AA (4.5:1). The winner's values move to :root.
+   ========================================================================== */
+
+.theme-flat {
+  --bg: #f4f7fa; --surface: #ffffff; --surface-2: #edf2f7;
+  --fg: #1f2d3a; --muted: #55657a; --border: #dde5ee;
+  --brand: #1f6fb2; --brand-ink: #ffffff; --brand-soft: #e4f0fa; --accent: var(--brand);
+  --ok: #167a4a; --ok-soft: #e3f4ea; --warn: #9a5a00; --warn-soft: #fdf0dc;
+}
+.theme-earthy {
+  --bg: #f3f1ec; --surface: #fbfaf7; --surface-2: #eeebe4;
+  --fg: #1f2a28; --muted: #5c6763; --border: #dcd8ce;
+  /* Petrol, not green-teal: the brand must not read as the "checked" green. */
+  --brand: #2f5868; --brand-ink: #ffffff; --brand-soft: #e3ebee; --accent: var(--brand);
+  --ok: #2d6e45; --ok-soft: #e4efe6; --warn: #8e5a14; --warn-soft: #f6ecdb;
+}
+
+.palette-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.palette-page { max-width: 1400px; }
+.palette-panel { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.palette-panel > header { padding: 14px 18px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.palette-panel > header h2 { font-size: 1.05rem; margin: 0; }
+.palette-body { padding: 18px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 0; list-style: none; }
+.swatches li { font-size: 0.7rem; color: var(--muted); text-align: center; }
+.swatches span { display: block; width: 52px; height: 36px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 3px; }
+.mini-hero { text-align: center; padding: 22px 12px; border-radius: var(--radius); background: radial-gradient(500px 160px at 50% -40px, var(--brand-soft), transparent 70%), var(--bg); border: 1px solid var(--border); }
+.mini-hero .hero-title { font-size: 1.7rem; margin-bottom: 12px; }
+.palette-body .listing { margin: 10px 0; flex-wrap: wrap; }
+/* Half-width panels: the phone card layout, so the text isn't squeezed beside the price. */
+.palette-body .thumb { width: 56px; height: 56px; font-size: 1.2rem; }
+.palette-body .listing .price { order: -1; width: 100%; text-align: left; }
+@media (max-width: 480px) { .palette-compare { grid-template-columns: 1fr; } }
