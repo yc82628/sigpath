@@ -19,7 +19,7 @@
 import { timingSafeEqual } from "crypto";
 import { CHECKED_MEANS, type Verdict } from "../marketplace/label";
 import type { LabelledSearch } from "../marketplace/labelled-search";
-import { formatMoney, listingKey } from "../marketplace/types";
+import { formatMoney, listingKey, type Money } from "../marketplace/types";
 
 /** The header the pay.sh gateway adds to every request it has been paid for. */
 export const GATEWAY_HEADER = "x-sigpath-gateway";
@@ -53,25 +53,34 @@ export interface AgentCheck {
   checkedMeans: string;
 }
 
-function marketName(id: string): string {
+export function marketName(id: string): string {
   return MARKET_NAME[id] ?? id;
+}
+
+/** Price plus shipping, when shipping is in the same currency. */
+export function listingTotal(l: LabelledSearch["listings"][number]): Money {
+  return l.shipping && l.shipping.currency === l.price.currency ? { ...l.price, amount: l.price.amount + l.shipping.amount } : l.price;
+}
+
+/** One labelled listing, in the shape agents (and the shopping assistant) read. */
+export function agentListing(l: LabelledSearch["listings"][number]): AgentListing {
+  return {
+    title: l.title,
+    url: l.url,
+    marketplace: marketName(l.source),
+    condition: l.condition,
+    total: formatMoney(listingTotal(l)),
+    verdict: l.check.verdict,
+    headline: l.check.headline,
+    reasons: l.check.points.map((p) => p.text),
+    verifiedSeller: l.verifiedSeller,
+  };
 }
 
 export function agentCheck(query: string, result: LabelledSearch): AgentCheck {
   const byKey = new Map<string, AgentListing>();
   const listings = result.listings.map((l) => {
-    const total = l.shipping && l.shipping.currency === l.price.currency ? { ...l.price, amount: l.price.amount + l.shipping.amount } : l.price;
-    const out: AgentListing = {
-      title: l.title,
-      url: l.url,
-      marketplace: marketName(l.source),
-      condition: l.condition,
-      total: formatMoney(total),
-      verdict: l.check.verdict,
-      headline: l.check.headline,
-      reasons: l.check.points.map((p) => p.text),
-      verifiedSeller: l.verifiedSeller,
-    };
+    const out = agentListing(l);
     byKey.set(listingKey(l), out);
     return out;
   });

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
+import Assistant from "./components/Assistant";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -44,6 +45,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </p>
           </div>
         </footer>
+        {/* Offered only where it can answer: the server needs a Claude API key. */}
+        {process.env.ANTHROPIC_API_KEY && <Assistant />}
       </body>
     </html>
   );
