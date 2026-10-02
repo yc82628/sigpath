@@ -52,6 +52,7 @@ export function upheldReportFlags(listings: Listing[], upheld: ReadonlyMap<strin
     const n = upheld.get(sellerKey(l.source, l.seller.handle)) ?? 0;
     if (n > 0) {
       flags.push({
+        source: l.source,
         listingId: l.id,
         kind: "upheld_reports",
         message:

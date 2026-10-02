@@ -70,6 +70,13 @@ export type AnalysisStatus =
 export type FlagKind = "underpriced" | "duplicate_image" | "new_account" | "upheld_reports";
 
 export interface Flag {
+  /**
+   * The listing's marketplace AND id. Ids are only unique within one
+   * marketplace — grouping flags by id alone would hang an eBay listing's flag
+   * on an Etsy listing that happens to share its number. Group by
+   * listingKey({ source, id: listingId }).
+   */
+  source: MarketplaceId;
   listingId: string;
   kind: FlagKind;
   /** Shown to the buyer. Plain language, no jargon, no accusation. */
@@ -197,6 +204,7 @@ function coverageIndependentFlags(listings: Listing[], now: number): Flag[] {
       if (handles.size < 2) continue;
       for (const l of sameSource) {
         flags.push({
+          source: l.source,
           listingId: l.id,
           kind: "duplicate_image",
           message: `This photo appears on ${handles.size} different seller accounts on the same marketplace.`,
@@ -211,6 +219,7 @@ function coverageIndependentFlags(listings: Listing[], now: number): Flag[] {
     const ageDays = (now / 1000 - l.seller.memberSince) / 86400;
     if (ageDays < NEW_ACCOUNT_DAYS) {
       flags.push({
+        source: l.source,
         listingId: l.id,
         kind: "new_account",
         message: `Seller account is ${Math.max(0, Math.floor(ageDays))} days old.`,
@@ -309,6 +318,7 @@ export function analyse(
       priceChecked.push(listingKey(l));
       if (totalPrice(l).amount < cutoff) {
         flags.push({
+          source: l.source,
           listingId: l.id,
           kind: "underpriced",
           // Says what was measured, not what the seller is. The buyer decides.

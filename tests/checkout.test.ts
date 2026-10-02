@@ -307,7 +307,7 @@ function listing(over: Partial<Listing> = {}): Listing {
 const CHECKED = { checked: true } as const;
 
 test("a flagged listing gets no checkout", () => {
-  const r = checkoutEligibility(listing(), [{ listingId: "1", kind: "underpriced", message: "m" }], CHECKED);
+  const r = checkoutEligibility(listing(), [{ source: "ebay", listingId: "1", kind: "underpriced", message: "m" }], CHECKED);
   assert.equal(r.eligible, false);
 });
 

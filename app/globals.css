@@ -99,6 +99,35 @@ code { background: var(--border); padding: 2px 6px; border-radius: 4px; }
   display: inline-block; font-size: 0.75rem; font-weight: 600; color: #2f9e5b;
   border: 1px solid #2f9e5b; border-radius: 4px; padding: 1px 6px; text-decoration: none;
 }
+/* The SigPath-checked label. Checked is green, "look closer" the same amber as
+   the flags always were (an observation, not an alarm), and "not price-checked"
+   neutral grey — an Etsy mug with no retail median isn't suspicious. */
+.check-label { margin: 8px 0 4px; font-size: 0.85rem; }
+.check-head {
+  display: inline-block; font-weight: 600; font-size: 0.8rem;
+  border-radius: 4px; padding: 1px 8px; border: 1px solid;
+}
+.check-label.checked .check-head { color: #2f9e5b; border-color: #2f9e5b; }
+.check-label.caution .check-head { color: #d98b2b; border-color: #d98b2b; }
+.check-label.unchecked .check-head { color: var(--muted); border-color: var(--border); border-style: dashed; }
+.check-label ul { list-style: none; padding: 0; margin: 4px 0 0; }
+.check-label li { padding: 1px 0 1px 18px; position: relative; color: var(--muted); }
+.check-label li::before { position: absolute; left: 4px; font-weight: 700; }
+.check-label li.good::before { content: "\2713"; color: #2f9e5b; }
+.check-label li.warn { color: #d98b2b; }
+.check-label li.warn::before { content: "!"; }
+.check-label li.info::before { content: "\2013"; }
+
+.best-deals { border: 1px solid #2f9e5b; border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.best-deals h2 { font-size: 1rem; margin: 0 0 8px; color: #2f9e5b; }
+.best-deals ul { list-style: none; padding: 0; margin: 0; }
+.best-deals li { padding: 6px 0; }
+.best-deals li + li { border-top: 1px solid var(--border); }
+.best-deals a { color: var(--fg); }
+.deal-price { font-weight: 700; font-size: 1.1rem; }
+.saving { color: #2f9e5b; font-size: 0.9rem; }
+.label-explainer a { color: var(--accent); white-space: nowrap; }
+
 .code-display code { font-size: 1.25rem; letter-spacing: 0.08em; padding: 6px 12px; }
 
 .linkout { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }

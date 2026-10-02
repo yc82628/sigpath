@@ -7,7 +7,8 @@ import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
 import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
-import { sellerKey } from "@/lib/marketplace/types";
+import { listingKey, sellerKey } from "@/lib/marketplace/types";
+import { CHECKED_MEANS, bestCheckedDeals, checkLabel, describeSaving, type CheckLabel } from "@/lib/marketplace/label";
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -48,18 +49,20 @@ function ListingRow({
   flags,
   checkout,
   badge,
+  label,
 }: {
   listing: Listing;
   flags: Flag[];
   checkout: CheckoutOffer;
   badge: BadgeView | null;
+  label: CheckLabel;
 }) {
   const total = totalPrice(listing);
   const shipping = listing.shipping?.amount ?? 0;
   const seller = listing.seller;
 
   return (
-    <article className="listing">
+    <article className="listing" id={`l-${listingKey(listing)}`}>
       <div className="body">
         <h3>
           {/* noreferrer as well as noopener: the destination has no business
@@ -101,13 +104,20 @@ function ListingRow({
             </>
           )}
         </p>
-        {flags.length > 0 && (
-          <ul className="flags">
-            {flags.map((f, i) => (
-              <li key={i}>{f.message}</li>
+        {/* One verdict per listing, every check underneath it. See lib/marketplace/label.ts. */}
+        <div className={`check-label ${label.verdict}`}>
+          <span className="check-head">
+            {label.verdict === "checked" ? "✓ " : label.verdict === "caution" ? "! " : ""}
+            {label.headline}
+          </span>
+          <ul>
+            {label.points.map((p, i) => (
+              <li key={i} className={p.tone}>
+                {p.text}
+              </li>
             ))}
           </ul>
-        )}
+        </div>
         {checkout && "token" in checkout && (
           // The price travels inside a server signature, so this link cannot
           // be edited into a cheaper order. See lib/checkout/quote.ts.
@@ -115,7 +125,13 @@ function ListingRow({
             Pay with USDC &rarr;
           </a>
         )}
-        {checkout && "reason" in checkout && <p className="pay-blocked">{checkout.reason}</p>}
+        {checkout && "reason" in checkout && (
+          // The label above already says why a listing isn't checked or what
+          // was flagged; repeating it here would say the same thing twice.
+          <p className="pay-blocked">
+            {label.verdict === "checked" ? checkout.reason : "SigPath checkout is only offered on SigPath-checked listings."}
+          </p>
+        )}
         {flags.some((f) => f.kind === "upheld_reports") && (
           // Every finding is shown with the seller's own reply beside it — a
           // buyer judging this seller should see both sides, not just ours.
@@ -137,9 +153,10 @@ function ListingRow({
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: { q?: string; checked?: string };
 }) {
   const q = (searchParams.q ?? "").trim().slice(0, 120);
+  const checkedOnly = searchParams.checked === "1";
   // Upheld fake-product reports flag their seller's listings — and a flag
   // removes the pay button, so the same finding closes SigPath's checkout to them.
   const upheldReports = q ? await DecisionLog.fromEnv().upheldCounts() : new Map<string, number>();
@@ -148,10 +165,23 @@ export default async function SearchPage({
 
   const byListing = new Map<string, Flag[]>();
   for (const f of result?.analysis.flags ?? []) {
-    byListing.set(f.listingId, [...(byListing.get(f.listingId) ?? []), f]);
+    // Keyed by marketplace AND id — ids are only unique within one marketplace.
+    const k = listingKey({ source: f.source, id: f.listingId });
+    byListing.set(k, [...(byListing.get(k) ?? []), f]);
   }
+  const flagsOf = (l: Listing) => byListing.get(listingKey(l)) ?? [];
 
   const a = result?.analysis;
+  const badgeOf = (l: Listing) => badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports);
+  const labels = new Map<string, CheckLabel>();
+  for (const l of result?.listings ?? []) {
+    if (a) labels.set(listingKey(l), checkLabel(l, flagsOf(l), priceCheckFor(l, a), a, badgeOf(l) !== null));
+  }
+  const labelOf = (l: Listing) => labels.get(listingKey(l))!;
+  const deals = a ? bestCheckedDeals(result!.listings, labelOf, a) : [];
+  const shown = (result?.listings ?? []).filter((l) => !checkedOnly || labelOf(l).verdict === "checked");
+  const hiddenCount = (result?.listings.length ?? 0) - shown.length;
+  const checkedCount = (result?.listings ?? []).filter((l) => labelOf(l).verdict === "checked").length;
 
   // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
   // encrypt delivery addresses. Missing either, no listing gets a pay button.
@@ -190,6 +220,7 @@ export default async function SearchPage({
           aria-label="Search all marketplaces"
           autoFocus
         />
+        {checkedOnly && <input type="hidden" name="checked" value="1" />}
         <button type="submit">Search</button>
       </form>
       <p className="hint">No account, no sign-in, nothing stored about this search.</p>
@@ -248,21 +279,57 @@ export default async function SearchPage({
             <p className="notice withheld">{a?.reason}</p>
           )}
 
+          {deals.length > 0 && (
+            // The deal the shopper came for — restricted to listings that passed.
+            <section className="best-deals">
+              <h2>Best checked deal{deals.length > 1 ? "s" : ""}</h2>
+              <ul>
+                {deals.map((d) => (
+                  <li key={d.group}>
+                    <span className="deal-price">{formatMoney(d.total)}</span>{" "}
+                    <span className="hint">{d.group === "used" ? "used" : "new"} &middot; {d.listing.source}</span>
+                    <br />
+                    <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
+                    {describeSaving(d) && <span className="saving"> &mdash; {describeSaving(d)}</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {result.listings.length > 0 && (
+            <p className="hint label-explainer">
+              {CHECKED_MEANS}{" "}
+              {checkedOnly ? (
+                <a href={`/search?q=${encodeURIComponent(q)}`}>Show all {result.listings.length} listings</a>
+              ) : (
+                checkedCount > 0 && (
+                  <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>Show only the {checkedCount} checked</a>
+                )
+              )}
+            </p>
+          )}
+
           {result.listings.length === 0 ? (
             <p className="hint">No listings found for &ldquo;{q}&rdquo;.</p>
           ) : (
-            result.listings.map((l) => {
-              const flags = byListing.get(l.id) ?? [];
-              return (
+            <>
+              {shown.map((l) => (
                 <ListingRow
-                  key={`${l.source}-${l.id}`}
+                  key={listingKey(l)}
                   listing={l}
-                  flags={flags}
-                  checkout={checkoutOffer(l, flags)}
-                  badge={badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports)}
+                  flags={flagsOf(l)}
+                  checkout={checkoutOffer(l, flagsOf(l))}
+                  badge={badgeOf(l)}
+                  label={labelOf(l)}
                 />
-              );
-            })
+              ))}
+              {checkedOnly && hiddenCount > 0 && (
+                <p className="hint">
+                  {hiddenCount} listing{hiddenCount === 1 ? "" : "s"} hidden because {hiddenCount === 1 ? "it isn't" : "they aren't"} SigPath-checked.
+                </p>
+              )}
+            </>
           )}
 
           {/* The marketplaces we cover but are not permitted to query. One
