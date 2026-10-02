@@ -303,6 +303,57 @@ Etsy listing with the same number (tested).
 
 ---
 
+## Price-drop alerts — no account, checked deals only
+
+Under each best checked deal: **Alert me if it drops**. When a
+**SigPath-checked** deal for that search and condition is at or under the
+shopper's price, their browser shows a notification that opens the deal.
+
+- **No account, no email.** Delivery is standard Web Push. The browser's push
+  subscription, an opaque URL at its vendor's push service, is the only "account",
+  and it identifies a browser install, not a person. SigPath keeps the search,
+  new or used, the target price and that endpoint, **for 30 days**. The browser
+  can delete them from `/alerts`, and an endpoint the push service reports as
+  gone takes its alerts with it. Search without an alert still stores nothing,
+  and the page says so.
+- **Only checked deals fire.** A listing at a fifth of the market is exactly the
+  bait a scam uses; an alert shouting "price drop!" about it would do the
+  scammer's work. The checker labels results with the same `labelSearch` as the
+  search page, so an alert can only point at a deal the page shows as
+  SigPath-checked. A search with a marketplace down can't fire at all, because
+  nothing is checked without full coverage.
+- **One notification per new low.** A deal sitting at €340 for a week is one
+  alert, not seven.
+- **Nothing about the deal goes through Google, Mozilla or Apple.** The push is
+  empty; the service worker (`public/sw.js`) fetches the text from
+  `/api/alerts/inbox` with its own endpoint. That also means no payload
+  encryption to get wrong. VAPID signing (RFC 8292) uses Node's crypto, so there's
+  no new dependency. Pushes go only to known push-service hosts, because an
+  endpoint is attacker-supplied and the server must not relay requests.
+- **Cheap on API quotas.** Each distinct search runs once per pass however many
+  browsers watch it. A browser can keep 10 alerts.
+
+```bash
+npx tsx scripts/vapid-keys.ts            # once: writes the push keys to .env.local (prints only the public one)
+npx tsx scripts/alerts-check.ts          # one checker pass
+npx tsx scripts/alerts-check.ts --every 30   # keep checking every 30 minutes
+```
+
+On a host, schedule `POST /api/alerts/run` with
+`Authorization: Bearer $ALERTS_CRON_SECRET`. Without the secret the route does
+nothing, because an open trigger would let anyone burn the marketplace quotas.
+
+**Tested:** 15 unit tests cover the VAPID JWT (verified against the public key),
+the push-host allow-list, input limits, ownership, new-low-only firing and that
+bait never fires. On the demo feed, two alerts for one search ran **one**
+search: the one under the best checked price stayed quiet, the other fired.
+**Not yet tested:** delivery through a real browser's push service. The built-in
+preview browser blocks notifications, so that needs a run in Chrome or Firefox.
+Alerts live in a JSON file and one checker process, which is fine for a single
+instance.
+
+---
+
 ## Pay with USDC — the order escrow
 
 `programs/sigpath_orders` lets a shopper pay on SigPath with USDC instead of
@@ -887,6 +938,8 @@ npx tsx scripts/devnet-checkout.ts            # the checkout on devnet, against 
 npx tsx scripts/devnet-report.ts              # the report flow on devnet: right of reply, penalty, reversal
 npx tsx scripts/devnet-verified-seller.ts     # the badge on devnet: claim, show, burned by an upheld report
 npx tsx scripts/reports-admin.ts badges       # verified sellers, checked against the chain
+npx tsx scripts/vapid-keys.ts                 # once: Web Push keys for price alerts, into .env.local
+npx tsx scripts/alerts-check.ts --every 30    # the price-drop checker
 npx tsx scripts/sas-read.ts github <handle>   # read a SAS credential with no secret
 npx tsx scripts/ebay-check.ts "<query>"       # prove an eBay keyset in isolation
 GITHUB_TOKEN=... npx tsx scripts/benchmark-scoring.ts

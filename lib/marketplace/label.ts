@@ -24,8 +24,8 @@
  */
 
 import type { Analysis, Flag } from "./anomaly";
-import { formatMoney, totalPrice, type Listing, type Money } from "./types";
-import type { PriceCheck } from "../checkout/eligibility";
+import { formatMoney, listingKey, totalPrice, type Listing, type Money } from "./types";
+import { priceCheckFor, type PriceCheck } from "../checkout/eligibility";
 
 export type Verdict = "checked" | "caution" | "unchecked";
 
@@ -137,4 +137,27 @@ export function bestCheckedDeals(
 
 export function describeSaving(d: BestDeal): string | null {
   return d.belowMedian ? `${formatMoney(d.belowMedian)} below the typical ${d.group} price` : null;
+}
+
+/**
+ * Label a whole search result: flags grouped by listing (marketplace AND id),
+ * a verdict per listing, and the best checked deals. The search page and the
+ * price-drop checker both use this, so an alert can only ever fire for a deal
+ * the page would show as SigPath-checked.
+ */
+export function labelSearch(
+  result: { listings: Listing[]; analysis: Analysis },
+  isVerified: (l: Listing) => boolean = () => false,
+) {
+  const a = result.analysis;
+  const byKey = new Map<string, Flag[]>();
+  for (const f of a.flags) {
+    const k = listingKey({ source: f.source, id: f.listingId });
+    byKey.set(k, [...(byKey.get(k) ?? []), f]);
+  }
+  const flagsOf = (l: Listing) => byKey.get(listingKey(l)) ?? [];
+  const labels = new Map<string, CheckLabel>();
+  for (const l of result.listings) labels.set(listingKey(l), checkLabel(l, flagsOf(l), priceCheckFor(l, a), a, isVerified(l)));
+  const labelOf = (l: Listing) => labels.get(listingKey(l))!;
+  return { flagsOf, labelOf, deals: bestCheckedDeals(result.listings, labelOf, a) };
 }

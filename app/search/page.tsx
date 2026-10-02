@@ -8,7 +8,8 @@ import { AddressStore } from "@/lib/checkout/address-store";
 import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
 import { listingKey, sellerKey } from "@/lib/marketplace/types";
-import { CHECKED_MEANS, bestCheckedDeals, checkLabel, describeSaving, type CheckLabel } from "@/lib/marketplace/label";
+import { CHECKED_MEANS, describeSaving, labelSearch, type CheckLabel } from "@/lib/marketplace/label";
+import AlertButton from "../components/AlertButton";
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -157,28 +158,21 @@ export default async function SearchPage({
 }) {
   const q = (searchParams.q ?? "").trim().slice(0, 120);
   const checkedOnly = searchParams.checked === "1";
+  // Public by design: browsers need it to subscribe. Alerts are offered only when it's set.
+  const vapidKey = process.env.VAPID_PUBLIC_KEY?.trim() || null;
   // Upheld fake-product reports flag their seller's listings — and a flag
   // removes the pay button, so the same finding closes SigPath's checkout to them.
   const upheldReports = q ? await DecisionLog.fromEnv().upheldCounts() : new Map<string, number>();
   const result = q ? await searchAll(q, defaultSources(), { limit: 20 }, { upheldReports }) : null;
   const badgeEntries = q ? await VerifiedSellerLog.fromEnv().all() : {};
 
-  const byListing = new Map<string, Flag[]>();
-  for (const f of result?.analysis.flags ?? []) {
-    // Keyed by marketplace AND id — ids are only unique within one marketplace.
-    const k = listingKey({ source: f.source, id: f.listingId });
-    byListing.set(k, [...(byListing.get(k) ?? []), f]);
-  }
-  const flagsOf = (l: Listing) => byListing.get(listingKey(l)) ?? [];
-
   const a = result?.analysis;
   const badgeOf = (l: Listing) => badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports);
-  const labels = new Map<string, CheckLabel>();
-  for (const l of result?.listings ?? []) {
-    if (a) labels.set(listingKey(l), checkLabel(l, flagsOf(l), priceCheckFor(l, a), a, badgeOf(l) !== null));
-  }
-  const labelOf = (l: Listing) => labels.get(listingKey(l))!;
-  const deals = a ? bestCheckedDeals(result!.listings, labelOf, a) : [];
+  // Flags grouped by marketplace AND id, one verdict per listing, the best checked deals.
+  const labelled = result ? labelSearch(result, (l) => badgeOf(l) !== null) : null;
+  const flagsOf = (l: Listing) => labelled?.flagsOf(l) ?? [];
+  const labelOf = (l: Listing) => labelled!.labelOf(l);
+  const deals = labelled?.deals ?? [];
   const shown = (result?.listings ?? []).filter((l) => !checkedOnly || labelOf(l).verdict === "checked");
   const hiddenCount = (result?.listings.length ?? 0) - shown.length;
   const checkedCount = (result?.listings ?? []).filter((l) => labelOf(l).verdict === "checked").length;
@@ -223,7 +217,9 @@ export default async function SearchPage({
         {checkedOnly && <input type="hidden" name="checked" value="1" />}
         <button type="submit">Search</button>
       </form>
-      <p className="hint">No account, no sign-in, nothing stored about this search.</p>
+      <p className="hint">
+        No account, no sign-in, nothing stored about this search{vapidKey ? " — unless you turn on a price alert" : ""}.
+      </p>
 
       {result && (
         <>
@@ -291,6 +287,7 @@ export default async function SearchPage({
                     <br />
                     <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
                     {describeSaving(d) && <span className="saving"> &mdash; {describeSaving(d)}</span>}
+                    {vapidKey && <AlertButton query={q} group={d.group} current={d.total} vapidKey={vapidKey} />}
                   </li>
                 ))}
               </ul>
