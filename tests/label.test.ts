@@ -124,3 +124,24 @@ test("the explainer says checked is not a guarantee, and what to do if it's fake
   assert.match(CHECKED_MEANS, /isn't a guarantee/);
   assert.match(CHECKED_MEANS, /report it/);
 });
+
+// --- the JSON API's shape ---------------------------------------------------------
+
+test("withLabels adds a check to every listing and the best deals — without changing any existing field", async () => {
+  const { withLabels } = await import("../lib/marketplace/label");
+  const bait = listing({ id: "bait", price: { amount: 2000, currency: "EUR" } });
+  const good = listing({ id: "good", price: { amount: 8000, currency: "EUR" }, seller: { handle: "verified_shop" } });
+  const results = [ok([...honest(8), bait, good])];
+  const raw = { query: "thing", listings: results.flatMap((r) => r.listings), analysis: analyse(results) };
+  const out = withLabels(raw, (l) => l.seller.handle === "verified_shop");
+
+  assert.equal(out.query, "thing");
+  assert.strictEqual(out.analysis, raw.analysis, "analysis untouched");
+  const byId = new Map(out.listings.map((l) => [l.id, l]));
+  assert.equal(byId.get("bait")!.check.verdict, "caution");
+  assert.equal(byId.get("good")!.check.verdict, "checked");
+  assert.equal(byId.get("good")!.verifiedSeller, true);
+  assert.equal(byId.get("bait")!.price.amount, 2000, "listing fields preserved");
+  assert.deepEqual(out.bestCheckedDeals, [{ listing: "stub:good", group: "new", total: { amount: 8000, currency: "EUR" }, belowMedian: { amount: 2000, currency: "EUR" } }]);
+  assert.match(out.checkedMeans, /isn't a guarantee/);
+});

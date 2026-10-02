@@ -161,3 +161,30 @@ export function labelSearch(
   const labelOf = (l: Listing) => labels.get(listingKey(l))!;
   return { flagsOf, labelOf, deals: bestCheckedDeals(result.listings, labelOf, a) };
 }
+
+/**
+ * A search result with its labels attached, for the JSON API. Purely additive:
+ * every existing field is unchanged, so older clients keep working. Built on
+ * labelSearch, so the API and the search page can never disagree about a
+ * verdict.
+ */
+export type LabelledListing = Listing & { check: CheckLabel; verifiedSeller: boolean };
+
+export function withLabels<R extends { listings: Listing[]; analysis: Analysis }>(
+  result: R,
+  isVerified: (l: Listing) => boolean = () => false,
+): Omit<R, "listings"> & {
+  listings: LabelledListing[];
+  bestCheckedDeals: { listing: string; group: "new" | "used"; total: Money; belowMedian: Money | null }[];
+  checkedMeans: string;
+} {
+  const { labelOf, deals } = labelSearch(result, isVerified);
+  return {
+    ...result,
+    listings: result.listings.map((l) => ({ ...l, check: labelOf(l), verifiedSeller: isVerified(l) })),
+    /** Cheapest SigPath-checked listing per condition, referenced by listingKey. */
+    bestCheckedDeals: deals.map((d) => ({ listing: listingKey(d.listing), group: d.group, total: d.total, belowMedian: d.belowMedian ?? null })),
+    /** What "checked" means — shown wherever the label is, including in other apps. */
+    checkedMeans: CHECKED_MEANS,
+  };
+}

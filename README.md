@@ -296,6 +296,12 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
   each with its saving against its own median. A flagged bargain never wins.
 - **Checked only:** `?checked=1` hides the rest, and the filter survives a new search.
 - Checkout is still offered only on listings that pass the stricter checkout gate.
+- **In the API too.** `GET /api/search` adds `check` (verdict, headline, reasons)
+  and `verifiedSeller` to every listing, plus `bestCheckedDeals` (by `source:id`)
+  and `checkedMeans`. It's additive, so existing fields are unchanged. Built on
+  the same `labelSearch` as the page, so another front end can't show a
+  different verdict. A front end showing the label should show `checkedMeans`
+  too.
 
 Flags now carry their marketplace as well as their id. Ids are only unique within
 one marketplace, and grouping by id alone could hang an eBay listing's flag on an
