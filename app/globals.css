@@ -1,19 +1,70 @@
+/* ==========================================================================
+   SigPath — design tokens
+   --------------------------------------------------------------------------
+   Every colour on the site comes from these variables. Two kinds:
+
+   BRAND (--brand*, --bg, --surface*, --fg, --muted, --border)
+     The look. Swap these to re-theme the whole site. The values below are a
+     neutral placeholder until the chosen palette's hex codes are in.
+
+   TRUST (--ok*, --warn*)
+     What the checks MEAN: green for SigPath-checked, amber for "look closer".
+     Keep these readable and distinct from the brand colours whatever palette
+     is chosen — a shopper must never confuse a brand accent with a verdict.
+   ========================================================================== */
+
 :root {
-  --bg: #0b0d10;
-  --fg: #e8eaed;
-  --muted: #9aa3ad;
-  --accent: #4ba3ff;
-  --border: #22262c;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --fg: #14171c;
+  --muted: #5b6471;
+  --border: #e1e4e9;
+
+  --brand: #2453d6;
+  --brand-ink: #ffffff;   /* text on --brand */
+  --brand-soft: #e9eefc;  /* tinted backgrounds */
+  /* The identity pages and the camera component still say --accent. */
+  --accent: var(--brand);
+
+  --ok: #1d7f46;
+  --ok-soft: #e5f3ea;
+  --warn: #965a0c;
+  --warn-soft: #fbf0e1;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 16px rgba(16, 24, 40, 0.06);
+  --shadow-lift: 0 2px 4px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.1);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #ffffff;
-    --fg: #16191d;
-    --muted: #5d666f;
-    --border: #e3e6ea;
+    --bg: #0d1014;
+    --surface: #151a20;
+    --surface-2: #1c222a;
+    --fg: #e9ebee;
+    --muted: #9ba4af;
+    --border: #262d36;
+
+    --brand: #7196ff;
+    --brand-ink: #0d1014;
+    --brand-soft: #1b2440;
+
+    --ok: #4cc583;
+    --ok-soft: #13271c;
+    --warn: #e6a650;
+    --warn-soft: #2b2113;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 16px rgba(0, 0, 0, 0.25);
+    --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.35);
   }
 }
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
 
 * { box-sizing: border-box; }
 
@@ -21,192 +72,324 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 16px/1.6 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-.container { max-width: 760px; margin: 0 auto; padding: 48px 16px; }
-.lede { font-size: 1.1rem; }
+a { color: var(--brand); }
+h1, h2, h3 { line-height: 1.25; letter-spacing: -0.01em; }
+h1 { font-size: clamp(1.7rem, 3vw, 2.2rem); margin: 0 0 12px; }
+
+.container { max-width: 760px; margin: 0 auto; padding: 40px 16px; }
+.wide { max-width: 1040px; }
+.lede { font-size: 1.1rem; color: var(--muted); margin-top: 0; }
 .hint { color: var(--muted); font-size: 0.9rem; }
-code { background: var(--border); padding: 2px 6px; border-radius: 4px; }
+code { background: var(--surface-2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 6px; font-size: 0.9em; }
 
-/* --- marketplace search --------------------------------------------------- */
+/* Prices line up in columns: tabular figures everywhere money is shown. */
+.price, .deal-price, .price-line { font-variant-numeric: tabular-nums; }
 
-.wide { max-width: 980px; }
-
-.searchbar { display: flex; gap: 8px; margin: 24px 0 8px; }
-.searchbar input {
-  flex: 1; padding: 12px 14px; font-size: 1rem;
-  background: var(--bg); color: var(--fg);
-  border: 1px solid var(--border); border-radius: 8px;
+/* Buttons and links styled as buttons */
+.button, button.primary, .searchbar button {
+  display: inline-block; padding: 12px 22px; font: 600 1rem/1.2 var(--font-sans);
+  background: var(--brand); color: var(--brand-ink);
+  border: 1px solid var(--brand); border-radius: 999px;
+  text-decoration: none; cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
 }
-.searchbar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-.searchbar button {
-  padding: 12px 22px; font-size: 1rem; font-weight: 600; cursor: pointer;
-  background: var(--accent); color: #fff;
-  border: none; border-radius: 8px;
+.button:hover, button.primary:hover, .searchbar button:hover { box-shadow: var(--shadow-lift); }
+.button:active, button.primary:active, .searchbar button:active { transform: translateY(1px); }
+.button.ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+button.primary:disabled { opacity: 0.6; cursor: wait; box-shadow: none; }
+button { font-family: var(--font-sans); }
+
+:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+/* ==========================================================================
+   Header and footer
+   ========================================================================== */
+
+.site-header {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.site-header-inner, .site-footer-inner {
+  max-width: 1040px; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.site-header-inner { height: 60px; }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.15rem; color: var(--fg); text-decoration: none; letter-spacing: -0.02em; }
+.brand-mark {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+  background: var(--brand); color: var(--brand-ink);
+}
+.site-nav { display: flex; gap: 4px; }
+.site-nav a {
+  color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.92rem;
+  padding: 6px 12px; border-radius: 999px;
+}
+.site-nav a:hover { color: var(--fg); background: var(--surface-2); }
+
+.site-footer { margin-top: 64px; border-top: 1px solid var(--border); background: var(--surface); }
+.site-footer-inner { display: block; padding: 28px 16px; font-size: 0.9rem; }
+.site-footer p { margin: 0 0 8px; max-width: 70ch; }
+
+@media (max-width: 520px) {
+  .site-nav a { padding: 6px 8px; font-size: 0.85rem; }
+}
+
+/* ==========================================================================
+   Home
+   ========================================================================== */
+
+.hero {
+  background:
+    radial-gradient(1200px 400px at 50% -120px, var(--brand-soft), transparent 70%),
+    var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.hero-inner { max-width: 760px; margin: 0 auto; padding: 72px 16px 56px; text-align: center; }
+.eyebrow {
+  display: inline-block; margin: 0 0 16px; padding: 4px 12px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em;
+}
+.hero-title { font-size: clamp(2.1rem, 5.5vw, 3.4rem); font-weight: 800; letter-spacing: -0.035em; margin: 0 0 16px; }
+.hero-accent { color: var(--brand); }
+.hero-sub { font-size: 1.12rem; color: var(--muted); max-width: 56ch; margin: 0 auto 28px; }
+.hero-search { max-width: 620px; margin: 0 auto; }
+.hero-examples { margin: 14px 0 0; font-size: 0.9rem; color: var(--muted); }
+.hero-examples a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--border); }
+.hero-examples a:hover { border-bottom-color: var(--fg); }
+
+.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding-top: 40px; padding-bottom: 8px; }
+.promise {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow);
+}
+.promise h2 { font-size: 1.08rem; margin: 12px 0 6px; }
+.promise p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.promise-icon {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--brand-soft); color: var(--brand); font-size: 1.2rem; font-weight: 700;
+}
+.promise-icon.ok { background: var(--ok-soft); color: var(--ok); }
+
+.how h2 { font-size: 1.3rem; margin: 24px 0 16px; }
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.steps li {
+  counter-increment: step; position: relative; padding: 14px 16px 14px 56px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+.steps li strong { color: var(--fg); }
+.steps li::before {
+  content: counter(step); position: absolute; left: 16px; top: 14px;
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand); color: var(--brand-ink); font-weight: 700; font-size: 0.85rem;
+}
+.how-cta { margin-top: 24px; }
+
+/* ==========================================================================
+   Search
+   ========================================================================== */
+
+.searchbar {
+  display: flex; gap: 6px; margin: 20px 0 8px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.searchbar:focus-within { border-color: var(--brand); }
+.searchbar input {
+  flex: 1; min-width: 0; padding: 10px 14px; font: 1rem var(--font-sans);
+  background: transparent; color: var(--fg); border: none; outline: none;
 }
 
 /* Coverage is stated, never implied. A source that did not answer is as much
    a part of the result as one that did. */
-.coverage {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin: 16px 0; padding: 0; list-style: none;
-  font-size: 0.85rem;
-}
-.coverage li {
-  padding: 4px 10px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--muted);
-}
-.coverage li.ok { border-color: var(--accent); color: var(--accent); }
-.coverage li.degraded { border-color: #d98b2b; color: #d98b2b; }
+.coverage { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; padding: 0; list-style: none; font-size: 0.8rem; }
+.coverage li { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--surface); }
+.coverage li.ok { border-color: var(--brand); color: var(--brand); }
+.coverage li.degraded { border-color: var(--warn); color: var(--warn); }
 
 .notice {
-  padding: 12px 14px; margin: 16px 0;
-  border: 1px solid var(--border); border-left: 3px solid var(--muted);
-  border-radius: 6px; font-size: 0.9rem; color: var(--muted);
+  padding: 12px 16px; margin: 16px 0;
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--muted);
+  border-radius: var(--radius-sm); font-size: 0.92rem; color: var(--muted);
 }
-.notice.withheld { border-left-color: #d98b2b; }
+.notice.withheld { border-left-color: var(--warn); }
 
+/* Listing cards */
 .listing {
   display: flex; gap: 16px; align-items: flex-start;
-  padding: 16px 0; border-top: 1px solid var(--border);
+  margin: 12px 0; padding: 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); transition: box-shadow 0.15s ease;
 }
+.listing:hover { box-shadow: var(--shadow-lift); }
+.listing:target { outline: 3px solid var(--brand); outline-offset: 2px; }
 .listing .body { flex: 1; min-width: 0; }
-.listing h3 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+.listing h3 { margin: 0 0 4px; font-size: 1.02rem; font-weight: 700; }
 .listing h3 a { color: inherit; text-decoration: none; }
-.listing h3 a:hover { text-decoration: underline; }
-.listing .meta { color: var(--muted); font-size: 0.85rem; }
-.price { font-size: 1.15rem; font-weight: 700; white-space: nowrap; text-align: right; }
-.price .ship { display: block; font-size: 0.78rem; font-weight: 400; color: var(--muted); }
+.listing h3 a:hover { color: var(--brand); }
+.listing .meta { color: var(--muted); font-size: 0.85rem; margin: 0; }
+.price { font-size: 1.3rem; font-weight: 800; white-space: nowrap; text-align: right; letter-spacing: -0.02em; }
+.price .ship { display: block; font-size: 0.76rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+
+.thumb {
+  flex: none; width: 92px; height: 92px; border-radius: 10px; overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--border);
+  display: grid; place-items: center; color: var(--muted); font-weight: 800; font-size: 1.6rem;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.chip {
+  display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700;
+  background: var(--surface-2); color: var(--fg); border: 1px solid var(--border); vertical-align: 1px;
+}
+
+@media (max-width: 560px) {
+  .listing { flex-wrap: wrap; }
+  .thumb { width: 72px; height: 72px; }
+  .listing .price { text-align: left; }
+}
 
 /* Deliberately not red and not alarming: these are observations for the buyer
    to weigh, not accusations against a seller. */
 .flags { margin: 8px 0 0; padding: 0; list-style: none; }
-.flags li {
-  font-size: 0.85rem; color: #d98b2b;
-  padding: 3px 0 3px 18px; position: relative;
-}
+.flags li { font-size: 0.85rem; color: var(--warn); padding: 3px 0 3px 18px; position: relative; }
 .flags li::before { content: "!"; position: absolute; left: 4px; font-weight: 700; }
 
 .unverified {
-  display: inline-block; font-size: 0.75rem; color: var(--muted);
-  border: 1px dashed var(--border); border-radius: 4px; padding: 1px 6px;
+  display: inline-block; font-size: 0.74rem; color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 999px; padding: 0 8px;
 }
 
 /* Earned, not reported: solid where .unverified is dashed. Green, but quiet —
    it vouches for an account, not an item, and must not outshout a flag. */
 .verified {
-  display: inline-block; font-size: 0.75rem; font-weight: 600; color: #2f9e5b;
-  border: 1px solid #2f9e5b; border-radius: 4px; padding: 1px 6px; text-decoration: none;
+  display: inline-block; font-size: 0.74rem; font-weight: 700; color: var(--ok);
+  background: var(--ok-soft); border: 1px solid var(--ok); border-radius: 999px; padding: 0 8px; text-decoration: none;
 }
-/* The SigPath-checked label. Checked is green, "look closer" the same amber as
-   the flags always were (an observation, not an alarm), and "not price-checked"
-   neutral grey — an Etsy mug with no retail median isn't suspicious. */
-.check-label { margin: 8px 0 4px; font-size: 0.85rem; }
+
+/* The SigPath-checked label. Checked is green, "look closer" amber (an
+   observation, not an alarm), and "not price-checked" neutral — an Etsy mug
+   with no retail median isn't suspicious. */
+.check-label { margin: 10px 0 2px; font-size: 0.86rem; }
 .check-head {
-  display: inline-block; font-weight: 600; font-size: 0.8rem;
-  border-radius: 4px; padding: 1px 8px; border: 1px solid;
+  display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.8rem;
+  border-radius: 999px; padding: 2px 10px; border: 1px solid;
 }
-.check-label.checked .check-head { color: #2f9e5b; border-color: #2f9e5b; }
-.check-label.caution .check-head { color: #d98b2b; border-color: #d98b2b; }
+.check-label.checked .check-head { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.check-label.caution .check-head { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
 .check-label.unchecked .check-head { color: var(--muted); border-color: var(--border); border-style: dashed; }
-.check-label ul { list-style: none; padding: 0; margin: 4px 0 0; }
-.check-label li { padding: 1px 0 1px 18px; position: relative; color: var(--muted); }
+.check-label ul { list-style: none; padding: 0; margin: 6px 0 0; }
+.check-label li { padding: 1px 0 1px 20px; position: relative; color: var(--muted); }
 .check-label li::before { position: absolute; left: 4px; font-weight: 700; }
-.check-label li.good::before { content: "\2713"; color: #2f9e5b; }
-.check-label li.warn { color: #d98b2b; }
+.check-label li.good::before { content: "\2713"; color: var(--ok); }
+.check-label li.warn { color: var(--warn); }
 .check-label li.warn::before { content: "!"; }
 .check-label li.info::before { content: "\2013"; }
 
-.best-deals { border: 1px solid #2f9e5b; border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
-.best-deals h2 { font-size: 1rem; margin: 0 0 8px; color: #2f9e5b; }
-.best-deals ul { list-style: none; padding: 0; margin: 0; }
-.best-deals li { padding: 6px 0; }
-.best-deals li + li { border-top: 1px solid var(--border); }
-.best-deals a { color: var(--fg); }
-.deal-price { font-weight: 700; font-size: 1.1rem; }
-.saving { color: #2f9e5b; font-size: 0.9rem; }
-.alert-open {
-  display: block; margin-top: 6px; background: none; border: 1px solid var(--border);
-  color: var(--fg); border-radius: 6px; padding: 3px 10px; font-size: 0.85rem; cursor: pointer;
+/* The best checked deal: the one card that's allowed to stand out. */
+.best-deals {
+  margin: 16px 0; padding: 18px 20px;
+  background: linear-gradient(135deg, var(--ok-soft), var(--surface) 70%);
+  border: 1px solid var(--ok); border-radius: var(--radius); box-shadow: var(--shadow);
 }
-.alert-form { margin-top: 8px; font-size: 0.9rem; }
-.alert-form input { width: 7em; padding: 2px 6px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
-.alert-set { margin: 6px 0 0; font-size: 0.9rem; color: #2f9e5b; }
-.label-explainer a { color: var(--accent); white-space: nowrap; }
+.best-deals h2 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 10px; color: var(--ok); }
+.best-deals ul { list-style: none; padding: 0; margin: 0; }
+.best-deals li { padding: 8px 0; }
+.best-deals li + li { border-top: 1px solid var(--border); }
+.best-deals a { color: var(--fg); font-weight: 600; }
+.deal-price { font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; }
+.saving { color: var(--ok); font-size: 0.9rem; font-weight: 600; }
+
+.alert-open {
+  display: inline-block; margin-top: 10px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--fg); border-radius: 999px; padding: 5px 14px; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+}
+.alert-open:hover { border-color: var(--brand); color: var(--brand); }
+.alert-form { margin-top: 10px; font-size: 0.92rem; }
+.alert-form input {
+  width: 7em; padding: 6px 10px; font: inherit; background: var(--surface); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.alert-form button.primary { padding: 8px 16px; font-size: 0.9rem; margin-left: 4px; }
+.alert-set { margin: 8px 0 0; font-size: 0.9rem; color: var(--ok); font-weight: 600; }
+.label-explainer { margin: 8px 0 4px; }
+.label-explainer a { white-space: nowrap; font-weight: 600; }
 
 .code-display code { font-size: 1.25rem; letter-spacing: 0.08em; padding: 6px 12px; }
 
-.linkout { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
+.linkout { margin-top: 32px; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .linkout h2 { font-size: 1rem; margin: 0 0 4px; }
-.linkout ul { list-style: none; padding: 0; margin: 12px 0 0; }
-.linkout li { padding: 6px 0; }
-.linkout a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.linkout ul { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.linkout a { text-decoration: none; font-weight: 700; }
 .linkout a:hover { text-decoration: underline; }
 
-/* --- checkout ------------------------------------------------------------- */
+/* ==========================================================================
+   Checkout
+   ========================================================================== */
 
 .pay {
-  display: inline-block; margin-top: 8px; padding: 6px 12px;
-  font-size: 0.85rem; font-weight: 600; text-decoration: none;
-  color: var(--accent); border: 1px solid var(--accent); border-radius: 6px;
+  display: inline-block; margin-top: 10px; padding: 8px 16px;
+  font-size: 0.88rem; font-weight: 700; text-decoration: none;
+  color: var(--brand-ink); background: var(--brand); border-radius: 999px;
 }
-.pay:hover { background: var(--accent); color: #fff; }
+.pay:hover { box-shadow: var(--shadow-lift); }
 .pay-blocked { margin: 8px 0 0; font-size: 0.8rem; color: var(--muted); }
-
-button.primary {
-  padding: 12px 22px; font-size: 1rem; font-weight: 600; cursor: pointer;
-  background: var(--accent); color: #fff; border: none; border-radius: 8px;
-}
-button.primary:disabled { opacity: 0.6; cursor: wait; }
 
 .checkout-item h2 { font-size: 1.1rem; margin: 0 0 4px; }
 .checkout-item h2 a { color: inherit; }
 .price-line { font-size: 1.05rem; }
-.guarantees, .privacy { margin: 24px 0; }
+.guarantees, .privacy {
+  margin: 24px 0; padding: 18px 20px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
 .guarantees h2, .privacy h2 { font-size: 1rem; margin: 0 0 8px; }
 .guarantees ul { margin: 0; padding-left: 20px; }
-.guarantees li { margin: 4px 0; }
+.guarantees li { margin: 6px 0; color: var(--muted); }
+.guarantees li strong { color: var(--fg); }
 
-.checkout-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 0 0 16px; }
-.checkout-form legend { padding: 0 6px; font-weight: 600; }
-.checkout-form label { display: block; margin: 0 0 12px; }
-.checkout-form label span { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
-.checkout-form input {
-  width: 100%; padding: 10px 12px; font-size: 1rem;
-  background: var(--bg); color: var(--fg);
-  border: 1px solid var(--border); border-radius: 6px;
+.checkout-form fieldset, .report-form fieldset {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin: 0 0 16px; background: var(--surface);
 }
-.checkout-form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.checkout-form legend, .report-form legend { padding: 0 6px; font-weight: 700; }
+.checkout-form label { display: block; margin: 0 0 12px; }
+.checkout-form label span, .report-form .stacked span { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.checkout-form input, .report-form textarea, .report-form input, .report-form select {
+  width: 100%; padding: 10px 12px; font: 1rem var(--font-sans);
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.report-form textarea { resize: vertical; }
 
-/* --- order ---------------------------------------------------------------- */
+/* ==========================================================================
+   Orders
+   ========================================================================== */
 
-.order-status { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; border: 1px solid var(--border); }
-.order-status.funded { color: var(--accent); border-color: var(--accent); }
-.order-status.fulfilled { color: #2e9d5b; border-color: #2e9d5b; }
-.order-status.refunded { color: #d98b2b; border-color: #d98b2b; }
+.order-status { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 700; border: 1px solid var(--border); }
+.order-status.funded { color: var(--brand); border-color: var(--brand); background: var(--brand-soft); }
+.order-status.fulfilled { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.order-status.refunded { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
 .order-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 20px 0; }
 .order-facts dt { color: var(--muted); }
 .order-facts dd { margin: 0; }
 
-/* --- reports -------------------------------------------------------------- */
+/* ==========================================================================
+   Reports and seller pages
+   ========================================================================== */
 
-.report-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 0 0 16px; }
-.report-form legend { padding: 0 6px; font-weight: 600; }
 .report-form .radio { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0; cursor: pointer; }
-.report-form .radio input { margin-top: 5px; }
+.report-form .radio input { margin-top: 5px; width: auto; }
 .report-form .stacked { display: block; margin-top: 14px; }
-.report-form .stacked span { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
-.report-form textarea {
-  width: 100%; padding: 10px 12px; font: inherit;
-  background: var(--bg); color: var(--fg);
-  border: 1px solid var(--border); border-radius: 6px; resize: vertical;
-}
-.report-form textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 .quote {
-  margin: 10px 0; padding: 8px 12px;
-  border-left: 3px solid var(--border); color: var(--fg);
-  font-size: 0.92rem; white-space: pre-wrap;
+  margin: 10px 0; padding: 10px 14px;
+  background: var(--surface-2); border-left: 3px solid var(--border); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--fg); font-size: 0.92rem; white-space: pre-wrap;
 }
 .quote .hint { font-size: 0.8rem; }

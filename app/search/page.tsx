@@ -10,6 +10,9 @@ import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verif
 import { listingKey, sellerKey } from "@/lib/marketplace/types";
 import { CHECKED_MEANS, describeSaving, labelSearch, type CheckLabel } from "@/lib/marketplace/label";
 import AlertButton from "../components/AlertButton";
+import { MARKETPLACES } from "@/lib/marketplace/registry";
+
+const marketLabel = (id: string) => MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id);
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -64,6 +67,16 @@ function ListingRow({
 
   return (
     <article className="listing" id={`l-${listingKey(listing)}`}>
+      <div className="thumb" aria-hidden="true">
+        {listing.imageUrl ? (
+          // The marketplace's own image, straight from its CDN. no-referrer: the
+          // CDN learns an image was viewed, not which search on SigPath showed it.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={listing.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+        ) : (
+          marketLabel(listing.source).slice(0, 1)
+        )}
+      </div>
       <div className="body">
         <h3>
           {/* noreferrer as well as noopener: the destination has no business
@@ -73,7 +86,8 @@ function ListingRow({
           </a>
         </h3>
         <p className="meta">
-          {listing.source} &middot; {listing.condition} &middot; {seller.displayName ?? seller.handle}
+          <span className="chip">{marketLabel(listing.source)}</span> {listing.condition} &middot;{" "}
+          {seller.displayName ?? seller.handle}
           {badge && (
             // Earned, not reported: the seller proved control of this account,
             // holds the non-transferable token, and passed a live check. It
@@ -199,7 +213,7 @@ export default async function SearchPage({
 
   return (
     <main className="container wide">
-      <h1>SigPath Search</h1>
+      <h1>Compare every marketplace</h1>
       <p className="lede">
         One search across several marketplaces &mdash; and the checks no single
         marketplace can run on itself.
@@ -283,7 +297,8 @@ export default async function SearchPage({
                 {deals.map((d) => (
                   <li key={d.group}>
                     <span className="deal-price">{formatMoney(d.total)}</span>{" "}
-                    <span className="hint">{d.group === "used" ? "used" : "new"} &middot; {d.listing.source}</span>
+                    <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
+                    <span className="hint">{d.group === "used" ? "used" : "new"}</span>
                     <br />
                     <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
                     {describeSaving(d) && <span className="saving"> &mdash; {describeSaving(d)}</span>}
