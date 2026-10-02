@@ -28,6 +28,9 @@ export function defaultSources(env: Record<string, string | undefined> = process
   ];
   // The offline feed stays on until turned off, so search is demonstrable with
   // no credentials at all. Set STUB_FEED=false once real sources answer.
-  if (env.STUB_FEED !== "false") list.push(new StubSource());
+  if (env.STUB_FEED !== "false") {
+    const delay = Number(env.STUB_DELAY_MS);
+    list.push(new StubSource("EUR", Number.isFinite(delay) && delay > 0 ? Math.min(delay, 10_000) : 0));
+  }
   return list;
 }

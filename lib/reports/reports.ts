@@ -152,6 +152,29 @@ export class DecisionLog {
     await rename(tmp, this.file);
   }
 
+  /**
+   * Replace a seller's handle with a stand-in across the log — for an account
+   * deleted at the marketplace. Only the name changes; what was decided, and
+   * when, stays on the record. Returns how many decisions were renamed.
+   */
+  async renameSeller(from: string, to: string): Promise<number> {
+    const all = await this.all();
+    let n = 0;
+    for (const d of Object.values(all)) {
+      if (d.sellerKey === from) {
+        d.sellerKey = to;
+        n++;
+      }
+    }
+    if (n) {
+      await mkdir(dirname(this.file), { recursive: true });
+      const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
+      await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
+      await rename(tmp, this.file);
+    }
+    return n;
+  }
+
   /** Upheld reports per seller — what search flags and the checkout gate read. */
   async upheldCounts(): Promise<Map<string, number>> {
     const counts = new Map<string, number>();

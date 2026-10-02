@@ -46,9 +46,18 @@ const ADJECTIVES = ["Sealed", "Boxed", "Mint", "Genuine", "Original", "Unused"];
 export class StubSource implements MarketplaceSource {
   readonly id = "stub" as const;
 
-  constructor(private readonly currency = "EUR") {}
+  /**
+   * `delayMs` makes the demo feed answer like a real marketplace would — after
+   * a network round trip — so the search page's streaming can be seen and
+   * demonstrated without live keys (STUB_DELAY_MS). Zero by default.
+   */
+  constructor(
+    private readonly currency = "EUR",
+    private readonly delayMs = 0,
+  ) {}
 
   async search(query: string, opts: SearchOptions = {}): Promise<SourceResult> {
+    if (this.delayMs > 0) await new Promise((r) => setTimeout(r, this.delayMs));
     const q = query.trim();
     if (!q) {
       return { source: this.id, status: "ok", listings: [] };

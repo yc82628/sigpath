@@ -74,6 +74,15 @@ export class VerifiedSellerLog {
     await this.write(all);
   }
 
+  /** Delete a seller's badge record, history included — for an account deleted at the marketplace. */
+  async remove(sellerKey: string): Promise<boolean> {
+    const all = await this.all();
+    if (!all[sellerKey]) return false;
+    delete all[sellerKey];
+    await this.write(all);
+    return true;
+  }
+
   async markRevoked(sellerKey: string, revoked: NonNullable<Badge["revoked"]>): Promise<Badge> {
     const all = await this.all();
     const e = all[sellerKey];

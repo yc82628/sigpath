@@ -52,12 +52,13 @@ export function claimProvider(): VisionLivenessProvider {
 export function badgeIssuer(cfg: SasConfig | null = sasConfigFromEnv(), baseUrl = process.env.PUBLIC_BASE_URL ?? "https://sigpath.example") {
   return async (b: { sellerKey: string; wallet: string; verifiedAt: number }) => {
     if (!cfg) return { ok: false as const, error: "SAS is not configured (SAS_ENABLED=true and ISSUER_SECRET)." };
-    const i = b.sellerKey.indexOf(":");
     const res = await issueVerifiedBadge(cfg, {
       sellerSubject: await sellerSubject(b.sellerKey),
       wallet: b.wallet,
       verifiedAt: b.verifiedAt,
-      uri: `${baseUrl.replace(/\/+$/, "")}/seller/${b.sellerKey.slice(0, i)}/${encodeURIComponent(b.sellerKey.slice(i + 1))}`,
+      // Not the seller's page: token metadata is on chain, and a URL with the
+      // handle in it could never be deleted if the account is (eBay deletion).
+      uri: `${baseUrl.replace(/\/+$/, "")}/seller/verify`,
     });
     if (res.status !== "ok") return { ok: false as const, error: res.reason };
     return { ok: true as const, attestation: res.attestation, mint: res.mint, tokenAccount: res.tokenAccount, expiresAt: res.expiresAt };

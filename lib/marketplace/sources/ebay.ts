@@ -169,6 +169,36 @@ export class EbaySource implements MarketplaceSource {
     return this.token.value;
   }
 
+  /** Notification signing keys, by key id. They rotate rarely; cached for an hour. */
+  private notificationKeys = new Map<string, { key: string; at: number }>();
+
+  /**
+   * eBay's public key for a notification signature (Notification API,
+   * getPublicKey). Used to check that an account-deletion notice really came
+   * from eBay before acting on it. Null if eBay isn't configured or the key
+   * can't be fetched — the caller then refuses the notice.
+   */
+  async notificationPublicKey(kid: string, timeoutMs = 8000): Promise<string | null> {
+    const cached = this.notificationKeys.get(kid);
+    if (cached && Date.now() - cached.at < 3600_000) return cached.key;
+    const creds = this.credentials();
+    if (!creds || !/^[A-Za-z0-9_-]{1,128}$/.test(kid)) return null;
+    try {
+      const token = await this.accessToken(creds.id, creds.secret, creds.env);
+      const res = await this.fetchImpl(`${HOSTS[creds.env]}/commerce/notification/v1/public_key/${kid}`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { key?: string };
+      if (!body.key) return null;
+      this.notificationKeys.set(kid, { key: body.key, at: Date.now() });
+      return body.key;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * For the verified-seller claim. Takes the item number eBay shows on the
    * listing page (the "legacy" id) and returns its seller and description.

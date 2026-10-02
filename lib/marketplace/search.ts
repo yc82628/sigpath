@@ -65,6 +65,61 @@ export function upheldReportFlags(listings: Listing[], upheld: ReadonlyMap<strin
   return flags;
 }
 
+/**
+ * Start every source now, and return one promise per source, in source order.
+ * Each promise always RESOLVES — to the source's result, or to a typed error if
+ * a non-conforming source rejected — so the caller can show each marketplace
+ * the moment it answers (the search page streams them) and still assemble the
+ * full result from the very same requests: nothing is ever queried twice.
+ */
+export function startSearch(query: string, sources: MarketplaceSource[], opts: SearchOptions = {}): Promise<SourceResult>[] {
+  const q = query.trim();
+  return sources.map((s) => {
+    // Comparability comes from the SOURCE, not the outcome, and is attached on
+    // both paths: the analysis needs to know whether a source that failed was
+    // one whose absence biases the median, and a thrown error carries nothing.
+    const comparable = s.priceComparable !== false;
+    // A conforming source never rejects (see sources/types.ts), but a
+    // third-party one added later might, and that must degrade to a typed
+    // failure rather than taking the whole search down.
+    return s.search(q, opts).then(
+      (r) => ({ ...r, comparable }),
+      (reason: unknown) => ({
+        source: s.id,
+        status: "error" as const,
+        listings: [],
+        comparable,
+        detail: reason instanceof Error ? `source threw: ${reason.message.slice(0, 160)}` : "source threw a non-Error",
+      }),
+    );
+  });
+}
+
+/** The full response from every source's result. Runs only once ALL have answered. */
+export function assembleSearch(
+  query: string,
+  results: SourceResult[],
+  opts: SearchOptions = {},
+  context: { upheldReports?: ReadonlyMap<string, number> } = {},
+): SearchResponse {
+  const q = query.trim();
+  const listings = results.flatMap((r) => r.listings).sort(byTotalAscending);
+  return {
+    query: q,
+    listings,
+    sources: results.map((r) => ({
+      source: r.source,
+      status: r.status,
+      count: r.listings.length,
+      detail: r.detail,
+    })),
+    // Pass the FULL results, failures included. Passing only the ok ones would
+    // silently re-enable the biased comparison this design exists to prevent.
+    analysis: withReportFlags(analyse(results, { currency: opts.currency }), listings, context.upheldReports),
+    linkOut: linkOutTargets(q),
+  };
+}
+
 export async function searchAll(
   query: string,
   sources: MarketplaceSource[],
@@ -90,48 +145,7 @@ export async function searchAll(
       linkOut: [],
     };
   }
-
-  // allSettled, not all: one source rejecting must not abort the others. A
-  // conforming source never rejects (see sources/types.ts), but a third-party
-  // one added later might, and that must degrade to a typed failure rather
-  // than taking the whole search down.
-  const settled = await Promise.allSettled(sources.map((s) => s.search(q, opts)));
-
-  const results: SourceResult[] = settled.map((outcome, i) => {
-    // Comparability comes from the SOURCE, not the outcome, and is attached on
-    // both paths: the analysis needs to know whether a source that failed was
-    // one whose absence biases the median, and a thrown error carries nothing.
-    const comparable = sources[i].priceComparable !== false;
-    return outcome.status === "fulfilled"
-      ? { ...outcome.value, comparable }
-      : {
-          source: sources[i].id,
-          status: "error" as const,
-          listings: [],
-          comparable,
-          detail:
-            outcome.reason instanceof Error
-              ? `source threw: ${outcome.reason.message.slice(0, 160)}`
-              : "source threw a non-Error",
-        };
-  });
-
-  const listings = results.flatMap((r) => r.listings).sort(byTotalAscending);
-
-  return {
-    query: q,
-    listings,
-    sources: results.map((r) => ({
-      source: r.source,
-      status: r.status,
-      count: r.listings.length,
-      detail: r.detail,
-    })),
-    // Pass the FULL results, failures included. Passing only the ok ones would
-    // silently re-enable the biased comparison this design exists to prevent.
-    analysis: withReportFlags(analyse(results, { currency: opts.currency }), listings, context.upheldReports),
-    linkOut: linkOutTargets(q),
-  };
+  return assembleSearch(q, await Promise.all(startSearch(q, sources, opts)), opts, context);
 }
 
 function withReportFlags(a: Analysis, listings: Listing[], upheld?: ReadonlyMap<string, number>): Analysis {

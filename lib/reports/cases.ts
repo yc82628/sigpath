@@ -78,6 +78,15 @@ export class CaseLog {
     await this.write(all);
   }
 
+  /** Delete every case about one seller — their replies and appeals are their own words. Returns how many. */
+  async removeSeller(sellerKey: string): Promise<number> {
+    const all = await this.all();
+    const orders = Object.keys(all).filter((o) => all[o].sellerKey === sellerKey);
+    for (const o of orders) delete all[o];
+    if (orders.length) await this.write(all);
+    return orders.length;
+  }
+
   /** Record the notice. Idempotent: the FIRST notice starts the window; re-sending doesn't restart it. */
   async markNotified(order: string, at: number): Promise<Case> {
     const all = await this.all();

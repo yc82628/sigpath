@@ -1,6 +1,7 @@
-import { searchAll } from "@/lib/marketplace/search";
+import { Suspense } from "react";
+import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
-import { formatMoney, totalPrice, type Listing } from "@/lib/marketplace/types";
+import { formatMoney, totalPrice, type Listing, type SourceResult } from "@/lib/marketplace/types";
 import type { Flag } from "@/lib/marketplace/anomaly";
 import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
 import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
@@ -12,7 +13,8 @@ import { CHECKED_MEANS, describeSaving, labelSearch, type CheckLabel } from "@/l
 import AlertButton from "../components/AlertButton";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 
-const marketLabel = (id: string) => MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id);
+const marketLabel = (id: string) =>
+  MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id === "feed" ? "Partner feeds" : id);
 
 /**
  * app/search/page.tsx — the buyer-facing half.
@@ -165,7 +167,7 @@ function ListingRow({
   );
 }
 
-export default async function SearchPage({
+export default function SearchPage({
   searchParams,
 }: {
   searchParams: { q?: string; checked?: string };
@@ -174,13 +176,135 @@ export default async function SearchPage({
   const checkedOnly = searchParams.checked === "1";
   // Public by design: browsers need it to subscribe. Alerts are offered only when it's set.
   const vapidKey = process.env.VAPID_PUBLIC_KEY?.trim() || null;
+
+  // STREAMING. Every marketplace is asked NOW, once. The page shell goes out
+  // immediately; each marketplace's listings stream in as it answers, marked
+  // "checking"; and when the last one is in, the fully checked results replace
+  // them. Verdicts are only ever drawn from the complete set — a price compared
+  // against half the marketplaces is exactly the biased comparison this design
+  // refuses — so nothing streamed early carries a verdict or a pay button.
+  const sources = q ? defaultSources() : [];
+  const pending = q ? startSearch(q, sources, { limit: 20 }) : [];
+
+  return (
+    <main className="container wide">
+      <h1>Compare every marketplace</h1>
+      <p className="lede">
+        One search across several marketplaces &mdash; and the checks no single
+        marketplace can run on itself.
+      </p>
+
+      <form className="searchbar" method="GET" action="/search">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="What are you looking for?"
+          aria-label="Search all marketplaces"
+          autoFocus
+        />
+        {checkedOnly && <input type="hidden" name="checked" value="1" />}
+        <button type="submit">Search</button>
+      </form>
+      <p className="hint">
+        No account, no sign-in, nothing stored about this search{vapidKey ? " — unless you turn on a price alert" : ""}.
+      </p>
+
+      {q && (
+        <Suspense key={`${q}|${checkedOnly}`} fallback={<SearchProgress ids={sources.map((s) => s.id)} pending={pending} />}>
+          <SearchResults q={q} checkedOnly={checkedOnly} vapidKey={vapidKey} pending={pending} />
+        </Suspense>
+      )}
+    </main>
+  );
+}
+
+/** While marketplaces are still answering: what has arrived so far, with no verdicts yet. */
+function SearchProgress({ ids, pending }: { ids: string[]; pending: Promise<SourceResult>[] }) {
+  return (
+    <section className="progress" aria-live="polite" aria-busy="true">
+      <p className="notice">
+        <span className="spinner" aria-hidden="true" /> Searching {ids.length} marketplaces. Listings appear as each one
+        answers; SigPath checks them once they&apos;re all in.
+      </p>
+      {ids.map((id, i) => (
+        <Suspense
+          key={id}
+          fallback={
+            <p className="progress-source">
+              <span className="chip">{marketLabel(id)}</span> <span className="hint">searching&hellip;</span>
+            </p>
+          }
+        >
+          <SourceProgress result={pending[i]} />
+        </Suspense>
+      ))}
+    </section>
+  );
+}
+
+async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
+  const r = await result;
+  if (r.status !== "ok") {
+    return (
+      <p className="progress-source">
+        <span className="chip">{marketLabel(r.source)}</span> <span className="hint">{STATUS_LABEL[r.status] ?? r.status}</span>
+      </p>
+    );
+  }
+  return (
+    <div className="progress-source">
+      <p>
+        <span className="chip">{marketLabel(r.source)}</span>{" "}
+        <span className="hint">
+          {r.listings.length} listing{r.listings.length === 1 ? "" : "s"} &middot; checking&hellip;
+        </span>
+      </p>
+      {[...r.listings]
+        .sort((x, y) => totalPrice(x).amount - totalPrice(y).amount)
+        .slice(0, 3)
+        .map((l) => (
+          <article key={listingKey(l)} className="listing provisional">
+            <div className="thumb" aria-hidden="true">
+              {l.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={l.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+              ) : (
+                marketLabel(l.source).slice(0, 1)
+              )}
+            </div>
+            <div className="body">
+              <h3>{l.title}</h3>
+              <div className="check-label pending">
+                <span className="check-head">Checking&hellip;</span>
+              </div>
+            </div>
+            <div className="price">{formatMoney(totalPrice(l))}</div>
+          </article>
+        ))}
+    </div>
+  );
+}
+
+/** Once EVERY marketplace has answered: the checked results. */
+async function SearchResults({
+  q,
+  checkedOnly,
+  vapidKey,
+  pending,
+}: {
+  q: string;
+  checkedOnly: boolean;
+  vapidKey: string | null;
+  pending: Promise<SourceResult>[];
+}) {
   // Upheld fake-product reports flag their seller's listings — and a flag
   // removes the pay button, so the same finding closes SigPath's checkout to them.
-  const upheldReports = q ? await DecisionLog.fromEnv().upheldCounts() : new Map<string, number>();
-  const result = q ? await searchAll(q, defaultSources(), { limit: 20 }, { upheldReports }) : null;
-  const badgeEntries = q ? await VerifiedSellerLog.fromEnv().all() : {};
+  const upheldReports = await DecisionLog.fromEnv().upheldCounts();
+  const result = assembleSearch(q, await Promise.all(pending), { limit: 20 }, { upheldReports });
+  const badgeEntries = await VerifiedSellerLog.fromEnv().all();
 
-  const a = result?.analysis;
+  const a = result.analysis;
   const badgeOf = (l: Listing) => badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports);
   // Flags grouped by marketplace AND id, one verdict per listing, the best checked deals.
   const labelled = result ? labelSearch(result, (l) => badgeOf(l) !== null) : null;
@@ -212,163 +336,137 @@ export default async function SearchPage({
   };
 
   return (
-    <main className="container wide">
-      <h1>Compare every marketplace</h1>
-      <p className="lede">
-        One search across several marketplaces &mdash; and the checks no single
-        marketplace can run on itself.
-      </p>
+    <>
+      {/* Which marketplaces this answer actually rests on. */}
+      <ul className="coverage">
+        {result.sources.map((s) => (
+          <li
+            key={s.source}
+            className={
+              s.status === "ok" ? "ok" : s.status === "not_configured" ? "" : "degraded"
+            }
+            title={s.detail ?? ""}
+          >
+            {s.source}: {STATUS_LABEL[s.status] ?? s.status}
+            {s.status === "ok" && ` (${s.count})`}
+          </li>
+        ))}
+      </ul>
 
-      <form className="searchbar" method="GET" action="/search">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="What are you looking for?"
-          aria-label="Search all marketplaces"
-          autoFocus
-        />
-        {checkedOnly && <input type="hidden" name="checked" value="1" />}
-        <button type="submit">Search</button>
-      </form>
-      <p className="hint">
-        No account, no sign-in, nothing stored about this search{vapidKey ? " — unless you turn on a price alert" : ""}.
-      </p>
+      {a?.status === "ok" ? (
+        <p className="notice">
+          {/* New and used are compared separately, each against its own
+              median — so both are shown when both could be computed. */}
+          {a.median !== undefined && (
+            <>
+              Median price new {formatMoney({ amount: a.median, currency: a.currency! })} across{" "}
+              {a.sampleSize} listings
+            </>
+          )}
+          {a.median !== undefined && a.used && "; "}
+          {a.used && (
+            <>
+              {a.median === undefined ? "Median price used " : "used "}
+              {formatMoney({ amount: a.used.median, currency: a.currency! })} across {a.used.sampleSize} listings
+            </>
+          )}
+          {a.coverage.length > 1
+            ? ` on ${a.coverage.length} marketplaces`
+            : ` on ${a.coverage[0]}`}
+          .
+          {a.notConfigured.length > 0 && (
+            <> Not searched: {a.notConfigured.join(", ")}.</>
+          )}
+          {a.excludedFromComparison.length > 0 && (
+            // Says why a cheap listing from these carries no price flag.
+            <> Shown but not price-compared: {a.excludedFromComparison.join(", ")} (handmade and vintage goods are not comparable with retail).</>
+          )}
+        </p>
+      ) : (
+        // Saying WHY there is no price comparison matters more than hiding
+        // its absence. A buyer who thinks a check ran when it did not is
+        // worse off than one who knows it did not.
+        <p className="notice withheld">{a?.reason}</p>
+      )}
 
-      {result && (
-        <>
-          {/* Which marketplaces this answer actually rests on. */}
-          <ul className="coverage">
-            {result.sources.map((s) => (
-              <li
-                key={s.source}
-                className={
-                  s.status === "ok" ? "ok" : s.status === "not_configured" ? "" : "degraded"
-                }
-                title={s.detail ?? ""}
-              >
-                {s.source}: {STATUS_LABEL[s.status] ?? s.status}
-                {s.status === "ok" && ` (${s.count})`}
+      {deals.length > 0 && (
+        // The deal the shopper came for — restricted to listings that passed.
+        <section className="best-deals">
+          <h2>Best checked deal{deals.length > 1 ? "s" : ""}</h2>
+          <ul>
+            {deals.map((d) => (
+              <li key={d.group}>
+                <span className="deal-price">{formatMoney(d.total)}</span>{" "}
+                <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
+                <span className="hint">{d.group === "used" ? "used" : "new"}</span>
+                <br />
+                <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
+                {describeSaving(d) && <span className="saving"> &mdash; {describeSaving(d)}</span>}
+                {vapidKey && <AlertButton query={q} group={d.group} current={d.total} vapidKey={vapidKey} />}
               </li>
             ))}
           </ul>
+        </section>
+      )}
 
-          {a?.status === "ok" ? (
-            <p className="notice">
-              {/* New and used are compared separately, each against its own
-                  median — so both are shown when both could be computed. */}
-              {a.median !== undefined && (
-                <>
-                  Median price new {formatMoney({ amount: a.median, currency: a.currency! })} across{" "}
-                  {a.sampleSize} listings
-                </>
-              )}
-              {a.median !== undefined && a.used && "; "}
-              {a.used && (
-                <>
-                  {a.median === undefined ? "Median price used " : "used "}
-                  {formatMoney({ amount: a.used.median, currency: a.currency! })} across {a.used.sampleSize} listings
-                </>
-              )}
-              {a.coverage.length > 1
-                ? ` on ${a.coverage.length} marketplaces`
-                : ` on ${a.coverage[0]}`}
-              .
-              {a.notConfigured.length > 0 && (
-                <> Not searched: {a.notConfigured.join(", ")}.</>
-              )}
-              {a.excludedFromComparison.length > 0 && (
-                // Says why a cheap listing from these carries no price flag.
-                <> Shown but not price-compared: {a.excludedFromComparison.join(", ")} (handmade and vintage goods are not comparable with retail).</>
-              )}
-            </p>
+      {result.listings.length > 0 && (
+        <p className="hint label-explainer">
+          {CHECKED_MEANS}{" "}
+          {checkedOnly ? (
+            <a href={`/search?q=${encodeURIComponent(q)}`}>Show all {result.listings.length} listings</a>
           ) : (
-            // Saying WHY there is no price comparison matters more than hiding
-            // its absence. A buyer who thinks a check ran when it did not is
-            // worse off than one who knows it did not.
-            <p className="notice withheld">{a?.reason}</p>
+            checkedCount > 0 && (
+              <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>Show only the {checkedCount} checked</a>
+            )
           )}
+        </p>
+      )}
 
-          {deals.length > 0 && (
-            // The deal the shopper came for — restricted to listings that passed.
-            <section className="best-deals">
-              <h2>Best checked deal{deals.length > 1 ? "s" : ""}</h2>
-              <ul>
-                {deals.map((d) => (
-                  <li key={d.group}>
-                    <span className="deal-price">{formatMoney(d.total)}</span>{" "}
-                    <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
-                    <span className="hint">{d.group === "used" ? "used" : "new"}</span>
-                    <br />
-                    <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
-                    {describeSaving(d) && <span className="saving"> &mdash; {describeSaving(d)}</span>}
-                    {vapidKey && <AlertButton query={q} group={d.group} current={d.total} vapidKey={vapidKey} />}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {result.listings.length > 0 && (
-            <p className="hint label-explainer">
-              {CHECKED_MEANS}{" "}
-              {checkedOnly ? (
-                <a href={`/search?q=${encodeURIComponent(q)}`}>Show all {result.listings.length} listings</a>
-              ) : (
-                checkedCount > 0 && (
-                  <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>Show only the {checkedCount} checked</a>
-                )
-              )}
+      {result.listings.length === 0 ? (
+        <p className="hint">No listings found for &ldquo;{q}&rdquo;.</p>
+      ) : (
+        <>
+          {shown.map((l) => (
+            <ListingRow
+              key={listingKey(l)}
+              listing={l}
+              flags={flagsOf(l)}
+              checkout={checkoutOffer(l, flagsOf(l))}
+              badge={badgeOf(l)}
+              label={labelOf(l)}
+            />
+          ))}
+          {checkedOnly && hiddenCount > 0 && (
+            <p className="hint">
+              {hiddenCount} listing{hiddenCount === 1 ? "" : "s"} hidden because {hiddenCount === 1 ? "it isn't" : "they aren't"} SigPath-checked.
             </p>
-          )}
-
-          {result.listings.length === 0 ? (
-            <p className="hint">No listings found for &ldquo;{q}&rdquo;.</p>
-          ) : (
-            <>
-              {shown.map((l) => (
-                <ListingRow
-                  key={listingKey(l)}
-                  listing={l}
-                  flags={flagsOf(l)}
-                  checkout={checkoutOffer(l, flagsOf(l))}
-                  badge={badgeOf(l)}
-                  label={labelOf(l)}
-                />
-              ))}
-              {checkedOnly && hiddenCount > 0 && (
-                <p className="hint">
-                  {hiddenCount} listing{hiddenCount === 1 ? "" : "s"} hidden because {hiddenCount === 1 ? "it isn't" : "they aren't"} SigPath-checked.
-                </p>
-              )}
-            </>
-          )}
-
-          {/* The marketplaces we cover but are not permitted to query. One
-              click each rather than nothing — and deliberately separated from
-              the results above, because no price here reached the median and
-              implying otherwise would overstate the comparison. */}
-          {result.linkOut.length > 0 && (
-            <section className="linkout">
-              <h2>Also search directly</h2>
-              <p className="hint">
-                These have no API we may use, so their prices are not part of the
-                comparison above.
-              </p>
-              <ul>
-                {result.linkOut.map((t) => (
-                  <li key={t.id}>
-                    <a href={t.url} target="_blank" rel="noopener noreferrer">
-                      {t.label} &rarr;
-                    </a>
-                    {t.note && <span className="hint"> {t.note}</span>}
-                  </li>
-                ))}
-              </ul>
-            </section>
           )}
         </>
       )}
-    </main>
+
+      {/* The marketplaces we cover but are not permitted to query. One
+          click each rather than nothing — and deliberately separated from
+          the results above, because no price here reached the median and
+          implying otherwise would overstate the comparison. */}
+      {result.linkOut.length > 0 && (
+        <section className="linkout">
+          <h2>Also search directly</h2>
+          <p className="hint">
+            These have no API we may use, so their prices are not part of the
+            comparison above.
+          </p>
+          <ul>
+            {result.linkOut.map((t) => (
+              <li key={t.id}>
+                <a href={t.url} target="_blank" rel="noopener noreferrer">
+                  {t.label} &rarr;
+                </a>
+                {t.note && <span className="hint"> {t.note}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   );
 }
