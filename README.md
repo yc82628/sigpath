@@ -83,7 +83,7 @@ npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned b
 The devnet scripts need an operator key in `.env.local`, and they create a test
 wallet to fund from faucet.circle.com.
 
-**Pages:** `/search` · `/alerts` · `/seller/verify` · `/seller/<marketplace>/<handle>`
+**Pages:** `/search` · `/alerts` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
 (a seller's public record) · `/checkout` · `/order/<address>` · `/report/<order>`
 
 ## Contents
@@ -91,6 +91,7 @@ wallet to fund from faucet.circle.com.
 The rest of this README is the engineering detail:
 
 - [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
 - [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
@@ -458,6 +459,42 @@ search: the one under the best checked price stayed quiet, the other fired.
 preview browser blocks notifications, so that needs a run in Chrome or Firefox.
 Alerts live in a JSON file and one checker process, which is fine for a single
 instance.
+
+---
+
+## For AI agents — a paid deal check through pay.sh
+
+AI shopping agents can ask SigPath before they buy, paying per request in USDC
+on Solana through [pay.sh](https://pay.sh) (Solana Foundation and Google
+Cloud). No account, no API key: the payment is the credential.
+
+| Step | What happens |
+| --- | --- |
+| Ask | The agent calls `GET /api/check?q=…` on SigPath's pay.sh gateway |
+| Pay | The gateway answers `402` with the price (0.002 USDC); the agent's wallet approves a USDC transfer and the request is retried with the proof |
+| Settle | The gateway settles the transfer on Solana, then forwards the request to SigPath with the shared gateway key |
+| Act | The agent gets the best checked deal per condition, every listing's verdict with its reasons, and the "checked is not a guarantee" line |
+
+- **The gateway:** [paysh/sigpath.yaml](paysh/sigpath.yaml), a pay.sh provider spec (proxy routing, per-request metering, category `shopping`).
+- **The endpoint:** `/api/check` ([lib/agents/check.ts](lib/agents/check.ts)). It runs the same search and verdict pipeline as the search page, so an agent can never get a different verdict from a shopper.
+- **Paid-only in production:** with `SIGPATH_GATEWAY_KEY` set for both the gateway and the site, `/api/check` rejects anything the gateway did not forward. Unset, it is open, for local development and the sandbox.
+- **The page:** `/agents` shows the commands and a live example response.
+
+```bash
+npx @solana/pay --sandbox gate api paysh/sigpath.yaml --bind 127.0.0.1:1402
+npx @solana/pay --sandbox curl "http://127.0.0.1:1402/api/check?q=ThinkPad%20X1"
+```
+
+`--sandbox` uses pay.sh's hosted test network with an ephemeral, pre-funded
+wallet, so nothing real is spent.
+
+**Tested end to end (2026-10-02, pay 0.26.0, sandbox), with `SIGPATH_GATEWAY_KEY` set:**
+- unpaid request to the gateway: `402 Payment Required`, priced at 0.002 USDC on Solana;
+- paid request: `200` with the deal check;
+- the operator wallet's USDC rose by exactly 0.002 per paid request;
+- calling `/api/check` directly, without the key or with a wrong one: `401`. **Going live:** point `routing.url` at the
+deployed site, and set `operator.network: mainnet` and `operator.recipient`
+(the wallet that receives the USDC).
 
 ---
 

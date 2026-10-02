@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchAll } from "@/lib/marketplace/search";
-import { defaultSources } from "@/lib/marketplace/sources";
-import { DecisionLog } from "@/lib/reports/reports";
-import { withLabels } from "@/lib/marketplace/label";
-import { VerifiedSellerLog, badgeFor } from "@/lib/sellers/verified-log";
-import { sellerKey } from "@/lib/marketplace/types";
+import { labelledSearch } from "@/lib/marketplace/labelled-search";
 
 // GET /api/search?q=thinkpad+x1
 //
@@ -46,16 +41,8 @@ export async function GET(req: NextRequest) {
   const limitParam = Number(req.nextUrl.searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : 20;
 
-  const upheldReports = await DecisionLog.fromEnv().upheldCounts();
-  const raw = await searchAll(
-    q,
-    defaultSources(),
-    { limit, currency: req.nextUrl.searchParams.get("currency")?.toUpperCase() || undefined },
-    { upheldReports },
-  );
   // Same verdicts, same badge rule as the search page.
-  const badges = await VerifiedSellerLog.fromEnv().all();
-  const result = withLabels(raw, (l) => badgeFor(sellerKey(l.source, l.seller.handle), badges, upheldReports) !== null);
+  const result = await labelledSearch(q, { limit, currency: req.nextUrl.searchParams.get("currency")?.toUpperCase() || undefined });
 
   // A search where every source failed is a 503: the caller asked a reasonable
   // question and we could not answer it. Returning 200 with an empty list would

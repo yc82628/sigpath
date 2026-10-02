@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://pay.sh/docs-assets/provider.schema.json
+#
+# SigPath's deal check for AI shopping agents, sold per request in USDC on
+# Solana through a pay.sh gateway (https://pay.sh).
+#
+# An agent calls the gateway, gets HTTP 402 with the price, its wallet approves
+# a USDC transfer, the gateway settles it on Solana and forwards the request to
+# SigPath's /api/check with the shared gateway key. See /agents on the site.
+#
+# Run it (sandbox: hosted test network, test USDC, no account needed):
+#   pay --sandbox gate api paysh/sigpath.yaml --bind 127.0.0.1:1402
+# Then, as an agent would:
+#   pay --sandbox curl "http://127.0.0.1:1402/api/check?q=ThinkPad%20X1"
+#
+# Going live: point routing.url at the deployed site, set operator.network to
+# mainnet and operator.recipient to the wallet that should receive the USDC,
+# and set SIGPATH_GATEWAY_KEY (same value) for both the gateway and the site.
+
+name: sigpath
+subdomain: sigpath
+title: 'SigPath deal check'
+description: 'Search eBay, Amazon and Etsy at once and get a verdict on every listing: SigPath-checked, look closer (with the reasons), or not price-checked. Returns the cheapest checked deal per condition.'
+category: shopping
+version: v1
+
+routing:
+  type: proxy
+  # The SigPath site. Local dev server for the sandbox; the public URL in production.
+  url: http://127.0.0.1:3000/
+  # Proves to SigPath that a request was paid for (lib/agents/check.ts).
+  auth:
+    method: header
+    key: 'x-sigpath-gateway'
+    value_from_env: SIGPATH_GATEWAY_KEY
+
+operator:
+  currencies:
+    usd: ['USDC']
+  # The sandbox flag picks the test network; set mainnet when going live.
+  # network: mainnet
+  # recipient: '<the wallet that receives the USDC, base58>'
+  fee_payer: true
+
+endpoints:
+  - method: GET
+    path: 'api/check'
+    description: 'Deal check for ?q=<what to buy>: every listing with its verdict and reasons, plus the best checked deal for new and for used.'
+    metering:
+      dimensions:
+        - direction: usage
+          unit: requests
+          scale: 1
+          tiers:
+            - price_usd: 0.002
+
+quotas:
+  requests_per_minute: 60
+
+notes: 'Checked means the price is in line with the market for its condition and nothing about the seller or photos raised a flag. It is not a guarantee the item is genuine.'
