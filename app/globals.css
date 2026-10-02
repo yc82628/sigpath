@@ -1,60 +1,80 @@
 /* ==========================================================================
    SigPath — design tokens
    --------------------------------------------------------------------------
-   Every colour on the site comes from these variables. Two kinds:
+   Every colour on the site comes from these variables. Three kinds:
+
+   LOGO (--ink, --cyan, --cyan-light)
+     The logo's exact colours (finalised 2026-10-02): cyan artwork on a black
+     brush circle, on a cyan gradient. Used as-is for the header, the hero and
+     the buttons (cyan on black is 8.8:1).
 
    BRAND (--brand*, --bg, --surface*, --fg, --muted, --border)
-     The look: Cool Earthy — petrol teal on warm stone (chosen 2026-10-02 on
-     /palettes). Our interpretation of that style; if the source palette's
-     exact codes come in, they replace these values, re-checked to WCAG AA.
+     Logo cyan is too light to be text on white (2.1:1), so text accents use
+     a deep cyan in light mode and a bright one in dark. Every text pair passes
+     WCAG AA (lowest 4.95:1 in light, 6.8:1 in dark).
 
    TRUST (--ok*, --warn*)
      What the checks MEAN: green for SigPath-checked, amber for "look closer".
-     Keep these readable and distinct from the brand colours whatever palette
-     is chosen — a shopper must never confuse a brand accent with a verdict.
-     That is why the brand is a bluer petrol, not a green-teal.
+     Kept clear of the brand cyan, and every verdict also carries an icon and
+     words, so a shopper never tells them apart by colour alone.
    ========================================================================== */
 
 :root {
-  --bg: #f3f1ec;
-  --surface: #fbfaf7;
-  --surface-2: #eeebe4;
-  --fg: #1f2a28;
-  --muted: #5c6763;
-  --border: #dcd8ce;
+  --ink: #111111;
+  --cyan: #3ec1d3;
+  --cyan-light: #6dd0de;
 
-  --brand: #2f5868;
+  --bg: #f2f8f9;
+  --surface: #ffffff;
+  --surface-2: #e4f1f3;
+  --fg: #111111;
+  --muted: #4b585b;
+  --border: #cfe3e7;
+
+  --brand: #0a6774;
   --brand-ink: #ffffff;   /* text on --brand */
-  --brand-soft: #e3ebee;  /* tinted backgrounds */
+  --brand-soft: #ddf2f5;  /* tinted backgrounds */
   /* The identity pages and the camera component still say --accent. */
   --accent: var(--brand);
 
-  --ok: #2d6e45;
-  --ok-soft: #e4efe6;
+  /* Primary buttons wear the logo: cyan on black. */
+  --cta: var(--ink);
+  --cta-ink: var(--cyan);
+
+  --hero-bg: linear-gradient(135deg, var(--cyan), var(--cyan-light));
+  --hero-fg: var(--ink);
+
+  --ok: #22703d;
+  --ok-soft: #e2f0e5;
   --warn: #8e5a14;
   --warn-soft: #f6ecdb;
 
   --radius: 14px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 16px rgba(16, 24, 40, 0.06);
-  --shadow-lift: 0 2px 4px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.1);
+  --shadow: 0 1px 2px rgba(17, 17, 17, 0.05), 0 6px 16px rgba(17, 17, 17, 0.06);
+  --shadow-lift: 0 2px 4px rgba(17, 17, 17, 0.08), 0 12px 28px rgba(17, 17, 17, 0.12);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Cool Earthy by night: deep green-slate, light petrol brand. Every text
-       pair checked to WCAG AA (lowest 6.9:1). */
-    --bg: #111614;
-    --surface: #181e1c;
-    --surface-2: #1f2624;
-    --fg: #e7ebe8;
-    --muted: #9ea8a3;
-    --border: #2b3330;
+    /* By night: the logo's black, with the cyan doing the talking. */
+    --bg: #0c0e0f;
+    --surface: #141819;
+    --surface-2: #1b2123;
+    --fg: #eaf4f5;
+    --muted: #9db0b4;
+    --border: #263235;
 
-    --brand: #86b6c6;
-    --brand-ink: #0f1513;
-    --brand-soft: #1a2a30;
+    --brand: #4fd0e0;
+    --brand-ink: #0c0e0f;
+    --brand-soft: #10282c;
+
+    --cta: var(--cyan);
+    --cta-ink: var(--ink);
+
+    --hero-bg: radial-gradient(900px 420px at 50% 0%, #0f3a41, transparent 75%), var(--bg);
+    --hero-fg: var(--fg);
 
     --ok: #5fc08a;
     --ok-soft: #14271c;
@@ -96,8 +116,8 @@ code { background: var(--surface-2); border: 1px solid var(--border); padding: 1
 /* Buttons and links styled as buttons */
 .button, button.primary, .searchbar button {
   display: inline-block; padding: 12px 22px; font: 600 1rem/1.2 var(--font-sans);
-  background: var(--brand); color: var(--brand-ink);
-  border: 1px solid var(--brand); border-radius: 999px;
+  background: var(--cta); color: var(--cta-ink);
+  border: 1px solid var(--cta); border-radius: 999px;
   text-decoration: none; cursor: pointer;
   transition: transform 0.08s ease, box-shadow 0.15s ease;
 }
@@ -113,32 +133,33 @@ button { font-family: var(--font-sans); }
    Header and footer
    ========================================================================== */
 
+/* The header is the logo's black in both modes: the cyan wordmark sits on it. */
 .site-header {
   position: sticky; top: 0; z-index: 10;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: saturate(1.4) blur(10px);
-  border-bottom: 1px solid var(--border);
+  background: var(--ink);
+  border-bottom: 1px solid #222;
 }
 .site-header-inner, .site-footer-inner {
   max-width: 1040px; margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .site-header-inner { height: 60px; }
-.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.15rem; color: var(--fg); text-decoration: none; letter-spacing: -0.02em; }
-.brand-mark {
-  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
-  background: var(--brand); color: var(--brand-ink);
-}
+.brand { display: inline-flex; align-items: center; text-decoration: none; }
+.logo-wordmark { display: block; height: 24px; width: auto; }
 .site-nav { display: flex; gap: 4px; }
 .site-nav a {
-  color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.92rem;
+  color: #c9d6d8; text-decoration: none; font-weight: 600; font-size: 0.92rem;
   padding: 6px 12px; border-radius: 999px;
 }
-.site-nav a:hover { color: var(--fg); background: var(--surface-2); }
+.site-nav a:hover { color: var(--cyan); background: #222; }
+.site-header :focus-visible { outline-color: var(--cyan); }
 
 .site-footer { margin-top: 64px; border-top: 1px solid var(--border); background: var(--surface); }
 .site-footer-inner { display: block; padding: 28px 16px; font-size: 0.9rem; }
 .site-footer p { margin: 0 0 8px; max-width: 70ch; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline; }
+.footer-links a { color: var(--muted); text-decoration: none; font-weight: 600; }
+.footer-links a:hover { color: var(--fg); }
 
 @media (max-width: 520px) {
   .site-nav a { padding: 6px 8px; font-size: 0.85rem; }
@@ -148,40 +169,81 @@ button { font-family: var(--font-sans); }
    Home
    ========================================================================== */
 
-.hero {
-  background:
-    radial-gradient(1200px 400px at 50% -120px, var(--brand-soft), transparent 70%),
-    var(--bg);
-  border-bottom: 1px solid var(--border);
-}
-.hero-inner { max-width: 760px; margin: 0 auto; padding: 72px 16px 56px; text-align: center; }
+.hero { background: var(--hero-bg); color: var(--hero-fg); border-bottom: 1px solid var(--border); }
+.hero-inner { max-width: 760px; margin: 0 auto; padding: 48px 16px 56px; text-align: center; }
+.hero-badge { display: block; width: clamp(160px, 30vw, 220px); height: auto; margin: 0 auto 8px; filter: drop-shadow(0 10px 24px rgba(17, 17, 17, 0.25)); }
 .eyebrow {
   display: inline-block; margin: 0 0 16px; padding: 4px 12px; border-radius: 999px;
   background: var(--surface); border: 1px solid var(--border);
   color: var(--muted); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em;
 }
-.hero-title { font-size: clamp(2.1rem, 5.5vw, 3.4rem); font-weight: 800; letter-spacing: -0.035em; margin: 0 0 16px; }
-.hero-accent { color: var(--brand); }
-.hero-sub { font-size: 1.12rem; color: var(--muted); max-width: 56ch; margin: 0 auto 28px; }
-.hero-search { max-width: 620px; margin: 0 auto; }
-.hero-examples { margin: 14px 0 0; font-size: 0.9rem; color: var(--muted); }
-.hero-examples a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--border); }
-.hero-examples a:hover { border-bottom-color: var(--fg); }
-
-.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding-top: 40px; padding-bottom: 8px; }
-.promise {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 22px; box-shadow: var(--shadow);
+@media (prefers-color-scheme: dark) {
+  /* Black badge on a near-black page: a soft cyan glow keeps its edge. */
+  .hero-badge { filter: drop-shadow(0 0 28px rgba(62, 193, 211, 0.28)); }
 }
-.promise h2 { font-size: 1.08rem; margin: 12px 0 6px; }
-.promise p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.nowrap { white-space: nowrap; }
+.hero-title { font-size: clamp(2.1rem, 6vw, 3.4rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.08; margin: 0 0 8px; }
+.hero-sub { font-size: 1.05rem; font-weight: 600; margin: 0 0 28px; opacity: 0.85; }
+.hero-accent { color: var(--brand); }
+.hero-search { max-width: 640px; margin: 0 auto; padding: 8px; border-color: transparent; box-shadow: 0 2px 4px rgba(17, 17, 17, 0.1), 0 14px 32px rgba(17, 17, 17, 0.18); }
+.hero-search input { font-size: 1.08rem; padding: 12px 16px; }
+.hero-search button { padding: 14px 26px; }
+
+/* Popular searches as tappable chips: one tap to a result, no typing. */
+.hero-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.hero-chips a {
+  display: inline-block; padding: 7px 14px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent); border: 1px solid transparent; color: var(--fg);
+  font-size: 0.9rem; font-weight: 600; text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.hero-chips a:hover { border-color: var(--fg); background: var(--surface); }
+
+/* The three marketplaces as plain wordmarks: text, not their logos. */
+.market-row { display: flex; justify-content: center; gap: 28px; margin: 36px 0 0; padding: 0; list-style: none; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.02em; color: var(--hero-fg); opacity: 0.75; }
+
+.home-section { padding-top: 40px; padding-bottom: 0; }
+.section-title { font-size: 1.25rem; margin: 0 0 16px; }
+
+.category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.category-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--fg); font-weight: 700; font-size: 0.95rem; text-decoration: none;
+  box-shadow: var(--shadow); transition: transform 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.category-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); border-color: var(--brand); }
+.category-icon {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px;
+  background: var(--brand-soft); color: var(--brand);
+}
+/* Every other tile wears the logo: cyan on black. */
+.category-grid li:nth-child(even) .category-icon { background: var(--ink); color: var(--cyan); }
+@media (max-width: 640px) {
+  .category-grid { grid-template-columns: repeat(2, 1fr); }
+  .hero-inner { padding: 56px 16px 44px; }
+  .market-row { gap: 20px; font-size: 1rem; }
+}
+
+.promise-row { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.promise-item {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+  background: var(--surface-2); border-radius: var(--radius);
+}
+.promise-item strong { display: block; font-size: 1rem; }
+.promise-line { display: block; color: var(--muted); font-size: 0.88rem; }
 .promise-icon {
-  display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
-  background: var(--brand-soft); color: var(--brand); font-size: 1.2rem; font-weight: 700;
+  flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px;
+  background: var(--brand-soft); color: var(--brand);
 }
 .promise-icon.ok { background: var(--ok-soft); color: var(--ok); }
+@media (min-width: 900px) { .promise-row { grid-template-columns: repeat(3, 1fr); } }
+.home-more { margin: 20px 0 0; text-align: center; font-weight: 600; }
+.home-more a { color: var(--brand); text-decoration: none; }
+.home-more a:hover { text-decoration: underline; }
 
-.how h2 { font-size: 1.3rem; margin: 24px 0 16px; }
+.how h1 { margin-top: 32px; }
+.how h2 { font-size: 1.3rem; margin: 32px 0 8px; }
 .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .steps li {
   counter-increment: step; position: relative; padding: 14px 16px 14px 56px;
@@ -297,6 +359,22 @@ button { font-family: var(--font-sans); }
 .check-label li.warn::before { content: "!"; }
 .check-label li.info::before { content: "\2013"; }
 
+/* While marketplaces are still answering. Provisional cards are visibly
+   unfinished — faded, a neutral "Checking…" pill, no pay button — so nothing
+   streamed early can be mistaken for a checked result. */
+.progress-source { margin: 14px 0 6px; }
+.progress-source > p { margin: 0 0 6px; }
+.listing.provisional { opacity: 0.72; box-shadow: none; }
+.listing.provisional h3 { font-weight: 600; }
+.check-label.pending .check-head { color: var(--muted); border-color: var(--border); background: var(--surface-2); }
+.spinner {
+  display: inline-block; width: 0.9em; height: 0.9em; margin-right: 6px; vertical-align: -0.12em;
+  border: 2px solid var(--border); border-top-color: var(--brand); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
 /* The best checked deal: the one card that's allowed to stand out. */
 .best-deals {
   margin: 16px 0; padding: 18px 20px;
@@ -408,18 +486,21 @@ button { font-family: var(--font-sans); }
    AA (4.5:1). The winner's values move to :root.
    ========================================================================== */
 
-.theme-flat {
-  --bg: #f4f7fa; --surface: #ffffff; --surface-2: #edf2f7;
-  --fg: #1f2d3a; --muted: #55657a; --border: #dde5ee;
-  --brand: #1f6fb2; --brand-ink: #ffffff; --brand-soft: #e4f0fa; --accent: var(--brand);
-  --ok: #167a4a; --ok-soft: #e3f4ea; --warn: #9a5a00; --warn-soft: #fdf0dc;
+.theme-cyan {
+  --bg: #f2f8f9; --surface: #ffffff; --surface-2: #e4f1f3;
+  --fg: #111111; --muted: #4b585b; --border: #cfe3e7;
+  --brand: #0a6774; --brand-ink: #ffffff; --brand-soft: #ddf2f5; --accent: var(--brand);
+  --cta: #111111; --cta-ink: #3ec1d3;
+  --hero-bg: linear-gradient(135deg, #3ec1d3, #6dd0de); --hero-fg: #111111;
+  --ok: #22703d; --ok-soft: #e2f0e5; --warn: #8e5a14; --warn-soft: #f6ecdb;
 }
-.theme-earthy {
-  --bg: #f3f1ec; --surface: #fbfaf7; --surface-2: #eeebe4;
-  --fg: #1f2a28; --muted: #5c6763; --border: #dcd8ce;
-  /* Petrol, not green-teal: the brand must not read as the "checked" green. */
-  --brand: #2f5868; --brand-ink: #ffffff; --brand-soft: #e3ebee; --accent: var(--brand);
-  --ok: #2d6e45; --ok-soft: #e4efe6; --warn: #8e5a14; --warn-soft: #f6ecdb;
+.theme-sage {
+  --bg: #f6f3ec; --surface: #fcfbf8; --surface-2: #eee8dc;
+  --fg: #2a2725; --muted: #67625f; --border: #dfd7c6;
+  --brand: #46685f; --brand-ink: #ffffff; --brand-soft: #e4ede9; --accent: var(--brand);
+  --cta: #46685f; --cta-ink: #ffffff;
+  --hero-bg: #f6f3ec; --hero-fg: #2a2725;
+  --ok: #22703d; --ok-soft: #e2f0e5; --warn: #8e5a14; --warn-soft: #f6ecdb;
 }
 
 .palette-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }

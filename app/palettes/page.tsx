@@ -1,5 +1,5 @@
 /**
- * app/palettes — the two palette candidates, side by side, on real components.
+ * app/palettes — the live palette and the previous one, side by side, on real components.
  *
  * A design-review page, not linked from the site. Each panel sets a theme
  * class that redefines the colour tokens (see the end of globals.css), so what
@@ -10,30 +10,30 @@ export const metadata = { title: "Palette comparison — SigPath" };
 
 const THEMES = [
   {
-    cls: "theme-flat",
-    name: "Flat",
-    blurb: "Clean, saturated flat-UI colours. Bright, energetic and familiar from big marketplaces.",
+    cls: "theme-cyan",
+    name: "Logo Cyan",
+    blurb: "The logo's cyan and black. Bold and bright, with black buttons wearing the cyan.",
     swatches: [
-      ["#1f6fb2", "brand"],
-      ["#f4f7fa", "page"],
-      ["#ffffff", "card"],
-      ["#1f2d3a", "text"],
-      ["#55657a", "muted"],
-      ["#167a4a", "checked"],
-      ["#9a5a00", "look closer"],
+      ["#3ec1d3", "logo cyan"],
+      ["#111111", "logo black"],
+      ["#0a6774", "text accent"],
+      ["#f2f8f9", "page"],
+      ["#4b585b", "muted"],
+      ["#22703d", "checked"],
+      ["#8e5a14", "look closer"],
     ],
   },
   {
-    cls: "theme-earthy",
-    name: "Cool Earthy",
-    blurb: "Muted petrol teal on warm stone. Calm and considered: closer to a boutique than a bazaar.",
+    cls: "theme-sage",
+    name: "Sage & Brass",
+    blurb: "Sage, teal and brass on sand. Warm and natural, with a touch of gold.",
     swatches: [
-      ["#2f5868", "brand"],
-      ["#f3f1ec", "page"],
-      ["#fbfaf7", "card"],
-      ["#1f2a28", "text"],
-      ["#5c6763", "muted"],
-      ["#2d6e45", "checked"],
+      ["#46685f", "brand"],
+      ["#f6f3ec", "page"],
+      ["#fcfbf8", "card"],
+      ["#2a2725", "text"],
+      ["#67625f", "muted"],
+      ["#22703d", "checked"],
       ["#8e5a14", "look closer"],
     ],
   },
@@ -158,12 +158,12 @@ export default function PalettesPage() {
     <main className="container palette-page" id="preview">
       <h1>Palette comparison</h1>
       <p className="lede">
-        The same components in both candidate palettes. These are <strong>interpretations of the two styles</strong>, not the
-        source palettes&apos; exact colours. Send the hex codes and they replace these values directly.
+        The same components in the live palette and the one it replaced. Logo Cyan takes its colours straight from the
+        logo; text accents use a deeper cyan so they stay readable.
       </p>
       <p className="notice">
-        <strong>Cool Earthy is live</strong> across the site (chosen 2026-10-02), with a matching dark mode. Kept here so a
-        future palette change can be compared on the same components.
+        <strong>Logo Cyan is live</strong> across the site (with the finalised logo, 2026-10-02), with a matching dark
+        mode. Sage &amp; Brass is kept here for comparison.
       </p>
       <div className="palette-compare">
         {THEMES.map((t) => (
@@ -196,9 +196,8 @@ export default function PalettesPage() {
           </li>
           <li>
             <strong>Green and amber stay as verdicts.</strong> They mean &ldquo;checked&rdquo; and &ldquo;look closer&rdquo;
-            in both palettes, and the brand colour is kept visibly different from them. In Cool Earthy that&apos;s why the
-            brand is a bluer petrol rather than a green-teal: a green brand button next to a green &ldquo;checked&rdquo;
-            pill would blur what the pill means.
+            in both palettes, and the brand colour is kept visibly different from them: a green brand button next to a green
+            &ldquo;checked&rdquo; pill would blur what the pill means.
           </li>
         </ul>
       </section>

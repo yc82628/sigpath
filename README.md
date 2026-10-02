@@ -1,6 +1,8 @@
+<p align="center"><img src="public/brand/sigpath-badge.png" alt="SigPath logo" width="220"></p>
+
 # SigPath
 
-**Every deal compared. Every deal checked.**
+**Deal Go – Scam Towed.** Every deal compared. Every deal checked.
 
 SigPath searches eBay, Amazon and Etsy at once and shows the best price, with
 shipping included. It then checks every result before you buy: is the price
@@ -388,6 +390,13 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
   each with its saving against its own median. A flagged bargain never wins.
 - **Checked only:** `?checked=1` hides the rest, and the filter survives a new search.
 - Checkout is still offered only on listings that pass the stricter checkout gate.
+- **Streamed, not waited for.** The search page goes out at once with a
+  "searching…" line per marketplace. Each marketplace's listings appear the
+  moment it answers, faded and marked **Checking…**, with no verdicts and no pay
+  buttons. When the last one is in, the checked results replace them. Each
+  marketplace is asked exactly once (`startSearch` / `assembleSearch`), and
+  verdicts still come only from the complete set. `STUB_DELAY_MS` makes the demo
+  feed answer slowly enough to watch.
 - **In the API too.** `GET /api/search` adds `check` (verdict, headline, reasons)
   and `verifiedSeller` to every listing, plus `bestCheckedDeals` (by `source:id`)
   and `checkedMeans`. It's additive, so existing fields are unchanged. Built on
@@ -449,6 +458,52 @@ search: the one under the best checked price stayed quiet, the other fired.
 preview browser blocks notifications, so that needs a run in Chrome or Firefox.
 Alerts live in a JSON file and one checker process, which is fine for a single
 instance.
+
+---
+
+## Going live on eBay — the account-deletion endpoint
+
+eBay keeps a production keyset disabled until the app handles
+**marketplace account deletion**. An app that stores no eBay user data may
+claim an exemption instead, but SigPath stores eBay usernames: the seller of
+each order (for the report window), sellers' replies and appeals, report
+decisions and verified badges. So it subscribes.
+
+`/api/ebay/account-deletion`:
+- **GET `?challenge_code=`** answers with `sha256(code + token + endpoint)`.
+  This was tested against an independent `sha256sum`, not just our own code.
+- **POST** acts only on a notice whose `X-EBAY-SIGNATURE` verifies against
+  eBay's key, fetched by key id from the Notification API. Anything unverifiable
+  gets **412 and nothing is deleted**; otherwise anyone could POST a username and
+  erase a seller's record.
+- **What deletion does:**
+  - **Removed:** order records naming the seller, pending reports about them,
+    and their side of every case. Their replies and appeals are their own words.
+  - **Pseudonymised:** report decisions, with the handle replaced by a one-way
+    stand-in. What was decided, and when, stays on the record.
+  - **Badges:** a verified badge is burned on chain and its record deleted.
+  - Idempotent, because eBay retries. Only counts are logged, never the
+    username.
+- **On chain:** findings name sellers only by `subjectHash`, never the
+  handle. Badge metadata now links to `/seller/verify` rather than a URL
+  containing the handle, so nothing deletable ends up on chain.
+
+Setup needs a public https address, either your deployment or a tunnel:
+
+```bash
+npx tsx scripts/ebay-deletion-setup.ts https://your-site.example
+```
+
+That writes `EBAY_DELETION_ENDPOINT` and a fresh `EBAY_VERIFICATION_TOKEN` to
+`.env.local` and prints both for eBay's portal (Alerts & Notifications →
+Marketplace account deletion). Restart the server, press **Send Test
+Notification**, and the production keyset unlocks.
+
+Tested: the challenge vector, signature verification (tampered body, foreign
+key, unknown key id and missing header are all refused), the purge leaving
+other sellers untouched with no handle left in the clear, idempotency, and a
+failed burn. On the dev server: the challenge answer is correct, and unsigned
+and forged notices get 412.
 
 ---
 
@@ -1040,6 +1095,7 @@ npx tsx scripts/vapid-keys.ts                 # once: Web Push keys for price al
 npx tsx scripts/alerts-check.ts --every 30    # the price-drop checker
 npx tsx scripts/sas-read.ts github <handle>   # read a SAS credential with no secret
 npx tsx scripts/ebay-check.ts "<query>"       # prove an eBay keyset in isolation
+npx tsx scripts/ebay-deletion-setup.ts https://<site>   # eBay account-deletion endpoint + token, for the production keyset
 GITHUB_TOKEN=... npx tsx scripts/benchmark-scoring.ts
 ```
 
