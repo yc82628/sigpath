@@ -44,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/how">How it works</Link>
               <Link href="/alerts">Price alerts</Link>
               <Link href="/seller/verify">For sellers</Link>
+              <Link href="/suppliers">Check a supplier</Link>
               <Link href="/agents">For AI agents</Link>
             </p>
             <p className="hint">

@@ -1002,6 +1002,34 @@ Tested against the real VIES register, 2026-10-03: a public company's VAT
 number came back valid with its registered name; an invalid German number was
 refused.
 
+### Check a supplier — before ordering in bulk
+
+For businesses buying stock (`/suppliers`, `lib/suppliers/check.ts`). Enter what
+you know about a supplier: the VAT number, the name they gave, their website,
+their marketplace account. One detail is enough, and more is better. Each is
+checked against an independent source:
+
+| Check | Source | Warning sign |
+| --- | --- | --- |
+| **Registered business** | EU VIES register | The VAT number isn't registered |
+| **Name** | The register's name for that VAT number | It doesn't match the name they gave. Legal forms ("GmbH", "Ltd") and accents are ignored, but spelling isn't: a near-miss name is what impersonators register |
+| **Website age** | The domain's own registry, via RDAP (IANA's directory, plus DENIC for `.de`) | The domain doesn't exist, or it was registered under 90 days ago |
+| **SigPath's records** | Verified sellers and businesses, upheld reports | Upheld fake-product reports, or details that belong to a *different* verified business (a borrowed identity) |
+
+- **Never "safe".** The summary reads "Warning signs found", "Some details
+  don't add up", "Verified business on SigPath", "No warning signs in the checks
+  that ran" or "Not enough could be checked". Checks that couldn't run say why:
+  some countries don't publish names through VIES, `.de` publishes no
+  registration date, and some ccTLDs (e.g. `.ie`) have no public lookup.
+- **Nothing is kept.** The details only go to those sources; the report lives
+  on the page. Rate-limited, since the registers are shared public services.
+
+Tested against the real registers, 2026-10-03: a genuine company's VAT number
+and name passed; the same VAT number under a different name with a
+nonexistent website was flagged as a borrowed identity; an invalid German VAT
+number was flagged, and `spiegel.de` was confirmed to exist with its date
+reported as unpublished.
+
 ---
 
 ## The two-chain split

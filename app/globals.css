@@ -678,3 +678,40 @@ a.chat-card-title:hover { text-decoration: underline; }
 .dns-record { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0 14px; }
 .dns-record dt { font-weight: 700; }
 .dns-record dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ==========================================================================
+   Supplier check (/suppliers)
+   ========================================================================== */
+
+.supplier-form {
+  display: grid; gap: 14px; margin: 20px 0; padding: 20px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.supplier-form label { display: grid; gap: 6px; font-weight: 700; font-size: 0.92rem; }
+.supplier-form label .hint { font-weight: 400; }
+.supplier-form > label > input {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg); font: 0.95rem var(--font-sans);
+}
+.supplier-form .form-row { margin-top: 0; }
+.supplier-form .form-row select { flex: 0 1 180px; }
+.supplier-form button { justify-self: start; }
+
+.supplier-report { margin: 20px 0; padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); border-left-width: 5px; background: var(--surface); }
+.supplier-report h2 { font-size: 1.15rem; margin: 0 0 14px; }
+.supplier-report.concerns { border-left-color: #b3261e; }
+.supplier-report.warnings { border-left-color: var(--warn); }
+.supplier-report.verified, .supplier-report.clear { border-left-color: var(--ok); }
+.supplier-report.insufficient { border-left-color: var(--muted); }
+.findings { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
+.findings li { display: flex; gap: 12px; align-items: flex-start; }
+.finding-icon {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  font-weight: 800; font-size: 0.85rem; background: var(--surface-2); color: var(--muted);
+}
+.findings li.good .finding-icon { background: var(--ok-soft); color: var(--ok); }
+.findings li.warn .finding-icon { background: var(--warn-soft); color: var(--warn); }
+.findings li.bad .finding-icon { background: #fbe9e7; color: #b3261e; }
+@media (prefers-color-scheme: dark) { .findings li.bad .finding-icon { background: #3a1513; color: #f2b8b5; } .supplier-report.concerns { border-left-color: #f2b8b5; } }
+.findings strong { display: block; }
+.finding-detail { display: block; color: var(--muted); font-size: 0.9rem; }
