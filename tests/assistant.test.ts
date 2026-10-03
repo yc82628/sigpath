@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import type Anthropic from "@anthropic-ai/sdk";
-import { ChatRequest, runAssistant, type AssistantEvent, type StreamingClient } from "../lib/assistant/assistant";
+import { ChatRequest, runAssistant, type AssistantEvent } from "../lib/assistant/assistant";
+import { anthropicModel, assistantConfig, openAICompatModel, type StreamingClient } from "../lib/assistant/models";
 import { SearchInput, filterResults } from "../lib/assistant/search-tool";
 import { RateLimiter } from "../lib/assistant/rate-limit";
 import { withLabels } from "../lib/marketplace/label";
@@ -85,9 +86,12 @@ const ask = (content: string) => ChatRequest.parse({ messages: [{ role: "user", 
 test("assistant: searches with the shopper's preferences, shows cards, then answers", async () => {
   const { client, calls } = fakeClient([toolUse({ query: "ThinkPad X1", condition: "used", max_price: 200 }), say("Top pick: the used one.")]);
   const events: AssistantEvent[] = [];
-  await runAssistant(ask("used ThinkPad X1 under 200"), (e) => events.push(e), { client, search: demoSearch });
+  await runAssistant(ask("used ThinkPad X1 under 200"), (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
 
-  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "done"]);
+  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "text", "done"]);
+  // The stand-in reply never mentions the flagged bait, so the server adds the warning itself.
+  const warned = events.at(-2);
+  assert.ok(warned && warned.type === "text" && warned.text.includes("Heads up") && warned.text.includes("Look closer"));
   const results = events.find((e) => e.type === "results");
   assert.ok(results && results.type === "results");
   for (const c of results.results.shown) assert.ok(c.condition === "used" && total(c.total) <= 200);
@@ -106,7 +110,7 @@ test("assistant: invalid tool input becomes an error result, not a search", asyn
   const { client, calls } = fakeClient([toolUse({ query: "" }), say("Could you tell me the product?")]);
   let searched = 0;
   const events: AssistantEvent[] = [];
-  await runAssistant(ask("hi"), (e) => events.push(e), { client, search: async (q) => (searched++, demoSearch(q)) });
+  await runAssistant(ask("hi"), (e) => events.push(e), { model: anthropicModel(client), search: async (q) => (searched++, demoSearch(q)) });
   assert.strictEqual(searched, 0);
   const block = (calls[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[])[0];
   assert.strictEqual(block.is_error, true);
@@ -115,7 +119,7 @@ test("assistant: invalid tool input becomes an error result, not a search", asyn
 
 test("assistant: never searches forever; the last round must answer in words", async () => {
   const { client, calls } = fakeClient([toolUse({ query: "mug" })]);
-  await runAssistant(ask("mug"), () => {}, { client, search: demoSearch });
+  await runAssistant(ask("mug"), () => {}, { model: anthropicModel(client), search: demoSearch });
   assert.strictEqual(calls.length, 4);
   assert.deepStrictEqual(calls[3].tool_choice, { type: "none" });
   assert.deepStrictEqual(calls[0].tool_choice, { type: "auto" });
@@ -124,15 +128,15 @@ test("assistant: never searches forever; the last round must answer in words", a
 test("assistant: a refusal gets a polite redirect", async () => {
   const { client } = fakeClient([{ stop_reason: "refusal", content: [] }]);
   const events: AssistantEvent[] = [];
-  await runAssistant(ask("something off-topic"), (e) => events.push(e), { client, search: demoSearch });
+  await runAssistant(ask("something off-topic"), (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
   assert.ok(events.some((e) => e.type === "text" && e.text.includes("find a product")));
   assert.strictEqual(events.at(-1)!.type, "done");
 });
 
 test("assistant: uses the configured model, else the default", async () => {
   const { client, calls } = fakeClient([say("ok")]);
-  await runAssistant(ask("x"), () => {}, { client, search: demoSearch, model: "claude-sonnet-5-5" });
-  await runAssistant(ask("x"), () => {}, { client, search: demoSearch });
+  await runAssistant(ask("x"), () => {}, { model: anthropicModel(client, "claude-sonnet-5-5"), search: demoSearch });
+  await runAssistant(ask("x"), () => {}, { model: anthropicModel(client), search: demoSearch });
   assert.strictEqual(calls[0].model, "claude-sonnet-5-5");
   assert.strictEqual(calls[1].model, "claude-opus-5-5");
 });
@@ -157,4 +161,121 @@ test("rate limiter: allows up to the limit per window, per client", () => {
   assert.strictEqual(rl.allow("a", 20), false);
   assert.ok(rl.allow("b", 20), "another client is unaffected");
   assert.ok(rl.allow("a", 1011), "the window slides");
+});
+
+// --- the OpenAI-compatible adapter (Ollama, Gemini, OpenAI) --------------------------
+
+/** A fake chat-completions server: answers each call with the next SSE script. */
+function fakeOpenAI(scripts: object[][]) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bodies: any[] = [];
+  const fetchImpl = (async (_url: string, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    const chunks = scripts[Math.min(bodies.length - 1, scripts.length - 1)];
+    const sse = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n";
+    return new Response(sse, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  }) as unknown as typeof fetch;
+  return { fetchImpl, bodies };
+}
+const delta = (d: object, finish: string | null = null) => ({ choices: [{ delta: d, finish_reason: finish }] });
+
+test("openai adapter: assembles a streamed tool call, runs the search, then streams the answer", async () => {
+  const { fetchImpl, bodies } = fakeOpenAI([
+    [
+      delta({ tool_calls: [{ index: 0, id: "call_a", function: { name: "search_deals", arguments: '{"query":"ThinkPad X1",' } }] }),
+      delta({ tool_calls: [{ index: 0, function: { arguments: '"condition":"used","max_price":200}' } }] }, "tool_calls"),
+    ],
+    [delta({ content: "Top pick: " }), delta({ content: "the used one." }, "stop")],
+  ]);
+  const model = openAICompatModel({ baseUrl: "http://localhost:11434/v1/", model: "qwen2.5:7b", fetchImpl });
+  const events: AssistantEvent[] = [];
+  await runAssistant(ask("used ThinkPad X1 under 200"), (e) => events.push(e), { model, search: demoSearch });
+
+  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "text", "text", "done"]);
+  const results = events.find((e) => e.type === "results");
+  assert.ok(results && results.type === "results");
+  for (const c of results.results.shown) assert.ok(c.condition === "used" && total(c.total) <= 200);
+  assert.ok((events.at(-2) as { text: string }).text.startsWith("\n\nHeads up"));
+
+  // Request shape: system first, tools as functions; the second call carries the tool result.
+  assert.strictEqual(bodies[0].model, "qwen2.5:7b");
+  assert.strictEqual(bodies[0].messages[0].role, "system");
+  assert.strictEqual(bodies[0].tools[0].function.name, "search_deals");
+  assert.strictEqual(bodies[0].tool_choice, "auto");
+  const sent = bodies[1].messages;
+  assert.strictEqual(sent.at(-2).tool_calls[0].id, "call_a");
+  assert.strictEqual(sent.at(-1).role, "tool");
+  assert.strictEqual(sent.at(-1).tool_call_id, "call_a");
+  assert.ok(sent.at(-1).content.includes('"query":"ThinkPad X1"'));
+});
+
+test("openai adapter: unparseable tool arguments become an error result, not a search", async () => {
+  const { fetchImpl, bodies } = fakeOpenAI([
+    [delta({ tool_calls: [{ index: 0, id: "c1", function: { name: "search_deals", arguments: "{not json" } }] }, "tool_calls")],
+    [delta({ content: "What product are you after?" }, "stop")],
+  ]);
+  const events: AssistantEvent[] = [];
+  await runAssistant(ask("hi"), (e) => events.push(e), { model: openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl }), search: demoSearch });
+  assert.ok(!events.some((e) => e.type === "results"));
+  assert.match(bodies[1].messages.at(-1).content, /^Error:/);
+});
+
+test("openai adapter: a model that keeps calling tools is stopped, and still answers", async () => {
+  const { fetchImpl, bodies } = fakeOpenAI([[delta({ tool_calls: [{ index: 0, id: "c", function: { name: "search_deals", arguments: '{"query":"mug"}' } }] }, "tool_calls")]]);
+  const events: AssistantEvent[] = [];
+  await runAssistant(ask("mug"), (e) => events.push(e), { model: openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl }), search: demoSearch });
+  assert.strictEqual(bodies.length, 4);
+  assert.strictEqual(bodies[3].tool_choice, "none");
+  assert.strictEqual(events.filter((e) => e.type === "searching").length, 3, "the last round's call is not run");
+  assert.ok(events.some((e) => e.type === "text" && e.text === "Here's what I found."));
+});
+
+test("openai adapter: sends the API key only when configured, and fails loudly on HTTP errors", async () => {
+  let auth: string | null = "unset";
+  const ok = (async (_u: string, init: RequestInit) => {
+    auth = new Headers(init.headers).get("authorization");
+    return new Response("data: [DONE]\n\n", { status: 200 });
+  }) as unknown as typeof fetch;
+  const turn = { system: "s", messages: [{ role: "user" as const, content: "hi" }], tools: [], allowTools: true, onText: () => {} };
+  await openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: ok }).turn(turn);
+  assert.strictEqual(auth, null);
+  await openAICompatModel({ baseUrl: "http://x/v1", model: "m", apiKey: "k", fetchImpl: ok }).turn(turn);
+  assert.strictEqual(auth, "Bearer k");
+  const down = (async () => new Response("no", { status: 502 })) as unknown as typeof fetch;
+  await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: down }).turn(turn), /502/);
+});
+
+test("config: picks the provider from the environment", () => {
+  assert.strictEqual(assistantConfig({}), null);
+  assert.deepStrictEqual(assistantConfig({ ANTHROPIC_API_KEY: "k" }), { provider: "anthropic", model: "claude-opus-5-5" });
+  assert.deepStrictEqual(assistantConfig({ ASSISTANT_PROVIDER: "ollama", ANTHROPIC_API_KEY: "k" }), { provider: "ollama", model: "qwen2.5:7b", baseUrl: "http://localhost:11434/v1" });
+  assert.deepStrictEqual(assistantConfig({ ASSISTANT_PROVIDER: "ollama", OLLAMA_HOST: "http://gpu:11434/", ASSISTANT_MODEL: "qwen3:8b" }), { provider: "ollama", model: "qwen3:8b", baseUrl: "http://gpu:11434/v1" });
+  assert.strictEqual(assistantConfig({ ASSISTANT_PROVIDER: "openai", ASSISTANT_MODEL: "gemini-2.5-flash" }), null, "openai needs a base URL");
+  assert.deepStrictEqual(assistantConfig({ ASSISTANT_PROVIDER: "openai", ASSISTANT_BASE_URL: "https://g/v1", ASSISTANT_MODEL: "m", ASSISTANT_API_KEY: "k" }), { provider: "openai", model: "m", baseUrl: "https://g/v1", apiKey: "k" });
+  assert.strictEqual(assistantConfig({ ASSISTANT_PROVIDER: "anthropic" }), null, "anthropic needs its key");
+});
+
+test("search tool: when nothing matches, the closest real options come back, never a flagged one", async () => {
+  const all = await demoSearch("AirPods Pro");
+  const r = filterResults(SearchInput.parse({ query: "AirPods Pro", max_price: 5 }), all);
+  assert.strictEqual(r.matched, 0);
+  assert.ok(r.closest.length > 0 && r.closest.length <= 2);
+  for (const c of r.closest) assert.notStrictEqual(c.verdict, "caution");
+  assert.strictEqual(r.closest[0].verdict, "checked");
+  // Closest still honours every preference except the price.
+  const used = filterResults(SearchInput.parse({ query: "AirPods Pro", max_price: 5, condition: "used" }), all);
+  for (const c of used.closest) assert.strictEqual(c.condition, "used");
+  // Offered when only flagged listings matched, and empty whenever there is a safe pick.
+  const onlyFlagged = filterResults(SearchInput.parse({ query: "ThinkPad", condition: "new", max_price: 130 }), await demoSearch("ThinkPad"));
+  if (onlyFlagged.shown.every((c) => c.verdict === "caution")) assert.ok(onlyFlagged.closest.length > 0);
+  assert.deepStrictEqual(filterResults(SearchInput.parse({ query: "AirPods Pro" }), all).closest, []);
+});
+
+test("assistant: no extra warning when the reply already names the flagged listing", async () => {
+  const bait = filterResults(SearchInput.parse({ query: "ThinkPad X1", condition: "used" }), await demoSearch("ThinkPad X1")).shown.find((c) => c.verdict === "caution");
+  assert.ok(bait, "the demo feed has a flagged used listing");
+  const { client } = fakeClient([toolUse({ query: "ThinkPad X1", condition: "used" }), say(`Avoid the one at ${bait.total}: it is flagged.`)]);
+  const events: AssistantEvent[] = [];
+  await runAssistant(ask("cheapest used ThinkPad X1"), (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
+  assert.ok(!events.some((e) => e.type === "text" && e.text.includes("Heads up")));
 });

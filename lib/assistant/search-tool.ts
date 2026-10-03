@@ -70,6 +70,19 @@ export interface AssistantResults {
   /** Listings found, and how many met every preference. */
   found: number;
   matched: number;
+  /**
+   * Only when there is no safe pick (nothing matched, or only flagged
+   * listings did): the cheapest listings that meet every preference except
+   * the price range, checked ones first, never flagged ones. Real
+   * alternatives to offer, so the reply never has to invent one.
+   */
+  closest: AssistantCard[];
+  /**
+   * One sentence about the flagged listing shown last, if there is one, for
+   * the reply to pass on. Spelled out because a small model given only a
+   * verdict field tends to skip it, and the warning is the point.
+   */
+  warning: string | null;
   counts: Record<Verdict, number>;
   searched: string[];
   notSearched: string[];
@@ -81,7 +94,7 @@ export interface AssistantResults {
 const MAX_PICKS = 5;
 
 export function filterResults(input: SearchInput, result: LabelledSearch): AssistantResults {
-  const wanted = (l: LabelledSearch["listings"][number]): boolean => {
+  const wanted = (l: LabelledSearch["listings"][number], ignorePrice = false): boolean => {
     if (input.condition !== "any" && l.condition !== input.condition) return false;
     if (input.marketplaces?.length && !input.marketplaces.includes(l.source as (typeof MARKETPLACES)[number])) {
       // The demo feed stands in for every marketplace, so a marketplace filter never empties a demo.
@@ -89,7 +102,7 @@ export function filterResults(input: SearchInput, result: LabelledSearch): Assis
     }
     if (input.checked_only && l.check.verdict !== "checked") return false;
     if (input.verified_seller_only && !l.verifiedSeller) return false;
-    if (input.min_price !== undefined || input.max_price !== undefined || input.currency) {
+    if (!ignorePrice && (input.min_price !== undefined || input.max_price !== undefined || input.currency)) {
       const total = listingTotal(l);
       if (input.currency && total.currency !== input.currency) return false;
       const major = total.amount / 100;
@@ -99,7 +112,7 @@ export function filterResults(input: SearchInput, result: LabelledSearch): Assis
     return true;
   };
 
-  const matched = result.listings.filter(wanted);
+  const matched = result.listings.filter((l) => wanted(l));
   const byPrice = (a: (typeof matched)[number], b: (typeof matched)[number]) => listingTotal(a).amount - listingTotal(b).amount;
   const checked = matched.filter((l) => l.check.verdict === "checked").sort(byPrice);
   const unchecked = matched.filter((l) => l.check.verdict === "unchecked").sort(byPrice);
@@ -108,12 +121,28 @@ export function filterResults(input: SearchInput, result: LabelledSearch): Assis
   const picks = [...checked, ...unchecked].slice(0, MAX_PICKS);
   const shown = [...picks, ...caution.slice(0, 1)].map((l) => ({ id: listingKey(l), ...agentListing(l) }));
 
+
+  const flagged = shown.find((c) => c.verdict === "caution");
+  const card = (l: (typeof matched)[number]) => ({ id: listingKey(l), ...agentListing(l) });
+  const closest =
+    picks.length > 0
+      ? []
+      : result.listings
+          .filter((l) => wanted(l, true) && l.check.verdict !== "caution")
+          .sort((a, b) => (a.check.verdict === b.check.verdict ? byPrice(a, b) : a.check.verdict === "checked" ? -1 : 1))
+          .slice(0, 2)
+          .map(card);
+
   const counts: Record<Verdict, number> = { checked: checked.length, caution: caution.length, unchecked: unchecked.length };
   return {
     query: input.query,
     shown,
     found: result.listings.length,
     matched: matched.length,
+    closest,
+    warning: flagged
+      ? `Do not recommend "${flagged.title}" (${flagged.total}): SigPath flags it "Look closer" because: ${flagged.reasons.join(" ") || "something about it looks off."} Warn the shopper about it.`
+      : null,
     counts,
     searched: result.sources.filter((s) => s.status === "ok").map((s) => marketName(s.source)),
     notSearched: result.sources.filter((s) => s.status !== "ok").map((s) => marketName(s.source)),

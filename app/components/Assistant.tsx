@@ -19,7 +19,7 @@ interface Turn {
   results?: AssistantResults[];
 }
 
-const SUGGESTIONS = ["A used ThinkPad under €400", "AirPods Pro, checked deals only", "A handmade gift under €50"];
+const SUGGESTIONS = ["A used ThinkPad X1 under €400", "AirPods Pro, checked deals only", "A handmade gift under €50"];
 
 const VERDICT_LABEL: Record<AssistantCard["verdict"], string> = {
   checked: "✓ Checked",
@@ -50,11 +50,13 @@ function Card({ c }: { c: AssistantCard }) {
 }
 
 function Results({ r }: { r: AssistantResults }) {
-  if (r.shown.length === 0) return <p className="chat-note">No listings matched every preference.</p>;
+  const cards = r.shown.length > 0 ? r.shown : r.closest;
+  if (cards.length === 0) return <p className="chat-note">No listings matched every preference.</p>;
   return (
     <div className="chat-results">
+      {r.shown.length === 0 && <p className="chat-note">Nothing matched every preference. Closest options:</p>}
       <ul>
-        {r.shown.map((c) => (
+        {cards.map((c) => (
           <Card key={c.id} c={c} />
         ))}
       </ul>
@@ -65,7 +67,7 @@ function Results({ r }: { r: AssistantResults }) {
   );
 }
 
-export default function Assistant() {
+export default function Assistant({ poweredBy }: { poweredBy: string }) {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -227,7 +229,7 @@ export default function Assistant() {
           Send
         </button>
       </form>
-      <p className="chat-foot">Answers by Claude. Chats aren&apos;t saved. Please don&apos;t share personal details.</p>
+      <p className="chat-foot">Answers by {poweredBy}. Chats aren&apos;t saved. Please don&apos;t share personal details.</p>
     </section>
   );
 }

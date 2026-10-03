@@ -466,7 +466,7 @@ instance.
 
 A chat on every page (the button in the corner). A shopper describes what they
 want in their own words, e.g. "a used ThinkPad under €400, safe sellers only".
-Claude turns that into a search with filters (condition, budget, marketplace,
+The model turns that into a search with filters (condition, budget, marketplace,
 checked-only, verified sellers), runs SigPath's real search and verdicts, and
 answers in a few sentences, with the results as cards in the chat.
 
@@ -476,11 +476,21 @@ answers in a few sentences, with the results as cards in the chat.
 - **Streaming:** `/api/assistant` streams newline-delimited JSON events (words, "searching", result cards). At most 3 searches per turn; the last round must answer in words.
 - **No memory, no log:** the conversation lives in the browser and is sent each turn. Nothing is stored. Errors are logged by status only.
 - **Cost guard:** 20 turns per 10 minutes per client; messages up to 2,000 characters, 24 turns.
-- **Setup:** `ANTHROPIC_API_KEY` with API credit. The button is hidden without a key. `ASSISTANT_MODEL` overrides the default `claude-opus-5-5`.
+- **Any model that can use tools** ([lib/assistant/models.ts](lib/assistant/models.ts)), chosen by `ASSISTANT_PROVIDER`:
+  - `ollama`: a model on this machine. Free and offline, no account. Default `qwen2.5:7b`, which fits an 8 GB GPU.
+  - `openai`: any OpenAI-compatible API, such as Google Gemini (free tier), OpenAI or OpenRouter, with `ASSISTANT_BASE_URL`, `ASSISTANT_API_KEY` and `ASSISTANT_MODEL`.
+  - `anthropic`: Claude, with `ANTHROPIC_API_KEY`. It needs API credit, which is separate from a Claude app plan. Default `claude-opus-5-5`.
 
-Tests (`tests/assistant.test.ts`) drive the whole loop with a stand-in for
-Claude: search, cards, answer; invalid tool input; the round limit; refusals;
-and request validation.
+  The chat button is hidden when no model is configured, and the chat says which kind of model answers.
+
+```bash
+ollama pull qwen2.5:7b
+```
+
+Tests (`tests/assistant.test.ts`) drive the whole loop through both adapters
+with stand-ins for the model APIs: search, cards, answer; streamed tool calls;
+invalid or unparseable tool input; the round limit; refusals; provider
+configuration; and request validation.
 
 ---
 

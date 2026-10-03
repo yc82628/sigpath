@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
+import { assistantConfig, providerName } from "@/lib/assistant/models";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -12,6 +13,12 @@ export const metadata: Metadata = {
   title: `SigPath — ${SLOGAN}`,
   description: "Compare eBay, Amazon and Etsy in one search. Every deal price-checked, every seller screened, and you only pay when it ships.",
 };
+
+/** Offered only where it can answer: a model must be configured (lib/assistant/models.ts). */
+function ShoppingAssistant() {
+  const config = assistantConfig();
+  return config ? <Assistant poweredBy={providerName(config)} /> : null;
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -45,8 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </p>
           </div>
         </footer>
-        {/* Offered only where it can answer: the server needs a Claude API key. */}
-        {process.env.ANTHROPIC_API_KEY && <Assistant />}
+        <ShoppingAssistant />
       </body>
     </html>
   );

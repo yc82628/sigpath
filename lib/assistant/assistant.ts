@@ -1,7 +1,7 @@
 /**
  * lib/assistant/assistant.ts — SigPath's shopping assistant.
  *
- * A shopper says what they want in their own words; Claude asks at most one
+ * A shopper says what they want in their own words; the model asks at most one
  * short question if it must, then calls `search_deals` with their preferences
  * as filters, and answers from what came back. Words stream to the chat as
  * they are written, and each search's results go to the chat as cards.
@@ -16,23 +16,23 @@
  * Nothing here stores or logs it.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { SEARCH_TOOL, SearchInput, filterResults, type AssistantResults } from "./search-tool";
+import { SEARCH_TOOL, SearchInput, filterResults, type AssistantCard, type AssistantResults } from "./search-tool";
 import type { LabelledSearch } from "../marketplace/labelled-search";
+import type { ChatModel, ChatMsg } from "./models";
 
-export const DEFAULT_MODEL = "claude-opus-5-5";
 const MAX_SEARCH_ROUNDS = 3;
 
 export const SYSTEM = `You are SigPath's shopping assistant. SigPath searches eBay, Amazon and Etsy at once and gives every listing a verdict: "checked" (SigPath-checked: the price is in line with the market for its condition and nothing about the seller or photos raised a flag), "caution" (look closer, with the reasons) or "unchecked" (nothing to compare it with, e.g. handmade items; not a bad sign on its own).
 
 How to help:
-- Find the product that fits what the shopper asked for, using the search_deals tool. Put only the product in "query"; turn preferences into the other fields: a budget into max_price, "second-hand" into condition "used", "only safe/trusted deals" into checked_only, a named marketplace into marketplaces.
-- Search straight away when you can. Only if the request is too vague to search (e.g. just "a laptop"), ask ONE short question about what matters most (budget, use, new or used), then search.
+- Find the product that fits what the shopper asked for, using the search_deals tool. Put only the product in "query"; turn preferences into the other fields: a budget into max_price, "second-hand" into condition "used", a named marketplace into marketplaces. Set checked_only only when the shopper explicitly asks for only safe, trusted or checked deals; otherwise leave it off, because warning about flagged listings is part of your job.
+- Search straight away when you can. A named product is enough to search; asking for the cheapest or best one never needs a budget first. Only if the request is too vague to search (e.g. just "a laptop"), ask ONE short question about what matters most (budget, use, new or used), then search.
 - The results appear to the shopper as cards under your message, so do not list every listing. In 2 to 4 short sentences: name your top pick and why it fits, mention a cheaper or alternative option if useful, and say what was traded off.
-- Recommend only "checked" listings. If a "caution" listing is among the results, warn about it briefly and give its reason, especially when it is the cheapest. Never call a listing safe, genuine or guaranteed: say "SigPath-checked" and, when you first use it, that checked means the price and seller checks passed, not a guarantee.
-- If nothing matches every preference, say which preference ruled things out and offer the closest options or a search with it relaxed.
-- Quote prices exactly as the tool gives them. If some marketplaces were not searched, say the results come from those that were.
+- Recommend only "checked" listings. If the search result has a "warning", pass it on in one sentence with its price and reason, especially when that listing is the cheapest. Do not say all listings are checked when one is flagged. Never call a listing safe, genuine or guaranteed: say "SigPath-checked" and, when you first use it, that checked means the price and seller checks passed, not a guarantee.
+- If no checked or unchecked listing matches every preference, say which preference ruled things out, and never present a flagged listing as an option. If "closest" has listings, offer them as the nearest real options with their prices; if it is empty, offer to search with the preference relaxed.
+- Mention only listings and prices that appear in the search results. Never invent a listing, a price or a verdict.
+- Quote prices exactly as the tool gives them. Call one option cheaper than another only if its total is a lower number. If some marketplaces were not searched, say the results come from those that were.
 - Plain text only, no markdown, no bullet characters.
 
 Boundaries:
@@ -59,60 +59,63 @@ export const ChatRequest = z.object({
 });
 export type ChatRequest = z.infer<typeof ChatRequest>;
 
-/** The slice of the Anthropic client this needs, so tests can stand in for it. */
-export interface StreamingClient {
-  messages: {
-    stream(params: Anthropic.MessageStreamParams): {
-      on(event: "text", listener: (text: string) => void): unknown;
-      finalMessage(): Promise<Anthropic.Message>;
-    };
-  };
-}
-
 export interface AssistantDeps {
-  client: StreamingClient;
+  model: ChatModel;
   search: (query: string, currency?: string) => Promise<LabelledSearch>;
-  model?: string;
 }
 
 export async function runAssistant(req: ChatRequest, emit: (e: AssistantEvent) => void, deps: AssistantDeps): Promise<void> {
-  const messages: Anthropic.MessageParam[] = req.messages.map((m) => ({ role: m.role, content: m.content }));
+  const messages: ChatMsg[] = req.messages.map((m) => ({ role: m.role, content: m.content }));
+  // Flagged listings shown this turn, and everything said this turn.
+  const flagged = new Map<string, AssistantCard>();
+  let said = "";
+  const say = (text: string) => {
+    said += text;
+    emit({ type: "text", text });
+  };
 
   for (let round = 0; round <= MAX_SEARCH_ROUNDS; round++) {
-    const stream = deps.client.messages.stream({
-      model: deps.model ?? DEFAULT_MODEL,
-      max_tokens: 1024,
+    const lastRound = round === MAX_SEARCH_ROUNDS;
+    const reply = await deps.model.turn({
       system: SYSTEM,
+      messages,
       tools: [SEARCH_TOOL],
       // The last round may not search again, so the reply always ends in words.
-      tool_choice: round < MAX_SEARCH_ROUNDS ? { type: "auto" } : { type: "none" },
-      output_config: { effort: "low" },
-      messages,
+      allowTools: !lastRound,
+      onText: say,
     });
-    stream.on("text", (text) => emit({ type: "text", text }));
-    const reply = await stream.finalMessage();
 
-    if (reply.stop_reason === "refusal") {
-      emit({ type: "text", text: "I can't help with that one, but I'm happy to help you find a product." });
+    if (reply.refused) {
+      say("I can't help with that one, but I'm happy to help you find a product.");
       break;
     }
-    if (reply.stop_reason !== "tool_use") break;
+    // Some models ignore "no more tools"; on the last round a call is not run.
+    if (reply.toolCalls.length === 0 || lastRound) {
+      if (!reply.text.trim()) say("Here's what I found.");
+      break;
+    }
 
-    messages.push({ role: "assistant", content: reply.content });
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (const block of reply.content) {
-      if (block.type !== "tool_use") continue;
-      const parsed = block.name === SEARCH_TOOL.name ? SearchInput.safeParse(block.input) : null;
+    messages.push({ role: "assistant", content: reply.text, toolCalls: reply.toolCalls });
+    for (const call of reply.toolCalls) {
+      const parsed = call.name === SEARCH_TOOL.name ? SearchInput.safeParse(call.input) : null;
       if (!parsed?.success) {
-        toolResults.push({ type: "tool_result", tool_use_id: block.id, is_error: true, content: "Invalid search parameters." });
+        messages.push({ role: "tool", toolCallId: call.id, isError: true, content: "Invalid search parameters." });
         continue;
       }
       emit({ type: "searching", query: parsed.data.query });
       const results = filterResults(parsed.data, await deps.search(parsed.data.query, parsed.data.currency));
       emit({ type: "results", results });
-      toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(results) });
+      for (const c of results.shown) if (c.verdict === "caution") flagged.set(c.id, c);
+      messages.push({ role: "tool", toolCallId: call.id, content: JSON.stringify(results) });
     }
-    messages.push({ role: "user", content: toolResults });
+  }
+  // The warning must not depend on the model remembering it: a flagged
+  // listing the reply never mentioned gets one plain line.
+  for (const c of flagged.values()) {
+    const amount = c.total.split(" ")[0];
+    if (!said.includes(amount)) say(`
+
+Heads up: "${c.title}" (${c.total}) is flagged "Look closer". ${c.reasons[0] ?? ""}`.trimEnd());
   }
   emit({ type: "done" });
 }

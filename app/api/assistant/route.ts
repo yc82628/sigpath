@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "@/lib/assistant/assistant";
+import { assistantConfig, modelFromConfig } from "@/lib/assistant/models";
 import { RateLimiter } from "@/lib/assistant/rate-limit";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 
@@ -17,7 +18,8 @@ export const runtime = "nodejs";
 const limiter = new RateLimiter(20, 10 * 60 * 1000);
 
 export async function POST(req: NextRequest) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const config = assistantConfig();
+  if (!config) {
     return NextResponse.json({ error: "The shopping assistant isn't set up on this server." }, { status: 503 });
   }
 
@@ -37,14 +39,13 @@ export async function POST(req: NextRequest) {
       const emit = (e: AssistantEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         await runAssistant(parsed.data, emit, {
-          client: new Anthropic(),
+          model: modelFromConfig(config),
           search: (q, currency) => labelledSearch(q, { limit: 20, currency }),
-          model: process.env.ASSISTANT_MODEL || undefined,
         });
       } catch (err) {
         // Status only: an error message could echo the conversation.
         const status = err instanceof Anthropic.APIError ? err.status : undefined;
-        console.error("assistant: turn failed", status ?? (err instanceof Error ? err.name : "unknown"));
+        console.error("assistant: turn failed", config.provider, status ?? (err instanceof Error ? err.name : "unknown"));
         emit({ type: "error", message: "Sorry, something went wrong on our side. Please try again." });
       } finally {
         controller.close();
