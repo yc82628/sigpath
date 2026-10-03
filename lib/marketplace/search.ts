@@ -115,7 +115,7 @@ export function assembleSearch(
     })),
     // Pass the FULL results, failures included. Passing only the ok ones would
     // silently re-enable the biased comparison this design exists to prevent.
-    analysis: withReportFlags(analyse(results, { currency: opts.currency }), listings, context.upheldReports),
+    analysis: withReportFlags(analyse(results, { currency: opts.currency, query: q }), listings, context.upheldReports),
     linkOut: linkOutTargets(q),
   };
 }
@@ -141,6 +141,10 @@ export async function searchAll(
         notConfigured: [],
         excludedFromComparison: [],
         priceChecked: [],
+        comparisons: {},
+        notCompared: {},
+        identities: {},
+        reportsChecked: false,
       },
       linkOut: [],
     };
@@ -149,6 +153,7 @@ export async function searchAll(
 }
 
 function withReportFlags(a: Analysis, listings: Listing[], upheld?: ReadonlyMap<string, number>): Analysis {
-  if (!upheld || upheld.size === 0) return a;
-  return { ...a, flags: [...a.flags, ...upheldReportFlags(listings, upheld)] };
+  // Passed at all means the decision log was read: no flags is then a real "none upheld".
+  if (!upheld) return a;
+  return { ...a, reportsChecked: true, flags: [...a.flags, ...upheldReportFlags(listings, upheld)] };
 }

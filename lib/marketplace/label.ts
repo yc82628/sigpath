@@ -6,8 +6,8 @@
  * scanning twenty listings won't read five separate notes on each. So each
  * listing gets ONE of three verdicts, with the reasons underneath:
  *
- *   checked    — its price was compared with enough same-condition listings
- *                and nothing raised a flag
+ *   checked    — its price was compared with enough listings of the same
+ *                product, configuration and condition, and nothing raised a flag
  *   caution    — something did ("Look closer", with what and why)
  *   unchecked  — nothing raised a flag, but its price couldn't be compared
  *
@@ -21,9 +21,16 @@
  *
  * A verified-seller badge never upgrades a verdict. It vouches for the
  * account, not the price, so it is listed as a point and nothing more.
+ *
+ * EVERY CHECK SAYS WHETHER IT RAN
+ * "No warnings" is only reassuring when something was looked at. A listing
+ * with no photo, from a marketplace that publishes no seller history, has
+ * nothing to warn about because nothing was checked, and the label says
+ * exactly that instead of a reassuring tick.
  */
 
 import type { Analysis, Flag } from "./anomaly";
+import { describeSpecs } from "./identity";
 import { formatMoney, listingKey, totalPrice, type Listing, type Money } from "./types";
 import { priceCheckFor, type PriceCheck } from "../checkout/eligibility";
 
@@ -48,20 +55,55 @@ const HEADLINE: Record<Verdict, string> = {
 
 /** One line, shown once on the results page, saying exactly what "checked" covers. */
 export const CHECKED_MEANS =
-  "SigPath-checked means its price is in line with the market for its condition, and nothing about the seller or photos raised a flag. It isn't a guarantee the item is genuine — if it isn't, report it.";
+  "SigPath-checked means its price was compared with listings of the same model, configuration and condition and isn't suspiciously low, and none of the seller and photo checks we could run raised a flag. Each listing says which checks ran. It isn't a guarantee the item is genuine — if it isn't, report it.";
 
 function conditionGroup(l: Listing): "new" | "used" {
   return l.condition === "used" ? "used" : "new";
 }
 
-/** How many same-condition listings this one's price was compared with. */
-function comparedWith(l: Listing, a: Analysis): number | undefined {
-  return conditionGroup(l) === "used" ? a.used?.sampleSize : a.sampleSize;
-}
 
 function marketplaces(a: Analysis): string {
   const names = a.coverage.map((m) => (m === "ebay" ? "eBay" : m === "stub" ? "the demo feed" : m[0].toUpperCase() + m.slice(1)));
   return names.length <= 1 ? (names[0] ?? "one marketplace") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** "4 years", "7 months", "12 days" */
+function age(secondsSince: number, now: number): string {
+  const days = Math.max(0, Math.floor((now / 1000 - secondsSince) / 86400));
+  if (days >= 730) return `${Math.floor(days / 365)} years`;
+  if (days >= 60) return `${Math.floor(days / 30)} months`;
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", feed: "the partner feed", stub: "the demo feed" };
+
+/**
+ * The seller and photo checks, each saying whether it ran. `good` lines are
+ * evidence SigPath actually looked at; `info` lines are checks it could not run.
+ */
+function checkLines(listing: Listing, analysis: Analysis, now: number): LabelPoint[] {
+  const lines: LabelPoint[] = [];
+  lines.push(
+    listing.imageHash
+      ? { tone: "good", text: "Its photo isn't used by another seller on the same marketplace." }
+      : { tone: "info", text: "Photo not checked: there was no photo to compare." },
+  );
+  const s = listing.seller;
+  const market = MARKET[listing.source] ?? listing.source;
+  if (s.memberSince !== undefined) {
+    lines.push({ tone: "good", text: `Seller account is ${age(s.memberSince, now)} old.` });
+  } else if (s.feedbackScore !== undefined) {
+    const pct = s.feedbackPercentage !== undefined && s.feedbackScore > 0 ? ` (${s.feedbackPercentage}% positive)` : "";
+    lines.push({ tone: "info", text: `Seller has ${s.feedbackScore} ratings${pct} on ${market}; account age isn't published, so it wasn't checked.` });
+  } else {
+    lines.push({ tone: "info", text: `Seller history not checked: ${market} doesn't publish it.` });
+  }
+  lines.push(
+    analysis.reportsChecked
+      ? { tone: "good", text: "No upheld fake-product reports against this seller." }
+      : { tone: "info", text: "Buyer reports weren't checked for this search." },
+  );
+  return lines;
 }
 
 export function checkLabel(
@@ -70,6 +112,7 @@ export function checkLabel(
   priceCheck: PriceCheck,
   analysis: Analysis,
   verifiedSeller: boolean,
+  now: number = Date.now(),
 ): CheckLabel {
   const points: LabelPoint[] = [];
   const badgePoint: LabelPoint = {
@@ -83,18 +126,31 @@ export function checkLabel(
     return { verdict: "caution", headline: HEADLINE.caution, points };
   }
 
-  if (priceCheck.checked) {
-    const n = comparedWith(listing, analysis);
-    const group = conditionGroup(listing) === "used" ? "used" : "new or refurbished";
+  const key = listingKey(listing);
+  const comparison = analysis.comparisons?.[key];
+  const identity = analysis.identities?.[key];
+  if (priceCheck.checked && comparison) {
+    const specs = identity ? describeSpecs(identity) : null;
+    const what = specs ? `the same model and configuration (${specs})` : "the same product";
+    const group = conditionGroup(listing) === "used" ? "used " : "";
+    const above = totalPrice(listing).amount > comparison.median * 1.5;
     points.push({
-      tone: "good",
-      text: n ? `Price in line with the market: compared across ${n} ${group} listings on ${marketplaces(analysis)}.` : `Price in line with other ${group} listings.`,
+      tone: above ? "info" : "good",
+      text: above
+        ? `Priced above most of the ${comparison.sampleSize} ${group}listings of ${what} on ${marketplaces(analysis)} (median ${formatMoney({ amount: comparison.median, currency: listing.price.currency })}). You may find it cheaper.`
+        : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} on ${marketplaces(analysis)}.`,
     });
+    // A title that names no model details was compared with every version, and says so.
+    const othersSpecified = Object.values(analysis.identities ?? {}).some((i) => i.kind === "product" && describeSpecs(i) !== null);
+    if (!specs && othersSpecified) {
+      points.push({ tone: "info", text: "Its title doesn't state model details like generation or storage, so it was compared with every version." });
+    }
+  } else if (priceCheck.checked) {
+    points.push({ tone: "good", text: "Price in line with comparable listings." });
   } else {
     points.push({ tone: "info", text: priceCheck.reason });
   }
-  // True in both cases: the seller and photo checks ran whether or not the price could be compared.
-  points.push({ tone: priceCheck.checked ? "good" : "info", text: "No warnings about this seller or its photos." });
+  points.push(...checkLines(listing, analysis, now));
   if (verifiedSeller) points.push({ ...badgePoint, tone: "good" });
 
   const verdict: Verdict = priceCheck.checked ? "checked" : "unchecked";

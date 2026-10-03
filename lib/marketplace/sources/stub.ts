@@ -148,6 +148,36 @@ export class StubSource implements MarketplaceSource {
       listedAt: Math.floor(Date.now() / 1000) - 7200,
     });
 
+    // --- not the product: an accessory and a for-parts unit ---------------------
+    // Both are far below the going rate and both are honest. Priced against the
+    // product they would read as scams; the identity check (identity.ts) keeps
+    // them out of the comparison and says why, instead of accusing their sellers.
+    const oldAccount = Math.floor(Date.now() / 1000) - 5 * 365 * 86400;
+    listings.push({
+      id: "stub-accessory",
+      source: this.id,
+      title: `Charger for ${q}`,
+      url: `https://example.invalid/stub/${encodeURIComponent(q)}/accessory`,
+      price: { amount: Math.max(900, Math.round((base * 0.05) / 100) * 100), currency: this.currency },
+      shipping: { amount: 0, currency: this.currency },
+      condition: "new",
+      imageHash: "img-accessory",
+      seller: { handle: "cable_corner", displayName: "Cable Corner", feedbackScore: 5400, feedbackPercentage: 99, memberSince: oldAccount },
+      listedAt: Math.floor(Date.now() / 1000) - 5 * 86400,
+    });
+    listings.push({
+      id: "stub-parts",
+      source: this.id,
+      title: `${q} for parts, not working`,
+      url: `https://example.invalid/stub/${encodeURIComponent(q)}/parts`,
+      price: { amount: Math.round((base * 0.18) / 100) * 100, currency: this.currency },
+      shipping: { amount: 500, currency: this.currency },
+      condition: "used",
+      imageHash: "img-parts",
+      seller: { handle: "repair_shop_de", displayName: "Repair Shop", feedbackScore: 860, feedbackPercentage: 97, memberSince: oldAccount },
+      listedAt: Math.floor(Date.now() / 1000) - 9 * 86400,
+    });
+
     return { source: this.id, status: "ok", listings };
   }
 }

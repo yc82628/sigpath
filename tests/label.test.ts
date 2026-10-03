@@ -43,8 +43,27 @@ test("a fairly priced listing with no flags is SigPath-checked, and says what wa
   const l = labelOf(fair);
   assert.equal(l.verdict, "checked");
   assert.equal(l.headline, "SigPath-checked");
-  assert.match(l.points[0].text, /compared across 9 new or refurbished listings on the demo feed/);
-  assert.ok(l.points.every((p) => p.tone === "good"));
+  assert.match(l.points[0].text, /compared with 9 listings of the same product on the demo feed/);
+  assert.equal(l.points[0].tone, "good");
+  // This listing has no photo, no seller history and no report lookup: each says it was NOT checked, never a reassuring tick.
+  const rest = l.points.slice(1);
+  assert.ok(rest.every((p) => p.tone === "info"), "unchecked evidence is info, not good");
+  assert.ok(rest.some((p) => /Photo not checked/.test(p.text)));
+  assert.ok(rest.some((p) => /Seller history not checked/.test(p.text)));
+  assert.ok(rest.some((p) => /reports weren.t checked/.test(p.text)));
+  assert.ok(!l.points.some((p) => /No warnings/.test(p.text)), "the old blanket reassurance is gone");
+});
+
+test("a checked listing with real evidence shows each check that ran as a tick", () => {
+  const now = Date.UTC(2026, 9, 3);
+  const fair = listing({ id: "fair", price: { amount: 9500, currency: "EUR" }, imageHash: "img-fair", seller: { handle: "old_shop", memberSince: now / 1000 - 4 * 365 * 86400 } });
+  const results = [ok([...honest(8), fair])];
+  const a = { ...analyse(results, { now }), reportsChecked: true };
+  const l = checkLabel(fair, [], priceCheckFor(fair, a), a, false, now);
+  assert.equal(l.verdict, "checked");
+  assert.ok(l.points.every((p) => p.tone === "good"), JSON.stringify(l.points));
+  assert.ok(l.points.some((p) => p.text === "Seller account is 4 years old."));
+  assert.ok(l.points.some((p) => /No upheld fake-product reports/.test(p.text)));
 });
 
 test("any flag makes it 'Look closer', listing every reason", () => {

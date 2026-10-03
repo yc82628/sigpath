@@ -8,7 +8,10 @@
  * give, so it cannot talk a flagged listing into a safe one.
  *
  * RANKING
- * Checked listings first, cheapest first; then not-price-checked ones. A
+ * Accessories and for-parts units are never picks: someone asking for a
+ * laptop does not want a charger or a broken one suggested (they stay on the
+ * full results page). Checked listings first, cheapest first; then
+ * not-price-checked ones. A
  * "look closer" listing is never ranked among the picks, but the cheapest one
  * that matches is always shown at the end, because the bargain that is too
  * good to be true is exactly what the shopper needs warning about.
@@ -95,6 +98,8 @@ const MAX_PICKS = 5;
 
 export function filterResults(input: SearchInput, result: LabelledSearch): AssistantResults {
   const wanted = (l: LabelledSearch["listings"][number], ignorePrice = false): boolean => {
+    const kind = result.analysis.identities?.[listingKey(l)]?.kind;
+    if (kind && kind !== "product") return false;
     if (input.condition !== "any" && l.condition !== input.condition) return false;
     if (input.marketplaces?.length && !input.marketplaces.includes(l.source as (typeof MARKETPLACES)[number])) {
       // The demo feed stands in for every marketplace, so a marketplace filter never empties a demo.

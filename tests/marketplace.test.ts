@@ -91,7 +91,7 @@ test("a single-source median does not claim to be cross-marketplace", () => {
   ]);
   const flag = a.flags.find((f) => f.kind === "underpriced");
   assert.deepEqual(a.coverage, ["stub"]);
-  assert.match(flag!.message, /on stub/);
+  assert.match(flag!.message, /on the demo feed/);
   assert.ok(!/across/.test(flag!.message), "must not claim breadth it does not have");
 });
 
@@ -1055,7 +1055,7 @@ test("a drastically underpriced USED item is flagged against the used median", (
   assert.equal(a.used?.median, 6000);
   const flag = a.flags.find((f) => f.listingId === "cheap-used");
   assert.equal(flag?.kind, "underpriced");
-  assert.match(flag!.message, /used items/);
+  assert.match(flag!.message, /used listings/);
 });
 
 test("an honest used item is NOT flagged for being cheaper than new", () => {
@@ -1105,7 +1105,7 @@ test("the stub's used-item scam is caught once there are enough used listings", 
   const r = await searchAll("thinkpad x1", [new StubSource()], { limit: 20 });
   const flag = r.analysis.flags.find((f) => f.listingId === "stub-used-bait");
   assert.equal(flag?.kind, "underpriced");
-  assert.match(flag!.message, /used items/);
+  assert.match(flag!.message, /used listings/);
   assert.ok(!r.analysis.flags.some((f) => f.listingId === "stub-used-bait" && f.kind === "new_account"));
 });
 

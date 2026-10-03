@@ -20,6 +20,10 @@
  *   - the sample is too small for a median to mean anything
  *   - the comparison would mix currencies or conditions (new and used are
  *     compared separately, each against its own median)
+ *   - the listings are not the same product: each listing is compared only
+ *     with listings whose model, generation, storage and RAM do not conflict
+ *     with its own (see identity.ts), and accessories and for-parts items are
+ *     never compared at all
  *
  * WHY DEGRADED COVERAGE MUST BLOCK THE WHOLE CHECK
  * This is the same bug that produced three confidently wrong runs in the
@@ -34,6 +38,7 @@
 
 import type { Listing, MarketplaceId, SourceResult } from "./types";
 import { listingKey, totalPrice } from "./types";
+import { identify, sameProduct, type Identity } from "./identity";
 
 /**
  * Below this fraction of the comparable median, a listing is flagged.
@@ -87,7 +92,28 @@ export interface Analysis {
   status: AnalysisStatus;
   /** Why no verdict, when status is not ok. Shown to the buyer. */
   reason?: string;
-  /** Median total price of NEW and refurbished listings, when there were enough. */
+  /**
+   * Per listing (by listingKey): how many same-product listings its price was
+   * compared with, and their median. Only listings that were price-checked.
+   */
+  comparisons: Record<string, { sampleSize: number; median: number }>;
+  /**
+   * Per listing: why its price was NOT compared, when that is specific to the
+   * listing: an accessory, sold for parts, or too few of the same product.
+   */
+  notCompared: Record<string, string>;
+  /** Per listing: what its title says it is (identity.ts). */
+  identities: Record<string, Identity>;
+  /**
+   * Whether reviewed buyer reports were looked up for these sellers. Set by
+   * search, which has the decision log; analyse() alone cannot know.
+   */
+  reportsChecked: boolean;
+  /**
+   * Median total price of NEW and refurbished PRODUCT listings (accessories
+   * and for-parts items left out), when there were enough. A summary for the
+   * page: each listing's own verdict uses `comparisons`, not this.
+   */
   median?: number;
   currency?: string;
   /** How many new/refurbished listings that median was taken over. */
@@ -239,10 +265,13 @@ function coverageIndependentFlags(listings: Listing[], now: number): Flag[] {
  */
 export function analyse(
   results: SourceResult[],
-  opts: { currency?: string; now?: number } = {},
+  opts: { currency?: string; now?: number; query?: string } = {},
 ): Analysis {
   const now = opts.now ?? Date.now();
   const listings = results.flatMap((r) => r.listings);
+  const identities: Record<string, Identity> = {};
+  for (const l of listings) identities[listingKey(l)] = identify(l.title, opts.query ?? "");
+  const idOf = (l: Listing) => identities[listingKey(l)];
 
   const isComparable = (r: SourceResult) => r.comparable !== false;
 
@@ -277,6 +306,10 @@ export function analyse(
       notConfigured,
       excludedFromComparison,
       priceChecked: [],
+      comparisons: {},
+      notCompared: {},
+      identities,
+      reportsChecked: false,
     };
   }
 
@@ -290,33 +323,51 @@ export function analyse(
   // Refurbished pools with new: it is sold as working-as-new, typically within
   // the price band the 0.5 ratio already tolerates. "unknown" pools with
   // nothing — a listing whose condition we cannot tell cannot be compared.
+  // Accessories and for-parts items never enter a comparison: a charger is
+  // not a cheap laptop, and a broken laptop is not a cheap working one.
+  const notCompared: Record<string, string> = {};
+  for (const l of sameCurrency) {
+    const id = idOf(l);
+    if (id.kind !== "product" && id.kindReason) notCompared[listingKey(l)] = id.kindReason;
+  }
+  const products = sameCurrency.filter((l) => idOf(l).kind === "product");
+
   const groups: { label: string; listings: Listing[] }[] = [
-    { label: "new", listings: sameCurrency.filter((l) => l.condition === "new" || l.condition === "refurbished") },
-    { label: "used", listings: sameCurrency.filter((l) => l.condition === "used") },
+    { label: "new", listings: products.filter((l) => l.condition === "new" || l.condition === "refurbished") },
+    { label: "used", listings: products.filter((l) => l.condition === "used") },
   ];
 
   // Scope the claim to what was actually searched. Saying "across marketplaces"
   // when one marketplace answered would overstate the evidence.
+  const NAMES: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", feed: "the partner feed", stub: "the demo feed" };
   const scope =
     coverage.length > 1
       ? `across ${coverage.length} marketplaces`
-      : `on ${coverage[0] ?? "this marketplace"}`;
+      : `on ${coverage[0] ? (NAMES[coverage[0]] ?? coverage[0]) : "this marketplace"}`;
 
   const medians: Record<string, { median: number; sampleSize: number }> = {};
   const priceChecked: string[] = [];
+  const comparisons: Record<string, { sampleSize: number; median: number }> = {};
 
   for (const g of groups) {
     // Too few in THIS group means no comparison for THIS group. Borrowing the
     // other group's median instead would be the used-vs-new mistake again.
     if (g.listings.length < MIN_SAMPLE) continue;
-
-    const m = median(g.listings.map((l) => totalPrice(l).amount));
-    medians[g.label] = { median: m, sampleSize: g.listings.length };
-    const cutoff = m * UNDERPRICED_RATIO;
+    medians[g.label] = { median: median(g.listings.map((l) => totalPrice(l).amount)), sampleSize: g.listings.length };
 
     for (const l of g.listings) {
+      // Each listing against the listings that are the same product as it: an
+      // X1 Carbon 512 GB is never priced against an X1 Yoga or a 1 TB unit.
+      const same = g.listings.filter((o) => sameProduct(idOf(l), idOf(o)));
+      if (same.length < MIN_SAMPLE) {
+        notCompared[listingKey(l)] =
+          `Only ${same.length} ${g.label === "used" ? "used " : ""}listing${same.length === 1 ? "" : "s"} of the same model and configuration, so its price isn't compared.`;
+        continue;
+      }
+      const m = median(same.map((o) => totalPrice(o).amount));
+      comparisons[listingKey(l)] = { sampleSize: same.length, median: m };
       priceChecked.push(listingKey(l));
-      if (totalPrice(l).amount < cutoff) {
+      if (totalPrice(l).amount < m * UNDERPRICED_RATIO) {
         flags.push({
           source: l.source,
           listingId: l.id,
@@ -324,14 +375,17 @@ export function analyse(
           // Says what was measured, not what the seller is. The buyer decides.
           message:
             g.label === "used"
-              ? `Priced well below the ${g.listings.length}-listing median for used items ${scope}.`
-              : `Priced well below the ${g.listings.length}-listing median ${scope}.`,
+              ? `Priced well below the median of ${same.length} comparable used listings ${scope}.`
+              : `Priced well below the median of ${same.length} comparable listings ${scope}.`,
         });
       }
     }
   }
 
-  const common = { coverage, flags, degraded, notConfigured, excludedFromComparison, priceChecked, currency };
+  const common = {
+    coverage, flags, degraded, notConfigured, excludedFromComparison, priceChecked, currency,
+    comparisons, notCompared, identities, reportsChecked: false,
+  };
 
   if (!medians.new && !medians.used) {
     return {

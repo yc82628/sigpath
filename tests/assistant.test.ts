@@ -279,3 +279,9 @@ test("assistant: no extra warning when the reply already names the flagged listi
   await runAssistant(ask("cheapest used ThinkPad X1"), (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
   assert.ok(!events.some((e) => e.type === "text" && e.text.includes("Heads up")));
 });
+
+test("search tool: accessories and for-parts units are never picks", async () => {
+  const r = filterResults(SearchInput.parse({ query: "ThinkPad X1", condition: "used" }), await demoSearch("ThinkPad X1"));
+  assert.ok(!r.shown.some((c) => /for parts|Charger for/.test(c.title)), JSON.stringify(r.shown.map((c) => c.title)));
+  assert.ok(r.shown.some((c) => c.verdict === "checked"));
+});

@@ -372,17 +372,30 @@ and read back intact.
 
 ## The SigPath-checked label — every check, one verdict
 
-Search already ran the checks: price against a same-condition median, duplicate
+Search already ran the checks: price against a same-product, same-condition median, duplicate
 photos, new accounts, upheld reports and the verified badge. But a shopper scanning
 twenty listings won't read five notes on each. So every listing gets **one** of
 three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
 
 | Verdict | When | Look |
 |---|---|---|
-| **✓ SigPath-checked** | Its price was compared with enough same-condition listings, and nothing was flagged | Green |
+| **✓ SigPath-checked** | Its price was compared with enough listings of the same product, configuration and condition, and nothing was flagged | Green |
 | **! Look closer** | Anything was flagged, and every reason is listed | Amber, the same as flags always were: an observation, not an alarm |
-| **Not price-checked** | Nothing was flagged, but the price couldn't be compared (too few listings, Etsy, unknown condition…) | Neutral grey: a handmade mug with no retail median isn't suspicious |
+| **Not price-checked** | Nothing was flagged, but the price couldn't be compared (too few of the same product, an accessory, sold for parts, Etsy, unknown condition…) | Neutral grey: a handmade mug with no retail median isn't suspicious |
 
+- **Like for like, read from the title** (`lib/marketplace/identity.ts`). Each
+  listing is priced only against listings that are the same product: model words
+  right after the searched name (X1 *Carbon*, 15 *Pro Max*, Switch *OLED*),
+  generation, storage and RAM. A spec the title doesn't state is unknown and
+  never conflicts, and the label says the listing was compared with every version.
+  **Accessories** ("charger for…", "case") and **for-parts** units ("not working",
+  "iCloud locked") are never compared. They're "Not price-checked" with the reason,
+  instead of being wrongly flagged as too cheap. "With case", "charger included"
+  and "not cracked" don't count. Ai-chan never suggests them as picks.
+- **Every check says whether it ran.** Photo, seller history and buyer reports
+  each get their own line. A tick appears only for evidence actually looked at.
+  Otherwise the line says it wasn't checked and why ("Seller history not checked:
+  Etsy doesn't publish it"). There's no blanket "no warnings" line.
 - **"Checked" means checked, not guaranteed.** One line on every results page
   says so and says what to do if a fake gets through: report it.
 - **A verified badge never upgrades a verdict.** It vouches for the account, not

@@ -37,6 +37,9 @@ const PAYABLE_CURRENCIES = new Set(["EUR", "USD"]);
 export function priceCheckFor(listing: Listing, analysis: Analysis): PriceCheck {
   // Keyed by source AND id: eBay "123" being checked must not vouch for Etsy "123".
   if (analysis.priceChecked.includes(listingKey(listing))) return { checked: true };
+  // Specific to this listing: an accessory, for parts, or too few of the same product.
+  const specific = analysis.notCompared?.[listingKey(listing)];
+  if (specific) return { checked: false, reason: specific };
 
   if (analysis.excludedFromComparison.includes(listing.source)) {
     return { checked: false, reason: "Prices from this marketplace aren't compared with retail." };
