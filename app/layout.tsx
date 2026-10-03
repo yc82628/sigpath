@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/alerts">Price alerts</Link>
               <Link href="/seller/verify">For sellers</Link>
               <Link href="/suppliers">Check a supplier</Link>
-              <Link href="/agents">For AI agents</Link>
+              <Link href="/developers">API</Link>
             </p>
             <p className="hint">
               No account, no tracking. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the

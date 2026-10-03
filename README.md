@@ -83,7 +83,7 @@ npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned b
 The devnet scripts need an operator key in `.env.local`, and they create a test
 wallet to fund from faucet.circle.com.
 
-**Pages:** `/search` · `/alerts` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
+**Pages:** `/search` · `/alerts` · `/suppliers` · `/developers` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
 (a seller's public record) · `/checkout` · `/order/<address>` · `/report/<order>`
 
 ## Contents
@@ -91,7 +91,7 @@ wallet to fund from faucet.circle.com.
 The rest of this README is the engineering detail:
 
 - [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
-- [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh)
+- [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
 - [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
@@ -542,6 +542,47 @@ wallet, so nothing real is spent.
 - calling `/api/check` directly, without the key or with a wrong one: `401`. **Going live:** point `routing.url` at the
 deployed site, and set `operator.network: mainnet` and `operator.recipient`
 (the wallet that receives the USDC).
+
+---
+
+## The verification API — for other apps (B2B)
+
+SigPath's checks, for marketplaces, procurement and accounting tools, and AI
+agents (`/developers`, `lib/api/verification.ts`). Paid per request in USDC on
+Solana through the same pay.sh gateway as the deal check, so there's no account
+and no API key. Described for code generators and agents in `/openapi.json`
+(OpenAPI 3.1), which the gateway also serves.
+
+| Request | Answers | USDC |
+| --- | --- | --- |
+| `GET /api/v1/seller?marketplace=&handle=` | Verified seller, cross-checked on Solana (`onChain`); the verified business behind it; upheld fake-product findings with whether the seller replied | 0.001 |
+| `GET /api/v1/business?vatCountry=&vatNumber=` · `?domain=` · `?id=` | A verified business: status and reason, masked VAT number, website, linked accounts. `found: false` when there's no record | 0.001 |
+| `POST /api/v1/supplier` | The supplier check (VAT register, name, website age, SigPath records). POST, so supplier details stay out of URLs and gateway logs | 0.005 |
+| `GET /api/check?q=` | The deal check | 0.002 |
+
+- **Paying never changes an answer.** The API is the website's own logic over
+  the same records, with no knowledge of who's calling. A seller or business
+  can't buy a better result. Every answer carries `meaning`: what it vouches
+  for and what not.
+- **Paid-only in production:** with `SIGPATH_GATEWAY_KEY` set, every `/api/v1`
+  route refuses requests the gateway didn't forward (`lib/api/gate.ts`).
+- **Same badge rule as the seller page:** a badge counts only when SigPath's log
+  *and* Solana agree. The full VAT number is never returned, only the masked one.
+
+```bash
+npx @solana/pay --sandbox gate api paysh/sigpath.yaml --bind 127.0.0.1:1402 --openapi ../public/openapi.json
+npx @solana/pay --sandbox curl "http://127.0.0.1:1402/api/v1/seller?marketplace=ebay&handle=some_seller"
+```
+
+(`--openapi` is resolved relative to the spec's folder, hence `../public/`.)
+
+**Tested in pay.sh's sandbox (2026-10-03), with `SIGPATH_GATEWAY_KEY` set:**
+- the gateway listed all four endpoints at their prices and served the OpenAPI;
+- unpaid requests got `402`;
+- a paid seller lookup moved exactly **0.001 USDC** to the operator wallet;
+- a paid supplier check (POST) moved **0.005 USDC** and came back with the
+  borrowed-VAT warnings, against the live registers;
+- every direct `/api/v1` call without the key got `401`.
 
 ---
 

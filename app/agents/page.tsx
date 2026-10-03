@@ -64,7 +64,8 @@ npx @solana/pay --sandbox curl "http://127.0.0.1:1402/api/check?q=ThinkPad%20X1"
 
       <p className="hint">
         &ldquo;Checked&rdquo; is not a guarantee, and every answer says so: an agent passing a verdict on should pass that
-        line on too. Shoppers can <Link href="/">search here</Link> for free.
+        line on too. Shoppers can <Link href="/">search here</Link> for free. Verifying sellers, businesses or suppliers? See the{" "}
+        <Link href="/developers">SigPath API</Link>.
       </p>
     </main>
   );
