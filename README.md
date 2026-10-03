@@ -91,7 +91,7 @@ wallet to fund from faucet.circle.com.
 The rest of this README is the engineering detail:
 
 - [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
-- [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh)
+- [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
 - [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
@@ -462,9 +462,11 @@ instance.
 
 ---
 
-## Shopping assistant — "Ask SigPath"
+## Ai-chan — the shopping assistant
 
-A chat on every page (the button in the corner). A shopper describes what they
+A chat on every page: the "Ask Ai-chan" button in the corner. Her name is a pun:
+"Ai" is AI and 愛, love in Japanese, and her avatar is 愛 in the logo's cyan. A
+shopper describes what they
 want in their own words, e.g. "a used ThinkPad under €400, safe sellers only".
 The model turns that into a search with filters (condition, budget, marketplace,
 checked-only, verified sellers), runs SigPath's real search and verdicts, and

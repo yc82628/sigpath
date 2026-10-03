@@ -635,3 +635,12 @@ a.chat-card-title:hover { text-decoration: underline; }
   .chat-launcher { padding: 14px; }
   .chat-panel { right: 0; bottom: 0; width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
 }
+
+/* Ai-chan's avatar: 愛 ("ai", love) in the logo's cyan on black. */
+.chat-avatar {
+  flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--ink); color: var(--cyan); border: 1.5px solid var(--cyan);
+  font: 700 0.85rem/1 "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo", sans-serif;
+}
+.chat-who { display: flex; align-items: center; gap: 10px; }
+.chat-who .chat-avatar { width: 34px; height: 34px; font-size: 1.05rem; }

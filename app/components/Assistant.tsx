@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * The shopping assistant: a chat panel opened from a floating button.
+ * Ai-chan, SigPath's shopping assistant: a chat panel opened from a floating
+ * button. "Ai" is both AI and 愛 (love); "-chan" makes her friendly.
  *
  * The conversation lives only in this component's state (gone on reload) and
  * is sent with each turn to /api/assistant, which streams back words, a
@@ -26,6 +27,15 @@ const VERDICT_LABEL: Record<AssistantCard["verdict"], string> = {
   caution: "! Look closer",
   unchecked: "Not price-checked",
 };
+
+/** Ai-chan's face: 愛 ("ai", love) in the logo's cyan on black. */
+function Avatar() {
+  return (
+    <span className="chat-avatar" aria-hidden="true">
+      愛
+    </span>
+  );
+}
 
 function Card({ c }: { c: AssistantCard }) {
   // Listing URLs come from marketplaces: link only to http(s).
@@ -153,23 +163,24 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
 
   if (!open) {
     return (
-      <button type="button" className="chat-launcher" onClick={() => setOpen(true)} aria-label="Open the shopping assistant">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
-        </svg>
-        <span>Ask SigPath</span>
+      <button type="button" className="chat-launcher" onClick={() => setOpen(true)} aria-label="Chat with Ai-chan, the shopping assistant">
+        <Avatar />
+        <span>Ask Ai-chan</span>
       </button>
     );
   }
 
   return (
-    <section className="chat-panel" role="dialog" aria-label="Shopping assistant" onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
+    <section className="chat-panel" role="dialog" aria-label="Ai-chan, shopping assistant" onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <header className="chat-head">
-        <div>
-          <strong>Shopping assistant</strong>
-          <span>Tell me what you&apos;re after</span>
+        <div className="chat-who">
+          <Avatar />
+          <div>
+            <strong>Ai-chan</strong>
+            <span>Your SigPath shopping helper</span>
+          </div>
         </div>
-        <button type="button" className="chat-close" onClick={() => setOpen(false)} aria-label="Close the assistant">
+        <button type="button" className="chat-close" onClick={() => setOpen(false)} aria-label="Close Ai-chan">
           &times;
         </button>
       </header>
@@ -177,7 +188,10 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
       <div className="chat-body" aria-live="polite">
         {turns.length === 0 && (
           <div className="chat-welcome">
-            <p>Describe what you want, with your budget and must-haves. I&apos;ll search eBay, Amazon and Etsy and pick the checked deals.</p>
+            <p>
+              Hi, I&apos;m Ai-chan! Tell me what you&apos;re looking for, with your budget and must-haves, and I&apos;ll search eBay,
+              Amazon and Etsy for the checked deals.
+            </p>
             <div className="chat-suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)}>
@@ -221,7 +235,7 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="e.g. used camera under €500"
-          aria-label="Message the shopping assistant"
+          aria-label="Message Ai-chan"
           maxLength={2000}
           disabled={busy}
         />
