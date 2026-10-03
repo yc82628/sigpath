@@ -1035,13 +1035,39 @@ signed by the wallet that holds the badges:
   `/api/check` (as `verifiedBusiness`) and Ai-chan's cards. Like the seller
   badge, it vouches for who runs the account, never for the price, so it
   upgrades no verdict.
-- **Off-chain for now.** The record lives in `.data/sellers/businesses.json`;
-  each linked account's badge is on Solana. Attesting the business itself on SAS
-  is the natural next step.
+- **Recorded on Solana** (`lib/chains/solana/sas-business.ts`). When a business
+  becomes verified, or its details change, SigPath publishes a SAS attestation
+  under the `verified-business` schema: wallet, country, VAT hash, website hash,
+  linked-account count and verification date, expiring with the VAT check. Its
+  address comes from `sha256("sigpath-business-v1" || wallet)`, so **any app
+  finds it from the business wallet alone**. That same wallet holds the
+  business's seller badges.
+- **Hashes, not details.** Nothing on chain can be deleted, and a sole trader's
+  VAT number is personal data. So the VAT number and website are stored as
+  purpose-separated hashes. Someone who already has the VAT number (from an
+  invoice) can check it against the record; nobody else learns it.
+- **Suspension closes it.** Upholding a report against any linked account closes
+  the attestation (`reports-admin uphold`). A chain failure never blocks
+  verification or suspension: it's recorded, and `publish-business` /
+  `revoke-business` retry. The trust profile and `/api/v1/business` (`onChain`)
+  read the chain live, as any other app would.
+
+```bash
+npx tsx scripts/reports-admin.ts bootstrap                 # also registers the verified-business schema
+npx tsx scripts/reports-admin.ts business <wallet>         # SigPath's record vs the chain, VAT hash checked
+npx tsx scripts/devnet-verified-business.ts                # the full on-chain round trip
+```
 
 Tested against the real VIES register, 2026-10-03: a public company's VAT
 number came back valid with its registered name; an invalid German number was
 refused.
+
+`devnet-verified-business`, 2026-10-03: **17/17**. The record was published,
+read back from the wallet alone, the VAT number matched its hash (a different
+number didn't, and the hash doesn't contain it), republished with a website at
+the same address, invisible to another wallet, and closed. Closing again was a
+no-op. The run cost the issuer 0.0024 devnet SOL, mostly the one-time schema;
+rent came back on close.
 
 ### Check a supplier — before ordering in bulk
 

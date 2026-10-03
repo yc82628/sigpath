@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog } from "@/lib/sellers/verified-log";
 import { BusinessLog, businessView, type BusinessStatus } from "@/lib/sellers/business";
+import { sasConfigFromEnv, signer } from "@/lib/chains/solana/sas";
+import { readVerifiedBusiness, type OnChainBusiness } from "@/lib/chains/solana/sas-business";
 
 /**
  * app/business/[id] — a business's public trust profile.
@@ -38,6 +40,9 @@ export default async function BusinessProfile({ params }: { params: { id: string
   if (!business) notFound();
   const v = businessView(business, await VerifiedSellerLog.fromEnv().all(), await DecisionLog.fromEnv().upheldCounts());
   const status = STATUS[v.status];
+  // Read from Solana itself, as any other app would: SigPath's copy is not the proof.
+  const cfg = sasConfigFromEnv();
+  const chain: OnChainBusiness | null = cfg ? await readVerifiedBusiness((await signer(cfg)).address, business.wallet, cfg.rpcUrl).catch(() => null) : null;
 
   return (
     <main className="container business-profile">
@@ -82,6 +87,31 @@ export default async function BusinessProfile({ params }: { params: { id: string
           account and passed a live check, and holds a non-transferable badge on Solana.
         </li>
       </ul>
+
+      <h2>On Solana</h2>
+      {chain?.status === "valid" ? (
+        <p className="notice">
+          Recorded as a Solana attestation by SigPath (
+          <a href={`https://explorer.solana.com/address/${chain.attestation}?cluster=devnet`} target="_blank" rel="noopener noreferrer">
+            view on chain
+          </a>
+          ), valid until {day(chain.expiresAt)}. Any app can find it from the business wallet{" "}
+          <code>{business.wallet.slice(0, 4)}…{business.wallet.slice(-4)}</code>. The VAT number and website are stored only as hashes, so
+          someone who already has the VAT number can check it, and nobody else learns it.
+        </p>
+      ) : (
+        <p className="hint">
+          {!cfg
+            ? "This server isn't connected to Solana, so the business is verified in SigPath's records only."
+            : chain === null
+              ? "Solana couldn't be read just now."
+              : chain.status === "expired"
+                ? "The on-chain record has expired."
+                : v.status === "verified"
+                  ? "Not recorded on Solana yet."
+                  : "No current record on Solana."}
+        </p>
+      )}
 
       <h2>Linked accounts</h2>
       {v.accounts.length === 0 ? (

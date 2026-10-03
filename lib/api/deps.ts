@@ -8,6 +8,7 @@ import { BusinessLog } from "../sellers/business";
 import { sellerSubject } from "../sellers/badges";
 import { sasConfigFromEnv, signer } from "../chains/solana/sas";
 import { readVerifiedSeller } from "../chains/solana/sas-verified";
+import { readVerifiedBusiness } from "../chains/solana/sas-business";
 import type { ApiDeps } from "./verification";
 
 export function apiDepsFromEnv(env: Record<string, string | undefined> = process.env): ApiDeps {
@@ -18,6 +19,7 @@ export function apiDepsFromEnv(env: Record<string, string | undefined> = process
     upheld: () => DecisionLog.fromEnv(env).upheldCounts(),
     findings: (key) => publicFindings(key, { decisions: DecisionLog.fromEnv(env), cases: CaseLog.fromEnv(env) }),
     onChain: async (key) => (cfg ? readVerifiedSeller((await signer(cfg)).address, await sellerSubject(key), cfg.rpcUrl) : null),
+    onChainBusiness: async (wallet) => (cfg ? readVerifiedBusiness((await signer(cfg)).address, wallet, cfg.rpcUrl) : null),
     baseUrl: (env.PUBLIC_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
   };
 }

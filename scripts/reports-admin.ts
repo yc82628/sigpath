@@ -9,10 +9,13 @@
  *   npx tsx scripts/reports-admin.ts reverse <order>       overturn an upheld finding (e.g. on appeal)
  *   npx tsx scripts/reports-admin.ts seller-link <src> <h> a reply link for a seller who contacted you
  *   npx tsx scripts/reports-admin.ts sweep                 expire stale reports, clear old order records
- *   npx tsx scripts/reports-admin.ts bootstrap             register the report and verified-seller schemas on SAS
+ *   npx tsx scripts/reports-admin.ts bootstrap             register the report, verified-seller and business schemas on SAS
  *   npx tsx scripts/reports-admin.ts seller <src> <handle> a seller's findings and badge ON CHAIN
  *   npx tsx scripts/reports-admin.ts badges                verified sellers, and any badge whose burn failed
  *   npx tsx scripts/reports-admin.ts revoke-badge <src:h>  burn a seller's verified-seller token
+ *   npx tsx scripts/reports-admin.ts business <wallet>     a verified business: SigPath's record and ON CHAIN
+ *   npx tsx scripts/reports-admin.ts publish-business <w>  (re)publish a verified business's attestation
+ *   npx tsx scripts/reports-admin.ts revoke-business <w>   close a business's attestation (if uphold's close failed)
  *
  * THE SELLER'S RIGHT OF REPLY
  * A report cannot be upheld until the seller has been notified and has either
@@ -81,6 +84,9 @@ async function main() {
   const { VerifiedSellerLog } = await import("../lib/sellers/verified-log");
   const { badgeRevoker, sellerSubject } = await import("../lib/sellers/badges");
   const { bootstrapVerifiedSchema, readVerifiedSeller } = await import("../lib/chains/solana/sas-verified");
+  const { bootstrapBusinessSchema, readVerifiedBusiness, vatHash } = await import("../lib/chains/solana/sas-business");
+  const { BusinessLog, businessView } = await import("../lib/sellers/business");
+  const { businessPublisher, businessRevoker } = await import("../lib/sellers/business-chain");
 
   const reportStore = ReportStore.fromEnv();
   const decisions = DecisionLog.fromEnv();
@@ -225,6 +231,20 @@ async function main() {
             : `badge      verified-seller token burned  ${res.badge.signature}`,
         );
       }
+      if (status === "upheld") {
+        const biz = await businessRevoker(BusinessLog.fromEnv(), VerifiedSellerLog.fromEnv())(res.decision.sellerKey).catch((e: unknown) => ({
+          wallet: "?",
+          signature: undefined as string | undefined,
+          chainError: e instanceof Error ? e.message : String(e),
+        }));
+        if (biz) {
+          console.log(
+            biz.chainError
+              ? `business   suspended in SigPath; closing its attestation FAILED (${biz.chainError}) — retry: revoke-business ${biz.wallet}`
+              : `business   verified-business attestation closed  ${biz.signature ?? "(none on chain)"}`,
+          );
+        }
+      }
       console.log(`buyer data deleted: photo, description, wallet`);
       return;
     }
@@ -251,6 +271,64 @@ async function main() {
       const v = await bootstrapVerifiedSchema(cfg);
       if (v.status === "error" || v.status === "disabled") throw new Error(v.reason);
       console.log(`verified-seller schema ${v.status === "exists" ? "already tokenized" : "registered and tokenized"}: mint ${v.attestation}`);
+      const b = await bootstrapBusinessSchema(cfg);
+      if (b.status === "error" || b.status === "disabled") throw new Error(b.reason);
+      console.log(`business schema ${b.status === "exists" ? "already registered" : "registered"}: ${b.attestation}`);
+      return;
+    }
+
+    case "business": {
+      const wallet = args[0];
+      if (!wallet) throw new Error("Usage: business <wallet>");
+      const b = await BusinessLog.fromEnv().byWallet(wallet);
+      const now = Math.floor(Date.now() / 1000);
+      if (b) {
+        const v = businessView(b, await VerifiedSellerLog.fromEnv().all(), await decisions.upheldCounts(), now);
+        console.log(`SigPath    ${v.status}${v.statusReason ? ` (${v.statusReason})` : ""} · ${v.accounts.length} linked account(s) · profile /business/${b.id}`);
+        if (b.onChain) console.log(`recorded   ${b.onChain.attestation || "-"}${b.onChain.error ? ` · last publish FAILED: ${b.onChain.error}` : ""}${b.onChain.revokedAt ? ` · closed ${date(b.onChain.revokedAt)}` : ""}`);
+      } else console.log("SigPath    no business record for this wallet");
+      const cfg = sasConfigFromEnv();
+      if (!cfg) return;
+      const chain = await readVerifiedBusiness((await signer(cfg)).address, wallet, cfg.rpcUrl);
+      if (chain.status !== "valid") console.log(`chain      ${chain.status.toUpperCase()}`);
+      else {
+        const vatOk = b?.vat ? (vatHash(b.vat.country, b.vat.number) === chain.vatHash ? "matches" : "DIFFERS") : "?";
+        console.log(`chain      valid · ${chain.attestation} · ${chain.country} · VAT hash ${vatOk} · ${chain.linkedAccounts} account(s) · until ${date(chain.expiresAt)}`);
+      }
+      return;
+    }
+
+    case "revoke-business": {
+      const wallet = args[0];
+      if (!wallet) throw new Error("Usage: revoke-business <wallet>");
+      const cfg = sasConfigFromEnv();
+      if (!cfg) throw new Error("Set SAS_ENABLED=true and ISSUER_SECRET in .env.local.");
+      const { revokeBusinessAttestation } = await import("../lib/chains/solana/sas-business");
+      const r = await revokeBusinessAttestation(cfg, wallet);
+      if (r.status === "error") throw new Error(r.reason);
+      const log = BusinessLog.fromEnv();
+      if (await log.byWallet(wallet)) {
+        await log.update(wallet, (b) => ({ ...b, onChain: { ...(b.onChain ?? { attestation: "", publishedAt: 0 }), revokedAt: Math.floor(Date.now() / 1000), revokeSignature: r.status === "ok" ? r.signature : undefined } }));
+      }
+      console.log(r.status === "ok" ? `closed     ${r.attestation}
+tx ${r.signature}` : "nothing on chain for that wallet");
+      return;
+    }
+
+    case "publish-business": {
+      const wallet = args[0];
+      if (!wallet) throw new Error("Usage: publish-business <wallet>");
+      const publish = businessPublisher();
+      if (!publish) throw new Error("Set SAS_ENABLED=true and ISSUER_SECRET in .env.local.");
+      const log = BusinessLog.fromEnv();
+      const b = await log.byWallet(wallet);
+      if (!b) throw new Error("No business record for that wallet.");
+      const v = businessView(b, await VerifiedSellerLog.fromEnv().all(), await decisions.upheldCounts());
+      if (v.status !== "verified") throw new Error(`Not verified (${v.status}): nothing to publish.`);
+      const onChain = await publish(b, v);
+      await log.update(wallet, (cur) => ({ ...cur, onChain }));
+      if (onChain.error) throw new Error(`Publishing failed: ${onChain.error}`);
+      console.log(`published  ${onChain.attestation}\ntx ${onChain.signature}`);
       return;
     }
 

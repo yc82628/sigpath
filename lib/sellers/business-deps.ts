@@ -5,6 +5,7 @@ import { DecisionLog } from "../reports/reports";
 import { VerifiedSellerLog } from "./verified-log";
 import { BusinessLog } from "./business";
 import type { BusinessDeps } from "./business-api";
+import { businessPublisher } from "./business-chain";
 
 export function businessDepsFromEnv(env: Record<string, string | undefined> = process.env): BusinessDeps {
   return {
@@ -13,5 +14,6 @@ export function businessDepsFromEnv(env: Record<string, string | undefined> = pr
     upheld: () => DecisionLog.fromEnv(env).upheldCounts(),
     resolveTxt: (name) => dns.resolveTxt(name),
     env,
+    publish: businessPublisher(),
   };
 }

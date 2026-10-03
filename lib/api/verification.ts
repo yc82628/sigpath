@@ -22,6 +22,7 @@ import { badgeFor, type BadgeEntry } from "../sellers/verified-log";
 import { businessIndex, businessView, normaliseDomain, normaliseVat, VIES_COUNTRIES, type Business } from "../sellers/business";
 import type { PublicFinding } from "../reports/seller";
 import type { OnChainBadge } from "../chains/solana/sas-verified";
+import type { OnChainBusiness } from "../chains/solana/sas-business";
 
 export const API_MARKETPLACES = ["ebay", "etsy", "amazon"] as const;
 
@@ -39,6 +40,8 @@ export interface ApiDeps {
   findings: (sellerKey: string) => Promise<PublicFinding[]>;
   /** The badge as Solana holds it; null when no chain is configured. */
   onChain: (sellerKey: string) => Promise<OnChainBadge | null>;
+  /** The business attestation as Solana holds it; null when no chain is configured. */
+  onChainBusiness?: (wallet: string) => Promise<OnChainBusiness | null>;
   baseUrl: string;
   now?: () => number;
 }
@@ -109,6 +112,8 @@ export async function sellerRecord(input: { marketplace: string; handle: string 
 
 export interface BusinessRecord {
   found: boolean;
+  /** The business wallet: holds its badges, and keys its attestation. Public on chain already. */
+  wallet: string | null;
   status: "verified" | "suspended" | "expired" | "incomplete" | null;
   statusReason: string | null;
   registeredName: string | null;
@@ -118,6 +123,8 @@ export interface BusinessRecord {
   validUntil: string | null;
   accounts: { marketplace: string; handle: string; verifiedSince: string; active: boolean; upheldReports: number; attestation: string }[];
   profile: string | null;
+  /** The Solana attestation recording it, read from the chain at request time. */
+  onChain: { status: OnChainBusiness["status"] | "not_checked"; attestation: string | null };
   checkedAt: string;
   meaning: string;
 }
@@ -138,16 +145,18 @@ export async function businessRecord(query: { id?: string; vatCountry?: string; 
       (domain && x.domain?.name === domain),
   );
   const empty: BusinessRecord = {
-    found: false, status: null, statusReason: null, registeredName: null, country: null, vat: null, website: null, validUntil: null,
-    accounts: [], profile: null, checkedAt: iso(nowS), meaning: BUSINESS_MEANING,
+    found: false, wallet: null, status: null, statusReason: null, registeredName: null, country: null, vat: null, website: null, validUntil: null,
+    accounts: [], profile: null, onChain: { status: "not_checked", attestation: null }, checkedAt: iso(nowS), meaning: BUSINESS_MEANING,
   };
   if (!b) return { ok: true, value: empty };
 
   const v = businessView(b, badges, upheld, nowS);
+  const chain = deps.onChainBusiness ? await deps.onChainBusiness(b.wallet).catch(() => null) : null;
   return {
     ok: true,
     value: {
       found: true,
+      wallet: b.wallet,
       status: v.status,
       statusReason: v.statusReason ?? null,
       registeredName: v.registeredName,
@@ -157,6 +166,7 @@ export async function businessRecord(query: { id?: string; vatCountry?: string; 
       validUntil: v.status === "verified" && v.expiresAt ? iso(v.expiresAt) : null,
       accounts: v.accounts.map((a) => ({ marketplace: a.source, handle: a.handle, verifiedSince: iso(a.verifiedAt), active: a.active, upheldReports: a.upheldReports, attestation: a.attestation })),
       profile: `${deps.baseUrl}/business/${b.id}`,
+      onChain: chain ? { status: chain.status, attestation: chain.status === "none" ? null : chain.attestation } : { status: "not_checked", attestation: null },
       checkedAt: iso(nowS),
       meaning: BUSINESS_MEANING,
     },

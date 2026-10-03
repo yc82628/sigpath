@@ -165,6 +165,12 @@ export interface Business {
   vat?: { country: string; number: string; registeredName: string | null; checkedAt: number };
   domain?: { name: string; verifiedAt: number };
   createdAt: number;
+  /**
+   * The Solana attestation recording this business (chains/solana/sas-business.ts).
+   * `error` when publishing failed: the business is still verified, and
+   * `reports-admin publish-business` retries. `revokedAt` once closed on suspension.
+   */
+  onChain?: { attestation: string; signature?: string; publishedAt: number; error?: string; revokedAt?: number; revokeSignature?: string };
 }
 
 export class BusinessLog {
@@ -244,6 +250,7 @@ export interface BusinessView {
   domainVerifiedAt?: number;
   expiresAt?: number;
   accounts: LinkedAccount[];
+  onChain: Business["onChain"] | null;
 }
 
 export function businessView(
@@ -295,6 +302,7 @@ export function businessView(
     domainVerifiedAt: b.domain?.verifiedAt,
     expiresAt,
     accounts,
+    onChain: b.onChain ?? null,
   };
 }
 

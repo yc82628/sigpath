@@ -10,6 +10,8 @@
  */
 
 import type { BadgeEntry } from "./verified-log";
+import type { PublishBusiness } from "./business-chain";
+import type { Business } from "./business";
 import {
   BusinessLog,
   businessView,
@@ -34,6 +36,8 @@ export interface BusinessDeps {
   resolveTxt: ResolveTxt;
   env?: Env;
   now?: () => number;
+  /** Record the business on Solana (business-chain.ts). Absent: off-chain only. */
+  publish?: PublishBusiness;
 }
 
 export interface SignedStep {
@@ -50,6 +54,18 @@ export interface BusinessStatus {
   /** This wallet's verified accounts, active or not. */
   accounts: BusinessView["accounts"];
   business: BusinessView | null;
+}
+
+/**
+ * After a change, publish the business on chain if it is verified. A chain
+ * failure is recorded on the business, never thrown: verification stands.
+ */
+async function settle(b: Business, deps: BusinessDeps, nowS: number): Promise<BusinessView> {
+  const view = businessView(b, await deps.badges(), await deps.upheld(), nowS);
+  if (view.status !== "verified" || !deps.publish) return view;
+  const onChain = await deps.publish(b, view).catch((e: unknown) => ({ attestation: b.onChain?.attestation ?? "", publishedAt: nowS, error: e instanceof Error ? e.message : String(e) }));
+  const updated = await deps.log.update(b.wallet, (cur) => ({ ...cur, onChain }), nowS);
+  return { ...view, onChain: updated.onChain ?? null };
 }
 
 export async function businessStatus(wallet: string, deps: BusinessDeps): Promise<BusinessStatus> {
@@ -94,7 +110,7 @@ export async function submitVat(
     (cur) => ({ ...cur, vat: { country: vat.country, number: vat.number, registeredName: check.registeredName, checkedAt: nowS } }),
     nowS,
   );
-  return { ok: true, value: businessView(b, await deps.badges(), await deps.upheld(), nowS) };
+  return { ok: true, value: await settle(b, deps, nowS) };
 }
 
 export async function startDomain(input: { wallet: string; domain: string }, deps: BusinessDeps): Promise<Reply<{ domain: string; record: { name: string; value: string } }>> {
@@ -124,5 +140,5 @@ export async function verifyDomain(input: SignedStep & { domain: string }, deps:
   }
   const nowS = Math.floor(now / 1000);
   const b = await deps.log.update(input.wallet, (cur) => ({ ...cur, domain: { name: domain, verifiedAt: nowS } }), nowS);
-  return { ok: true, value: businessView(b, await deps.badges(), await deps.upheld(), nowS) };
+  return { ok: true, value: await settle(b, deps, nowS) };
 }

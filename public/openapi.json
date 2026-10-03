@@ -5,20 +5,47 @@
     "version": "1.0.0",
     "description": "Deal checks across eBay, Amazon and Etsy, and verification of sellers, businesses and suppliers. Paid per request in USDC on Solana through a pay.sh gateway (HTTP 402); no account or API key. Answers are identical to the free website: paying never changes a result. Every answer says what it vouches for and what not."
   },
-  "servers": [{ "url": "http://127.0.0.1:1402", "description": "pay.sh gateway (sandbox)" }],
+  "servers": [
+    {
+      "url": "http://127.0.0.1:1402",
+      "description": "pay.sh gateway (sandbox)"
+    }
+  ],
   "paths": {
     "/api/check": {
       "get": {
         "summary": "Deal check: every listing's verdict, and the best checked deal",
         "description": "0.002 USDC per request.",
         "parameters": [
-          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "maxLength": 120 }, "description": "What to buy, e.g. ThinkPad X1" },
-          { "name": "currency", "in": "query", "schema": { "type": "string", "example": "EUR" } }
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "description": "What to buy, e.g. ThinkPad X1"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "EUR"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Listings with verdicts (checked, caution, unchecked), reasons and the best checked deals" },
-          "402": { "description": "Payment required (answered by the gateway)" },
-          "503": { "description": "No marketplace answered" }
+          "200": {
+            "description": "Listings with verdicts (checked, caution, unchecked), reasons and the best checked deals"
+          },
+          "402": {
+            "description": "Payment required (answered by the gateway)"
+          },
+          "503": {
+            "description": "No marketplace answered"
+          }
         }
       }
     },
@@ -27,8 +54,28 @@
         "summary": "Is this marketplace account a verified seller? Who runs it? Any upheld reports?",
         "description": "0.001 USDC per request. The verified-seller badge is cross-checked on Solana (onChain).",
         "parameters": [
-          { "name": "marketplace", "in": "query", "required": true, "schema": { "type": "string", "enum": ["ebay", "etsy", "amazon"] } },
-          { "name": "handle", "in": "query", "required": true, "schema": { "type": "string", "maxLength": 100 } }
+          {
+            "name": "marketplace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ebay",
+                "etsy",
+                "amazon"
+              ]
+            }
+          },
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -38,49 +85,138 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "marketplace": { "type": "string" },
-                    "handle": { "type": "string" },
+                    "marketplace": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "type": "string"
+                    },
                     "verifiedSeller": {
-                      "type": ["object", "null"],
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "properties": {
-                        "since": { "type": "string", "format": "date-time" },
-                        "expires": { "type": "string", "format": "date-time" },
-                        "attestation": { "type": "string", "description": "Solana Attestation Service account" },
-                        "onChain": { "type": "string", "enum": ["valid", "expired", "not_held", "none", "not_checked"] }
+                        "since": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "expires": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "attestation": {
+                          "type": "string",
+                          "description": "Solana Attestation Service account"
+                        },
+                        "onChain": {
+                          "type": "string",
+                          "enum": [
+                            "valid",
+                            "expired",
+                            "not_held",
+                            "none",
+                            "not_checked"
+                          ]
+                        }
                       }
                     },
                     "verifiedBusiness": {
-                      "type": ["object", "null"],
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "properties": {
-                        "name": { "type": ["string", "null"], "description": "As the EU VAT register publishes it; null where the country doesn't publish names" },
-                        "country": { "type": "string" },
-                        "domain": { "type": ["string", "null"] },
-                        "profile": { "type": "string", "format": "uri" }
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "As the EU VAT register publishes it; null where the country doesn't publish names"
+                        },
+                        "country": {
+                          "type": "string"
+                        },
+                        "domain": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "profile": {
+                          "type": "string",
+                          "format": "uri"
+                        }
                       }
                     },
-                    "upheldReports": { "type": "integer" },
-                    "findings": { "type": "array", "items": { "type": "object" }, "description": "Fake-product reports upheld after review, including reversed ones" },
-                    "checkedAt": { "type": "string", "format": "date-time" },
-                    "meaning": { "type": "string" }
+                    "upheldReports": {
+                      "type": "integer"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      },
+                      "description": "Fake-product reports upheld after review, including reversed ones"
+                    },
+                    "checkedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "meaning": {
+                      "type": "string"
+                    }
                   }
                 }
               }
             }
           },
-          "400": { "description": "Bad marketplace or handle" },
-          "402": { "description": "Payment required (answered by the gateway)" }
+          "400": {
+            "description": "Bad marketplace or handle"
+          },
+          "402": {
+            "description": "Payment required (answered by the gateway)"
+          }
         }
       }
     },
     "/api/v1/business": {
       "get": {
         "summary": "A verified business, by VAT number, website or id",
-        "description": "0.001 USDC per request. found is false when SigPath has no record, which isn't a warning on its own.",
+        "description": "0.001 USDC per request. found is false when SigPath has no record, which isn't a warning on its own. onChain reports the Solana attestation, read live.",
         "parameters": [
-          { "name": "vatCountry", "in": "query", "schema": { "type": "string", "example": "DE" }, "description": "EU VAT prefix (Greece is EL)" },
-          { "name": "vatNumber", "in": "query", "schema": { "type": "string" } },
-          { "name": "domain", "in": "query", "schema": { "type": "string", "example": "example-shop.de" } },
-          { "name": "id", "in": "query", "schema": { "type": "string", "example": "b_abc123" } }
+          {
+            "name": "vatCountry",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "DE"
+            },
+            "description": "EU VAT prefix (Greece is EL)"
+          },
+          {
+            "name": "vatNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "example-shop.de"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "b_abc123"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -90,25 +226,136 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "found": { "type": "boolean" },
-                    "status": { "type": ["string", "null"], "enum": ["verified", "suspended", "expired", "incomplete", null] },
-                    "statusReason": { "type": ["string", "null"] },
-                    "registeredName": { "type": ["string", "null"] },
-                    "country": { "type": ["string", "null"] },
-                    "vat": { "type": ["object", "null"], "properties": { "masked": { "type": "string" }, "checkedAt": { "type": "string", "format": "date-time" } } },
-                    "website": { "type": ["object", "null"], "properties": { "domain": { "type": "string" }, "provedAt": { "type": "string", "format": "date-time" } } },
-                    "validUntil": { "type": ["string", "null"], "format": "date-time" },
-                    "accounts": { "type": "array", "items": { "type": "object" } },
-                    "profile": { "type": ["string", "null"], "format": "uri" },
-                    "checkedAt": { "type": "string", "format": "date-time" },
-                    "meaning": { "type": "string" }
+                    "found": {
+                      "type": "boolean"
+                    },
+                    "wallet": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The business wallet: holds its verified-seller badges and keys its Solana attestation"
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "verified",
+                        "suspended",
+                        "expired",
+                        "incomplete",
+                        null
+                      ]
+                    },
+                    "statusReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "registeredName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "country": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "vat": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "masked": {
+                          "type": "string"
+                        },
+                        "checkedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    "website": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "domain": {
+                          "type": "string"
+                        },
+                        "provedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    "validUntil": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "profile": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uri"
+                    },
+                    "checkedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "meaning": {
+                      "type": "string"
+                    },
+                    "onChain": {
+                      "type": "object",
+                      "description": "The Solana attestation recording the business, read from the chain at request time. VAT number and website are stored on chain only as hashes.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "valid",
+                            "expired",
+                            "none",
+                            "not_checked"
+                          ]
+                        },
+                        "attestation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
           },
-          "400": { "description": "No lookup key, or a malformed one" },
-          "402": { "description": "Payment required (answered by the gateway)" }
+          "400": {
+            "description": "No lookup key, or a malformed one"
+          },
+          "402": {
+            "description": "Payment required (answered by the gateway)"
+          }
         }
       }
     },
@@ -124,12 +371,31 @@
                 "type": "object",
                 "description": "At least one of vatNumber, domain or handle.",
                 "properties": {
-                  "vatCountry": { "type": "string", "example": "DE" },
-                  "vatNumber": { "type": "string" },
-                  "name": { "type": "string", "description": "The name the supplier gave" },
-                  "domain": { "type": "string" },
-                  "marketplace": { "type": "string", "enum": ["ebay", "etsy", "amazon"] },
-                  "handle": { "type": "string" }
+                  "vatCountry": {
+                    "type": "string",
+                    "example": "DE"
+                  },
+                  "vatNumber": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The name the supplier gave"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "marketplace": {
+                    "type": "string",
+                    "enum": [
+                      "ebay",
+                      "etsy",
+                      "amazon"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -146,8 +412,19 @@
                     "summary": {
                       "type": "object",
                       "properties": {
-                        "state": { "type": "string", "enum": ["concerns", "warnings", "verified", "clear", "insufficient"] },
-                        "headline": { "type": "string" }
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "concerns",
+                            "warnings",
+                            "verified",
+                            "clear",
+                            "insufficient"
+                          ]
+                        },
+                        "headline": {
+                          "type": "string"
+                        }
                       }
                     },
                     "findings": {
@@ -155,22 +432,54 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "check": { "type": "string", "enum": ["vat", "name", "website", "sigpath"] },
-                          "state": { "type": "string", "enum": ["good", "warn", "bad", "unknown"] },
-                          "title": { "type": "string" },
-                          "detail": { "type": "string" }
+                          "check": {
+                            "type": "string",
+                            "enum": [
+                              "vat",
+                              "name",
+                              "website",
+                              "sigpath"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "good",
+                              "warn",
+                              "bad",
+                              "unknown"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
-                    "businessProfile": { "type": ["string", "null"] },
-                    "checkedAt": { "type": "string", "format": "date-time" }
+                    "businessProfile": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "checkedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
                   }
                 }
               }
             }
           },
-          "400": { "description": "Nothing to check, or malformed details" },
-          "402": { "description": "Payment required (answered by the gateway)" }
+          "400": {
+            "description": "Nothing to check, or malformed details"
+          },
+          "402": {
+            "description": "Payment required (answered by the gateway)"
+          }
         }
       }
     }
