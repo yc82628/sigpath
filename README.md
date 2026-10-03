@@ -966,6 +966,42 @@ Verified on devnet, 2026-10-02:
   which the badge was gone and re-verifying was refused. After reversal the
   seller was eligible again.
 
+### Verified business — who runs the accounts
+
+A tier above the seller badge, for registered businesses (`/seller/business`,
+`lib/sellers/business.ts`). Each fact has its own evidence, and every step is
+signed by the wallet that holds the badges:
+
+| Fact | Evidence |
+| --- | --- |
+| **Its accounts belong together** | Every marketplace account verified with the **same wallet** is linked, eBay and Etsy alike. One wallet is proof of common control, so nothing is guessed and no extra step is needed |
+| **It's a registered business** | The EU VAT number, checked live against the EU's **VIES** register. The name shown is the register's, never what the seller typed. Where a country doesn't publish names through VIES (Germany, for one), the number is valid but the profile says the name isn't confirmed |
+| **It runs its website** (optional) | A one-time TXT record at `_sigpath.<domain>`, bound to the wallet and the domain |
+
+- **Badge and profile.** Listings show **✓ Verified business** (cyan on black),
+  linking to a public trust profile at `/business/<id>`: what was verified and
+  when, the linked accounts with their on-chain badges, and what it doesn't mean.
+  Businesses can link to it from their own shop.
+- **One report suspends it everywhere.** An upheld fake-product report against
+  *any* linked account suspends the business tier on all of them. An account
+  with an upheld report can't start one. It lasts a year from the VAT check.
+- **Photo theft across marketplaces.** The duplicate-photo check can't flag a
+  photo shared across two marketplaces, because one seller cross-posting looks
+  identical to theft. Linked accounts change that: a verified business's photo
+  under an account it *hasn't* linked, on another marketplace, is flagged as
+  "Look closer".
+- **Everywhere verdicts are.** The search page, `/api/search`, the paid
+  `/api/check` (as `verifiedBusiness`) and Ai-chan's cards. Like the seller
+  badge, it vouches for who runs the account, never for the price, so it
+  upgrades no verdict.
+- **Off-chain for now.** The record lives in `.data/sellers/businesses.json`;
+  each linked account's badge is on Solana. Attesting the business itself on SAS
+  is the natural next step.
+
+Tested against the real VIES register, 2026-10-03: a public company's VAT
+number came back valid with its registered name; an invalid German number was
+refused.
+
 ---
 
 ## The two-chain split

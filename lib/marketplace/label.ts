@@ -36,6 +36,28 @@ import { priceCheckFor, type PriceCheck } from "../checkout/eligibility";
 
 export type Verdict = "checked" | "caution" | "unchecked";
 
+/**
+ * A verified business behind the listing's account (lib/sellers/business.ts):
+ * an EU-registered VAT number, checked against the register, linking every
+ * marketplace account its wallet verified. Like the seller badge, it vouches
+ * for who runs the account, never for the price, so it upgrades no verdict.
+ */
+export interface BusinessBadge {
+  /** Profile id: /business/<id>. */
+  id: string;
+  /** As the register publishes it; null where the country doesn't publish names. */
+  name: string | null;
+  /** Country of registration, e.g. "Germany". */
+  country: string;
+  /** A website whose DNS it proved, if any. */
+  domain?: string;
+}
+
+export function businessLine(b: BusinessBadge): string {
+  const who = b.name ? `registered as ${b.name} in ${b.country}` : `VAT number registered in ${b.country} (the register doesn't publish the name)`;
+  return `Verified business: ${who}${b.domain ? `, owns ${b.domain}` : ""}. That vouches for who runs the account, not this price.`;
+}
+
 export interface LabelPoint {
   tone: "good" | "warn" | "info";
   text: string;
@@ -113,12 +135,17 @@ export function checkLabel(
   analysis: Analysis,
   verifiedSeller: boolean,
   now: number = Date.now(),
+  business: BusinessBadge | null = null,
 ): CheckLabel {
   const points: LabelPoint[] = [];
-  const badgePoint: LabelPoint = {
-    tone: "info",
-    text: "Verified seller: proved control of this account and passed a live check. That vouches for the account, not this price.",
-  };
+  // A verified business implies a verified seller, so it says the more.
+  const badgePoint: LabelPoint = business
+    ? { tone: "info", text: businessLine(business) }
+    : {
+        tone: "info",
+        text: "Verified seller: proved control of this account and passed a live check. That vouches for the account, not this price.",
+      };
+  verifiedSeller = verifiedSeller || business !== null;
 
   if (flags.length > 0) {
     for (const f of flags) points.push({ tone: "warn", text: f.message });
@@ -204,6 +231,7 @@ export function describeSaving(d: BestDeal): string | null {
 export function labelSearch(
   result: { listings: Listing[]; analysis: Analysis },
   isVerified: (l: Listing) => boolean = () => false,
+  businessOf: (l: Listing) => BusinessBadge | null = () => null,
 ) {
   const a = result.analysis;
   const byKey = new Map<string, Flag[]>();
@@ -213,7 +241,7 @@ export function labelSearch(
   }
   const flagsOf = (l: Listing) => byKey.get(listingKey(l)) ?? [];
   const labels = new Map<string, CheckLabel>();
-  for (const l of result.listings) labels.set(listingKey(l), checkLabel(l, flagsOf(l), priceCheckFor(l, a), a, isVerified(l)));
+  for (const l of result.listings) labels.set(listingKey(l), checkLabel(l, flagsOf(l), priceCheckFor(l, a), a, isVerified(l), Date.now(), businessOf(l)));
   const labelOf = (l: Listing) => labels.get(listingKey(l))!;
   return { flagsOf, labelOf, deals: bestCheckedDeals(result.listings, labelOf, a) };
 }
@@ -224,20 +252,21 @@ export function labelSearch(
  * labelSearch, so the API and the search page can never disagree about a
  * verdict.
  */
-export type LabelledListing = Listing & { check: CheckLabel; verifiedSeller: boolean };
+export type LabelledListing = Listing & { check: CheckLabel; verifiedSeller: boolean; verifiedBusiness: BusinessBadge | null };
 
 export function withLabels<R extends { listings: Listing[]; analysis: Analysis }>(
   result: R,
   isVerified: (l: Listing) => boolean = () => false,
+  businessOf: (l: Listing) => BusinessBadge | null = () => null,
 ): Omit<R, "listings"> & {
   listings: LabelledListing[];
   bestCheckedDeals: { listing: string; group: "new" | "used"; total: Money; belowMedian: Money | null }[];
   checkedMeans: string;
 } {
-  const { labelOf, deals } = labelSearch(result, isVerified);
+  const { labelOf, deals } = labelSearch(result, isVerified, businessOf);
   return {
     ...result,
-    listings: result.listings.map((l) => ({ ...l, check: labelOf(l), verifiedSeller: isVerified(l) })),
+    listings: result.listings.map((l) => ({ ...l, check: labelOf(l), verifiedSeller: isVerified(l) || businessOf(l) !== null, verifiedBusiness: businessOf(l) })),
     /** Cheapest SigPath-checked listing per condition, referenced by listingKey. */
     bestCheckedDeals: deals.map((d) => ({ listing: listingKey(d.listing), group: d.group, total: d.total, belowMedian: d.belowMedian ?? null })),
     /** What "checked" means — shown wherever the label is, including in other apps. */

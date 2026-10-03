@@ -7,6 +7,7 @@ import { VerifiedSellerLog, badgeFor } from "@/lib/sellers/verified-log";
 import { sellerSubject } from "@/lib/sellers/badges";
 import { sasConfigFromEnv, signer } from "@/lib/chains/solana/sas";
 import { readVerifiedSeller, type OnChainBadge } from "@/lib/chains/solana/sas-verified";
+import { BusinessLog, businessIndex } from "@/lib/sellers/business";
 
 /**
  * app/seller/[source]/[handle] — the public record of a seller.
@@ -41,7 +42,10 @@ export default async function SellerPage({ params }: { params: { source: string;
   // not revoked or lapsed, no upheld report — and the token still held.
   const key = sellerKey(source, handle);
   const decisions = DecisionLog.fromEnv();
-  const local = badgeFor(key, await VerifiedSellerLog.fromEnv().all(), await decisions.upheldCounts());
+  const badgeEntries = await VerifiedSellerLog.fromEnv().all();
+  const upheld = await decisions.upheldCounts();
+  const local = badgeFor(key, badgeEntries, upheld);
+  const business = businessIndex(await BusinessLog.fromEnv().all(), badgeEntries, upheld).get(key) ?? null;
   let onChain: OnChainBadge | null = null;
   const cfg = sasConfigFromEnv();
   if (local && cfg) {
@@ -65,6 +69,15 @@ export default async function SellerPage({ params }: { params: { source: string;
             on chain
           </a>
           ), valid until {day(verified.expiresAt)}. It vouches for the account, not for any item.
+        </p>
+      )}
+
+      {verified && business && (
+        <p className="notice">
+          <a className="verified business" href={`/business/${encodeURIComponent(business.id)}`}>&#10003; Verified business</a>{" "}
+          {business.name ? <>Registered as <strong>{business.name}</strong> in {business.country}</> : <>VAT number registered in {business.country}</>}
+          {business.domain ? <>, controls {business.domain}</> : null}.{" "}
+          <a href={`/business/${encodeURIComponent(business.id)}`}>See the business profile</a>.
         </p>
       )}
 

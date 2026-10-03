@@ -70,9 +70,11 @@ export type AnalysisStatus =
 
 /**
  * `upheld_reports` is added by search, not by analyse(): it comes from reviewed
- * buyer reports about the SELLER, not from anything in this result set.
+ * buyer reports about the SELLER, not from anything in this result set. So is
+ * `photo_of_verified_business` (lib/sellers/business.ts), which needs to know
+ * which accounts a verified business has linked.
  */
-export type FlagKind = "underpriced" | "duplicate_image" | "new_account" | "upheld_reports";
+export type FlagKind = "underpriced" | "duplicate_image" | "new_account" | "upheld_reports" | "photo_of_verified_business";
 
 export interface Flag {
   /**

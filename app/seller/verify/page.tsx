@@ -19,6 +19,11 @@ export default function VerifyPage() {
         listings show a <strong>Verified seller</strong> badge on every SigPath search.
       </p>
 
+      <p className="hint">
+        Run a registered business? After verifying, <Link href="/seller/business">verify your business</Link> too:
+        your VAT number, your website, and all your accounts under one profile.
+      </p>
+
       <section className="guarantees">
         <h2>What it checks, and what it doesn&apos;t</h2>
         <ul>

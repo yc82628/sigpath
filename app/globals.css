@@ -339,6 +339,8 @@ button { font-family: var(--font-sans); }
   display: inline-block; font-size: 0.74rem; font-weight: 700; color: var(--ok);
   background: var(--ok-soft); border: 1px solid var(--ok); border-radius: 999px; padding: 0 8px; text-decoration: none;
 }
+/* The business tier wears the logo: cyan on black. */
+.verified.business { color: var(--cyan); background: var(--ink); border-color: var(--cyan); }
 
 /* The SigPath-checked label. Checked is green, "look closer" amber (an
    observation, not an alarm), and "not price-checked" neutral — an Etsy mug
@@ -644,3 +646,35 @@ a.chat-card-title:hover { text-decoration: underline; }
 }
 .chat-who { display: flex; align-items: center; gap: 10px; }
 .chat-who .chat-avatar { width: 34px; height: 34px; font-size: 1.05rem; }
+
+/* ==========================================================================
+   Verified business (/seller/business, /business/<id>)
+   ========================================================================== */
+
+.status-chip {
+  display: inline-block; font-size: 0.74rem; font-weight: 700; color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 999px; padding: 0 8px;
+}
+.status-chip.warn { color: var(--warn); border: 1px solid var(--warn); background: var(--warn-soft); }
+.business-profile h2 { font-size: 1.1rem; margin: 28px 0 10px; }
+.evidence { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.evidence li {
+  position: relative; padding: 12px 14px 12px 40px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+}
+.evidence li strong { color: var(--fg); }
+.evidence li::before { position: absolute; left: 14px; top: 12px; font-weight: 800; }
+.evidence li.good::before { content: "\2713"; color: var(--ok); }
+.evidence li.info::before { content: "\2013"; color: var(--muted); }
+.linked-accounts { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.linked-accounts li { padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.business-form .step { margin: 18px 0; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.business-form .step h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.form-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.form-row input, .form-row select {
+  flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg); font: 0.95rem var(--font-sans);
+}
+.dns-record { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0 14px; }
+.dns-record dt { font-weight: 700; }
+.dns-record dd { margin: 0; overflow-wrap: anywhere; }

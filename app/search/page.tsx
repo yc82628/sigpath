@@ -8,8 +8,9 @@ import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
 import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
+import { BusinessLog, businessIndex, verifiedPhotoFlags } from "@/lib/sellers/business";
 import { listingKey, sellerKey } from "@/lib/marketplace/types";
-import { CHECKED_MEANS, describeSaving, labelSearch, type CheckLabel } from "@/lib/marketplace/label";
+import { CHECKED_MEANS, describeSaving, labelSearch, type BusinessBadge, type CheckLabel } from "@/lib/marketplace/label";
 import AlertButton from "../components/AlertButton";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 
@@ -55,12 +56,14 @@ function ListingRow({
   flags,
   checkout,
   badge,
+  business,
   label,
 }: {
   listing: Listing;
   flags: Flag[];
   checkout: CheckoutOffer;
   badge: BadgeView | null;
+  business: BusinessBadge | null;
   label: CheckLabel;
 }) {
   const total = totalPrice(listing);
@@ -90,7 +93,17 @@ function ListingRow({
         <p className="meta">
           <span className="chip">{marketLabel(listing.source)}</span> {listing.condition} &middot;{" "}
           {seller.displayName ?? seller.handle}
-          {badge && (
+          {business ? (
+            // The business tier: a VAT number checked against the EU register,
+            // and every account its wallet verified. Like the seller badge, it
+            // vouches for who runs the account, not the item.
+            <>
+              {" "}
+              <a className="verified business" href={`/business/${encodeURIComponent(business.id)}`} title="A registered business, checked against the EU VAT register. It vouches for who runs the account, not this item.">
+                &#10003; Verified business
+              </a>
+            </>
+          ) : badge && (
             // Earned, not reported: the seller proved control of this account,
             // holds the non-transferable token, and passed a live check. It
             // vouches for the account, not the item — so it removes no flag
@@ -303,11 +316,15 @@ async function SearchResults({
   const upheldReports = await DecisionLog.fromEnv().upheldCounts();
   const result = assembleSearch(q, await Promise.all(pending), { limit: 20 }, { upheldReports });
   const badgeEntries = await VerifiedSellerLog.fromEnv().all();
+  const businesses = businessIndex(await BusinessLog.fromEnv().all(), badgeEntries, upheldReports);
+  // Same as labelledSearch: a verified business's photo under an unlinked account on another marketplace.
+  result.analysis = { ...result.analysis, flags: [...result.analysis.flags, ...verifiedPhotoFlags(result.listings, businesses)] };
+  const businessOf = (l: Listing) => businesses.get(sellerKey(l.source, l.seller.handle)) ?? null;
 
   const a = result.analysis;
   const badgeOf = (l: Listing) => badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports);
   // Flags grouped by marketplace AND id, one verdict per listing, the best checked deals.
-  const labelled = result ? labelSearch(result, (l) => badgeOf(l) !== null) : null;
+  const labelled = result ? labelSearch(result, (l) => badgeOf(l) !== null, businessOf) : null;
   const flagsOf = (l: Listing) => labelled?.flagsOf(l) ?? [];
   const labelOf = (l: Listing) => labelled!.labelOf(l);
   const deals = labelled?.deals ?? [];
@@ -433,6 +450,7 @@ async function SearchResults({
               flags={flagsOf(l)}
               checkout={checkoutOffer(l, flagsOf(l))}
               badge={badgeOf(l)}
+              business={businessOf(l)}
               label={labelOf(l)}
             />
           ))}

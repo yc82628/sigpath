@@ -39,6 +39,8 @@ export interface AgentListing {
   /** Why, in plain language: what was compared, what raised a flag. */
   reasons: string[];
   verifiedSeller: boolean;
+  /** The registered business behind the account, when it is a verified business. */
+  verifiedBusiness: { name: string | null; country: string; domain: string | null; profile: string } | null;
 }
 
 export interface AgentCheck {
@@ -74,6 +76,9 @@ export function agentListing(l: LabelledSearch["listings"][number]): AgentListin
     headline: l.check.headline,
     reasons: l.check.points.map((p) => p.text),
     verifiedSeller: l.verifiedSeller,
+    verifiedBusiness: l.verifiedBusiness
+      ? { name: l.verifiedBusiness.name, country: l.verifiedBusiness.country, domain: l.verifiedBusiness.domain ?? null, profile: `/business/${l.verifiedBusiness.id}` }
+      : null,
   };
 }
 

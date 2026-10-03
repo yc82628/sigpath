@@ -52,7 +52,7 @@ function Card({ c }: { c: AssistantCard }) {
       )}
       <span className="chat-card-meta">
         <strong>{c.total}</strong> · {c.marketplace} · {c.condition}
-        {c.verifiedSeller ? " · verified seller" : ""}
+        {c.verifiedBusiness ? " · verified business" : c.verifiedSeller ? " · verified seller" : ""}
       </span>
       {c.verdict === "caution" && c.reasons[0] && <span className="chat-card-why">{c.reasons[0]}</span>}
     </li>
