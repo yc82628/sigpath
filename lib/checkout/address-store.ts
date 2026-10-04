@@ -39,6 +39,7 @@
 import { join } from "path";
 import { MAX_WINDOW_SECS } from "../chains/solana/orders";
 import { EncryptedStore, keyFromEnv } from "./encrypted-store";
+import { dataDir } from "../data-dir";
 
 /** A checkout that never reached the chain is forgotten after this. */
 export const PENDING_TTL_SECONDS = 15 * 60;
@@ -119,7 +120,7 @@ export class AddressStore extends EncryptedStore<OrderRecord> {
   static fromEnv(env: Record<string, string | undefined> = process.env): AddressStore | null {
     const key = keyFromEnv(env);
     if (!key) return null;
-    return new AddressStore(env.ADDRESS_STORE_DIR?.trim() || join(process.cwd(), ".data", "checkout"), key, "");
+    return new AddressStore(env.ADDRESS_STORE_DIR?.trim() || join(dataDir(env), "checkout"), key, "");
   }
 
   static withKey(dir: string, key: Buffer): AddressStore {

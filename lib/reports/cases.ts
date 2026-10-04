@@ -18,6 +18,7 @@
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { randomBytes } from "crypto";
+import { dataDir } from "../data-dir";
 
 /** How long a notified seller has to reply before a report can be upheld without them. */
 export const REPLY_WINDOW_SECS = 7 * 24 * 3600;
@@ -43,7 +44,7 @@ export class CaseLog {
   constructor(private readonly file: string) {}
 
   static fromEnv(env: Record<string, string | undefined> = process.env): CaseLog {
-    return new CaseLog(env.REPORT_CASES_FILE?.trim() || join(process.cwd(), ".data", "reports", "cases.json"));
+    return new CaseLog(env.REPORT_CASES_FILE?.trim() || join(dataDir(env), "reports", "cases.json"));
   }
 
   async all(): Promise<Record<string, Case>> {

@@ -26,6 +26,7 @@ import { readFile, writeFile, mkdir, rename } from "fs/promises";
 import { dirname, join } from "path";
 import { randomBytes, randomUUID } from "crypto";
 import type { Money } from "../marketplace/types";
+import { dataDir } from "../data-dir";
 
 export const WATCH_TTL_SECS = 30 * 24 * 3600;
 export const MAX_WATCHES_PER_BROWSER = 10;
@@ -57,7 +58,7 @@ export class WatchStore {
   constructor(private readonly file: string) {}
 
   static fromEnv(env: Record<string, string | undefined> = process.env): WatchStore {
-    return new WatchStore(env.ALERTS_FILE?.trim() || join(process.cwd(), ".data", "alerts", "watches.json"));
+    return new WatchStore(env.ALERTS_FILE?.trim() || join(dataDir(env), "alerts", "watches.json"));
   }
 
   async all(): Promise<Record<string, Watch>> {

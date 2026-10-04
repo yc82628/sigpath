@@ -176,10 +176,10 @@ export default function BusinessForm() {
         </section>
       )}
 
-      {wallet && business?.vatMasked && (
+      {wallet && activeAccounts.length > 0 && (
         <section className="step">
           <h2>4. Your website (optional)</h2>
-          {business.domain && <p className="notice">✓ Controls {business.domain}.</p>}
+          {business?.domain && <p className="notice">✓ Controls {business.domain}.</p>}
           {!record ? (
             <div className="form-row">
               <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example-shop.de" aria-label="Website domain" />
@@ -206,6 +206,11 @@ export default function BusinessForm() {
         </section>
       )}
 
+      {business && business.status !== "verified" && (
+        <p className="hint">
+          Your <a href={`/business/${encodeURIComponent(business.id)}`}>public profile</a> shows what's verified so far.
+        </p>
+      )}
       {business?.status === "verified" && (
         <p className="notice">
           🎉 Your business is verified. <a href={`/business/${encodeURIComponent(business.id)}`}>See your public profile</a>, and link to it from

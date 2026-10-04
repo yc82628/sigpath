@@ -127,8 +127,10 @@ export async function verifyDomain(input: SignedStep & { domain: string }, deps:
   const now = deps.now?.() ?? Date.now();
   const sig = verifyBusinessSignature(domainAction(domain), input.wallet, input.time, input.signature, now);
   if (!sig.ok) return { ok: false, status: 401, error: sig.error };
-  const business = await deps.log.byWallet(input.wallet);
-  if (!business?.vat) return { ok: false, status: 409, error: "Check the VAT number first; the website is added to a verified business." };
+  // The website is independent evidence, so it may come before the VAT check;
+  // the business still only counts as verified (and goes on chain) once VAT is checked.
+  const elig = await eligible(input.wallet, deps);
+  if (!elig.ok) return elig;
   const record = domainRecord(input.wallet, domain, deps.env);
   if (!record) return { ok: false, status: 503, error: "Website checks aren't set up on this server." };
   if (!(await domainHasRecord(record, deps.resolveTxt))) {

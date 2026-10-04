@@ -237,8 +237,31 @@ test("steps: refusals, each with its reason", async () => {
   t = deps({ badgesFor: { "ebay:shop": badge(wallet) } });
   const forged = await submitVat({ ...step(), vatNumber: "9999999X" }, t.d);
   assert.ok(!forged.ok && forged.status === 401, "signed for a different number");
-  const tooEarly = await verifyDomain({ ...sign(domainAction("example.ie")), domain: "example.ie" }, t.d);
-  assert.ok(!tooEarly.ok && tooEarly.status === 409, "website before VAT");
+  // The website may come before the VAT check; here the DNS record just isn't there yet.
+  const beforeVat = await verifyDomain({ ...sign(domainAction("example.ie")), domain: "example.ie" }, t.d);
+  assert.ok(!beforeVat.ok && beforeVat.status === 422, "website before VAT is allowed; missing record is 422");
   assert.ok(!(await submitVat({ ...step(), country: "US" }, t.d)).ok);
   t.cleanup();
+});
+
+test("steps: a website can be proved before the VAT number, but the business isn't verified without VAT", async () => {
+  const { wallet, sign } = signer();
+  let txt: string[][] = [];
+  const { d, cleanup } = deps({ badgesFor: { "ebay:shop": badge(wallet) }, resolveTxt: async () => txt });
+  try {
+    const start = await startDomain({ wallet, domain: "example.ie" }, d);
+    assert.ok(start.ok);
+    txt = [[start.value.record.value]];
+    const r = await verifyDomain({ ...sign(domainAction("example.ie")), domain: "example.ie" }, d);
+    assert.ok(r.ok);
+    assert.strictEqual(r.value.domain, "example.ie");
+    assert.strictEqual(r.value.status, "incomplete");
+    assert.match(r.value.statusReason!, /VAT/);
+    // Without a verified badge, not even the website step.
+    const stranger = signer();
+    const refused = await verifyDomain({ ...stranger.sign(domainAction("example.ie")), domain: "example.ie" }, d);
+    assert.ok(!refused.ok && refused.status === 403);
+  } finally {
+    cleanup();
+  }
 });

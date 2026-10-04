@@ -14,6 +14,7 @@
 import { readFile, writeFile, mkdir, rename } from "fs/promises";
 import { dirname, join } from "path";
 import { randomBytes } from "crypto";
+import { dataDir } from "../data-dir";
 
 export interface Badge {
   wallet: string;
@@ -43,7 +44,7 @@ export class VerifiedSellerLog {
   constructor(private readonly file: string) {}
 
   static fromEnv(env: Record<string, string | undefined> = process.env): VerifiedSellerLog {
-    return new VerifiedSellerLog(env.VERIFIED_SELLERS_FILE?.trim() || join(process.cwd(), ".data", "sellers", "verified.json"));
+    return new VerifiedSellerLog(env.VERIFIED_SELLERS_FILE?.trim() || join(dataDir(env), "sellers", "verified.json"));
   }
 
   async all(): Promise<Record<string, BadgeEntry>> {

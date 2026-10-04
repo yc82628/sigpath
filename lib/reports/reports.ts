@@ -58,6 +58,7 @@ export const PENDING_REPORT_MAX_SECS = 90 * 24 * 3600;
 
 // One definition of seller identity, shared with search — see marketplace/types.
 import { sellerKey } from "../marketplace/types";
+import { dataDir } from "../data-dir";
 export { sellerKey };
 
 // ---------------------------------------------------------------------------
@@ -86,7 +87,7 @@ export class ReportStore extends EncryptedStore<ReportRecord> {
   static fromEnv(env: Record<string, string | undefined> = process.env): ReportStore | null {
     const key = keyFromEnv(env);
     if (!key) return null;
-    return new ReportStore(env.REPORT_STORE_DIR?.trim() || join(process.cwd(), ".data", "reports", "pending"), key, "report");
+    return new ReportStore(env.REPORT_STORE_DIR?.trim() || join(dataDir(env), "reports", "pending"), key, "report");
   }
 
   static withKey(dir: string, key: Buffer): ReportStore {
@@ -125,7 +126,7 @@ export class DecisionLog {
   constructor(private readonly file: string) {}
 
   static fromEnv(env: Record<string, string | undefined> = process.env): DecisionLog {
-    return new DecisionLog(env.REPORT_DECISIONS_FILE?.trim() || join(process.cwd(), ".data", "reports", "decisions.json"));
+    return new DecisionLog(env.REPORT_DECISIONS_FILE?.trim() || join(dataDir(env), "reports", "decisions.json"));
   }
 
   async all(): Promise<Record<string, Decision>> {

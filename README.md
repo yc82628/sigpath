@@ -16,8 +16,14 @@ Built for the **Solana × Superteam Germany** hackathon.
 | | Live on devnet |
 |---|---|
 | Order escrow (Anchor) | [`3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW`](https://explorer.solana.com/address/3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW?cluster=devnet) |
-| Fake-product findings, reversals, verified-seller badges | Solana Attestation Service, credential `SigPath` |
 | Identity attestations (the original engine) | [`Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4`](https://explorer.solana.com/address/Cy8r6RPdimsDDDKvmyW4ZmhmJYqagFBeGtn8fpkPmZw4?cluster=devnet) |
+| Solana Attestation Service issuer | [`AaFcCzgJ53SPpqheu8KGM6fA3i4cwd57SL8goz6jdfXg`](https://explorer.solana.com/address/AaFcCzgJ53SPpqheu8KGM6fA3i4cwd57SL8goz6jdfXg?cluster=devnet) |
+| SAS credential `SigPath` | [`rdcnpvPbTaSepYsmPDLqmYUmGZqtEADbBtueuNYZXJX`](https://explorer.solana.com/address/rdcnpvPbTaSepYsmPDLqmYUmGZqtEADbBtueuNYZXJX?cluster=devnet) |
+| Schema: upheld fake-product reports | [`2Vs8y7A1cvNjWepMGDzRhz4HoK4mehzKX3VtkLFCUgsG`](https://explorer.solana.com/address/2Vs8y7A1cvNjWepMGDzRhz4HoK4mehzKX3VtkLFCUgsG?cluster=devnet) |
+| Schema: report reversals | [`EZMETbx4478eaPxuGFdKvUu9z3u3THSZ4iuJBPrgb8hk`](https://explorer.solana.com/address/EZMETbx4478eaPxuGFdKvUu9z3u3THSZ4iuJBPrgb8hk?cluster=devnet) |
+| Schema: verified-seller badge (tokenized, non-transferable Token-2022) | [`22uX5CiJ3bTqgikHoHiZ9Ha7Ncc7wBioUDrHdXyw2Rcq`](https://explorer.solana.com/address/22uX5CiJ3bTqgikHoHiZ9Ha7Ncc7wBioUDrHdXyw2Rcq?cluster=devnet) |
+| Schema: verified business | [`ZpFz1ZiLMLReQP1vHSevcGzmtp2RG2UTzk8CgwL5NaE`](https://explorer.solana.com/address/ZpFz1ZiLMLReQP1vHSevcGzmtp2RG2UTzk8CgwL5NaE?cluster=devnet) |
+| Paid API for apps and AI agents | [pay.sh](https://pay.sh) gateway, USDC per request (sandbox-tested) |
 
 ---
 

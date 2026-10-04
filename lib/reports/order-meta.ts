@@ -26,6 +26,7 @@ import { join } from "path";
 import { MAX_WINDOW_SECS } from "../chains/solana/orders";
 import { EncryptedStore, keyFromEnv } from "../checkout/encrypted-store";
 import { PENDING_TTL_SECONDS } from "../checkout/address-store";
+import { dataDir } from "../data-dir";
 
 /** How long after fulfilment a buyer may report what arrived. */
 export const REPORT_WINDOW_SECS = 30 * 24 * 3600;
@@ -48,7 +49,7 @@ export class OrderMetaStore extends EncryptedStore<OrderMeta> {
   static fromEnv(env: Record<string, string | undefined> = process.env): OrderMetaStore | null {
     const key = keyFromEnv(env);
     if (!key) return null;
-    return new OrderMetaStore(env.ORDER_META_DIR?.trim() || join(process.cwd(), ".data", "order-meta"), key, "order-meta");
+    return new OrderMetaStore(env.ORDER_META_DIR?.trim() || join(dataDir(env), "order-meta"), key, "order-meta");
   }
 
   static withKey(dir: string, key: Buffer): OrderMetaStore {

@@ -38,6 +38,7 @@ import type { Flag } from "../marketplace/anomaly";
 import type { Listing } from "../marketplace/types";
 import { sellerKey } from "../marketplace/types";
 import { businessMessage } from "./business-message";
+import { dataDir } from "../data-dir";
 
 type Env = Record<string, string | undefined>;
 
@@ -177,7 +178,7 @@ export class BusinessLog {
   constructor(private readonly file: string) {}
 
   static fromEnv(env: Env = process.env): BusinessLog {
-    return new BusinessLog(env.BUSINESSES_FILE?.trim() || join(process.cwd(), ".data", "sellers", "businesses.json"));
+    return new BusinessLog(env.BUSINESSES_FILE?.trim() || join(dataDir(env), "sellers", "businesses.json"));
   }
 
   /** Keyed by owner wallet. */
