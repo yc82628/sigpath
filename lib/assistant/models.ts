@@ -235,7 +235,8 @@ export interface AssistantConfig {
  *   ASSISTANT_PROVIDER=anthropic  ANTHROPIC_API_KEY, ASSISTANT_MODEL (default claude-opus-5-5)
  *   unset                         anthropic if ANTHROPIC_API_KEY is set
  */
-export function assistantConfig(env: Record<string, string | undefined> = process.env): AssistantConfig | null {
+export function assistantConfig(raw: Record<string, string | undefined> = process.env): AssistantConfig | null {
+  const env = cleanEnv(raw);
   const provider = (env.ASSISTANT_PROVIDER || (env.ANTHROPIC_API_KEY ? "anthropic" : "")).toLowerCase();
   if (provider === "ollama") {
     const host = (env.OLLAMA_HOST || "http://localhost:11434").replace(/\/+$/, "");
@@ -249,6 +250,35 @@ export function assistantConfig(env: Record<string, string | undefined> = proces
     return { provider: "anthropic", model: env.ASSISTANT_MODEL || DEFAULT_ANTHROPIC_MODEL };
   }
   return null;
+}
+
+const SETTINGS = ["ASSISTANT_PROVIDER", "ASSISTANT_BASE_URL", "ASSISTANT_MODEL", "ASSISTANT_API_KEY", "OLLAMA_HOST", "ANTHROPIC_API_KEY"] as const;
+
+/**
+ * Values pasted into a hosting dashboard often carry a stray space, newline or
+ * pair of quotes; any of those would otherwise switch the assistant off.
+ */
+function cleanEnv(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const name of SETTINGS) {
+    const v = env[name]?.trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+    out[name] = v || undefined;
+  }
+  return out;
+}
+
+/**
+ * Why the assistant is off, for whoever deploys it: the names of the settings
+ * still missing. Names only, never values, so it is safe to show publicly.
+ */
+export function assistantSetupGaps(raw: Record<string, string | undefined> = process.env): string[] {
+  if (assistantConfig(raw)) return [];
+  const env = cleanEnv(raw);
+  const provider = (env.ASSISTANT_PROVIDER ?? "").toLowerCase();
+  if (!provider) return ["ASSISTANT_PROVIDER"];
+  if (provider === "openai") return (["ASSISTANT_BASE_URL", "ASSISTANT_MODEL"] as const).filter((n) => !env[n]);
+  if (provider === "anthropic") return ["ANTHROPIC_API_KEY"];
+  return [`ASSISTANT_PROVIDER (unknown value; use ollama, openai or anthropic)`];
 }
 
 export function modelFromConfig(c: AssistantConfig): ChatModel {

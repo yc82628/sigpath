@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import type Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "../lib/assistant/assistant";
-import { anthropicModel, assistantConfig, openAICompatModel, type StreamingClient } from "../lib/assistant/models";
+import { anthropicModel, assistantConfig, assistantSetupGaps, openAICompatModel, type StreamingClient } from "../lib/assistant/models";
 import { SearchInput, filterResults } from "../lib/assistant/search-tool";
 import { RateLimiter } from "../lib/assistant/rate-limit";
 import { withLabels } from "../lib/marketplace/label";
@@ -253,6 +253,21 @@ test("config: picks the provider from the environment", () => {
   assert.strictEqual(assistantConfig({ ASSISTANT_PROVIDER: "openai", ASSISTANT_MODEL: "gemini-2.5-flash" }), null, "openai needs a base URL");
   assert.deepStrictEqual(assistantConfig({ ASSISTANT_PROVIDER: "openai", ASSISTANT_BASE_URL: "https://g/v1", ASSISTANT_MODEL: "m", ASSISTANT_API_KEY: "k" }), { provider: "openai", model: "m", baseUrl: "https://g/v1", apiKey: "k" });
   assert.strictEqual(assistantConfig({ ASSISTANT_PROVIDER: "anthropic" }), null, "anthropic needs its key");
+});
+
+test("config: tolerates the stray spaces and quotes a dashboard paste leaves behind", () => {
+  const pasted = { ASSISTANT_PROVIDER: " OpenAI\n", ASSISTANT_BASE_URL: "\"https://g/v1\"", ASSISTANT_MODEL: " gemini-2.5-flash ", ASSISTANT_API_KEY: "'k'" };
+  assert.deepStrictEqual(assistantConfig(pasted), { provider: "openai", model: "gemini-2.5-flash", baseUrl: "https://g/v1", apiKey: "k" });
+  assert.strictEqual(assistantConfig({ ASSISTANT_PROVIDER: "openai", ASSISTANT_BASE_URL: "  ", ASSISTANT_MODEL: "m" }), null, "blank is missing");
+});
+
+test("config: names the missing settings, never their values", () => {
+  assert.deepStrictEqual(assistantSetupGaps({}), ["ASSISTANT_PROVIDER"]);
+  assert.deepStrictEqual(assistantSetupGaps({ ASSISTANT_PROVIDER: "openai", ASSISTANT_API_KEY: "secret" }), ["ASSISTANT_BASE_URL", "ASSISTANT_MODEL"]);
+  assert.deepStrictEqual(assistantSetupGaps({ ASSISTANT_PROVIDER: "anthropic" }), ["ANTHROPIC_API_KEY"]);
+  assert.match(assistantSetupGaps({ ASSISTANT_PROVIDER: "gemini" })[0], /unknown value/);
+  assert.deepStrictEqual(assistantSetupGaps({ ASSISTANT_PROVIDER: "ollama" }), []);
+  assert.ok(!JSON.stringify(assistantSetupGaps({ ASSISTANT_PROVIDER: "openai", ASSISTANT_API_KEY: "secret" })).includes("secret"));
 });
 
 test("search tool: when nothing matches, the closest real options come back, never a flagged one", async () => {

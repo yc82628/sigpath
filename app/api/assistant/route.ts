@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "@/lib/assistant/assistant";
-import { assistantConfig, modelFromConfig } from "@/lib/assistant/models";
+import { assistantConfig, assistantSetupGaps, modelFromConfig } from "@/lib/assistant/models";
 import { RateLimiter } from "@/lib/assistant/rate-limit";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 
@@ -13,14 +13,25 @@ import { labelledSearch } from "@/lib/marketplace/labelled-search";
 // here stores or logs it.
 
 export const runtime = "nodejs";
+// The status below reads the environment on every request, not once at build time.
+export const dynamic = "force-dynamic";
 
 // 20 turns per 10 minutes per client.
 const limiter = new RateLimiter(20, 10 * 60 * 1000);
 
+// GET /api/assistant: whether the assistant is on here, and if not, which
+// settings are missing (names only, never values).
+export async function GET() {
+  const config = assistantConfig();
+  return NextResponse.json(config ? { available: true, provider: config.provider, model: config.model } : { available: false, missing: assistantSetupGaps() }, {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(req: NextRequest) {
   const config = assistantConfig();
   if (!config) {
-    return NextResponse.json({ error: "The shopping assistant isn't set up on this server." }, { status: 503 });
+    return NextResponse.json({ error: "The shopping assistant isn't set up on this server.", missing: assistantSetupGaps() }, { status: 503 });
   }
 
   const client = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "local";
