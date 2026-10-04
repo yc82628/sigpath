@@ -1521,3 +1521,7 @@ third is the load-bearing one.
   funded EVM wallet.
 - **Session state is in-memory.** `lib/footprint/session.ts` uses a `Map` —
   single instance only. Move to Redis before scaling out.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
