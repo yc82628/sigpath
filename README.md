@@ -80,7 +80,7 @@ For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`,
 `.env.local.example`), then set `STUB_FEED=false` once they answer.
 
 ```powershell
-npm test                                   # 362 tests, as of 2026-10-02
+npm test                                   # 443 tests, as of 2026-10-04
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -248,7 +248,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (362 as of 2026-10-02), then a dev server on http://localhost:3000.
+Expect every test to pass (443 as of 2026-10-04), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
