@@ -42,7 +42,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
   ok: "searched",
-  not_configured: "not configured",
+  not_configured: "not connected yet",
   rate_limited: "rate limited",
   timeout: "timed out",
   error: "failed",
@@ -364,7 +364,7 @@ async function SearchResults({
             }
             title={s.detail ?? ""}
           >
-            {s.source}: {STATUS_LABEL[s.status] ?? s.status}
+            {marketLabel(s.source)}: {STATUS_LABEL[s.status] ?? s.status}
             {s.status === "ok" && ` (${s.count})`}
           </li>
         ))}
@@ -389,14 +389,14 @@ async function SearchResults({
           )}
           {a.coverage.length > 1
             ? ` on ${a.coverage.length} marketplaces`
-            : ` on ${a.coverage[0]}`}
+            : ` on ${a.coverage[0] === "stub" ? "the demo feed" : marketLabel(a.coverage[0])}`}
           .
           {a.notConfigured.length > 0 && (
-            <> Not searched: {a.notConfigured.join(", ")}.</>
+            <> Not searched yet: {a.notConfigured.map(marketLabel).join(", ")}.</>
           )}
           {a.excludedFromComparison.length > 0 && (
             // Says why a cheap listing from these carries no price flag.
-            <> Shown but not price-compared: {a.excludedFromComparison.join(", ")} (handmade and vintage goods are not comparable with retail).</>
+            <> Shown but not price-compared: {a.excludedFromComparison.map(marketLabel).join(", ")} (handmade and vintage goods are not comparable with retail).</>
           )}
         </p>
       ) : (
