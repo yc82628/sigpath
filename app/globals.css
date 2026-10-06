@@ -46,14 +46,17 @@
   /* The identity pages and the camera component still say --accent. */
   --accent: var(--brand);
 
-  /* The page itself; in dark mode a gradient over the whole screen. */
-  --page-bg: var(--bg);
+  /* The page itself: a gradient over the whole screen, rising from a pale
+     sage at the bottom to sand at the top. Every text colour stays AA on
+     its palest stop (lowest 4.6:1, the amber on the sage). */
+  --page-bg: linear-gradient(to top, #dce7df 0%, #e9eadf 45%, #f4f0e7 100%) fixed;
 
   /* Primary buttons are brass with ink text. */
   --cta: var(--brass);
   --cta-ink: var(--ink);
 
-  --hero-bg: linear-gradient(135deg, var(--sage-light), var(--sand));
+  /* The hero lets the page gradient show through. */
+  --hero-bg: transparent;
   --hero-fg: var(--ink);
 
   --ok: #22703d;
