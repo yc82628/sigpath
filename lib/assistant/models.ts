@@ -150,7 +150,17 @@ export interface OpenAICompatOptions {
   apiKey?: string;
   label?: string;
   fetchImpl?: typeof fetch;
+  /** Thinking models (Gemini 3) think at length unless told otherwise: "low" keeps replies quick. */
+  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  /** Reply budget; on thinking models it covers the thinking too. Default 1024. */
+  maxTokens?: number;
+  /** Give up on a turn after this long, so a stalled API becomes an error, not silence. */
+  timeoutMs?: number;
+  /** Pause before the one retry a busy API (429, 503) gets. Default 1500. */
+  retryDelayMs?: number;
 }
+
+const BUSY = new Set([429, 503]);
 
 /**
  * A model API refusing a request. Carries the HTTP status and the provider's
@@ -186,18 +196,29 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
   return {
     label: opts.label ?? `openai:${opts.model}`,
     async turn({ system, messages, tools, allowTools, onText }) {
-      const res = await doFetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}) },
-        body: JSON.stringify({
-          model: opts.model,
-          stream: true,
-          max_tokens: 1024,
-          messages: toOpenAI(system, messages),
-          tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
-          tool_choice: allowTools ? "auto" : "none",
-        }),
+      const body = JSON.stringify({
+        model: opts.model,
+        stream: true,
+        max_tokens: opts.maxTokens ?? 1024,
+        ...(opts.reasoningEffort ? { reasoning_effort: opts.reasoningEffort } : {}),
+        messages: toOpenAI(system, messages),
+        tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
+        tool_choice: allowTools ? "auto" : "none",
       });
+      const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
+      const send = () =>
+        doFetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}) },
+          body,
+          signal,
+        });
+      let res = await send();
+      if (BUSY.has(res.status)) {
+        await res.body?.cancel();
+        await new Promise((r) => setTimeout(r, opts.retryDelayMs ?? 1500));
+        res = await send();
+      }
       if (!res.ok || !res.body) throw new ModelApiError(res.status, res.ok ? undefined : await errorCode(res));
 
       // Server-sent events: text arrives in pieces; tool calls arrive in
@@ -311,7 +332,17 @@ export function assistantSetupGaps(raw: Record<string, string | undefined> = pro
 
 export function modelFromConfig(c: AssistantConfig): ChatModel {
   if (c.provider === "anthropic") return anthropicModel(new Anthropic(), c.model);
-  return openAICompatModel({ baseUrl: c.baseUrl!, model: c.model, apiKey: c.apiKey, label: `${c.provider}:${c.model}` });
+  const gemini = /generativelanguage\.googleapis\.com/.test(c.baseUrl!);
+  return openAICompatModel({
+    baseUrl: c.baseUrl!,
+    model: c.model,
+    apiKey: c.apiKey,
+    label: `${c.provider}:${c.model}`,
+    // Gemini 3 always thinks, by default at length; low keeps the chat responsive.
+    ...(gemini ? { reasoningEffort: "low" as const, maxTokens: 4096 } : {}),
+    // A hosted API should answer well within this; a local model may still be loading.
+    ...(c.provider === "openai" ? { timeoutMs: 45_000 } : {}),
+  });
 }
 
 /** Who answers, in words a shopper understands (shown under the chat). */

@@ -261,6 +261,43 @@ test("openai-compatible: a refusal carries the short error code, never the messa
   await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: openai }).turn(turn), /400 invalid_request_error/);
 });
 
+test("openai-compatible: a busy API gets one retry, then the error stands", async () => {
+  const turn = { system: "s", messages: [{ role: "user" as const, content: "hi" }], tools: [], allowTools: true, onText: () => {} };
+  const answers = (statuses: number[]) => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      const status = statuses[Math.min(calls++, statuses.length - 1)];
+      return status === 200 ? new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n') : new Response("[]", { status });
+    }) as unknown as typeof fetch;
+    return { fetchImpl, calls: () => calls };
+  };
+  const once = answers([503, 200]);
+  const reply = await openAICompatModel({ baseUrl: "http://x/v1", model: "m", retryDelayMs: 0, fetchImpl: once.fetchImpl }).turn(turn);
+  assert.strictEqual(reply.text, "ok");
+  assert.strictEqual(once.calls(), 2);
+  const always = answers([429]);
+  await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", retryDelayMs: 0, fetchImpl: always.fetchImpl }).turn(turn), /429/);
+  assert.strictEqual(always.calls(), 2, "only one retry");
+  const broken = answers([400]);
+  await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", retryDelayMs: 0, fetchImpl: broken.fetchImpl }).turn(turn), /400/);
+  assert.strictEqual(broken.calls(), 1, "a real error isn't retried");
+});
+
+test("config: Gemini is asked for brief thinking, other APIs get no extra fields", async () => {
+  const sent: Record<string, unknown>[] = [];
+  const capture = (async (_url: string, init: RequestInit) => {
+    sent.push(JSON.parse(String(init.body)));
+    return new Response("data: [DONE]\n\n");
+  }) as unknown as typeof fetch;
+  const turn = { system: "s", messages: [{ role: "user" as const, content: "hi" }], tools: [], allowTools: true, onText: () => {} };
+  await openAICompatModel({ baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "g", reasoningEffort: "low", maxTokens: 4096, fetchImpl: capture }).turn(turn);
+  await openAICompatModel({ baseUrl: "http://localhost:11434/v1", model: "q", fetchImpl: capture }).turn(turn);
+  assert.strictEqual(sent[0].reasoning_effort, "low");
+  assert.strictEqual(sent[0].max_tokens, 4096);
+  assert.ok(!("reasoning_effort" in sent[1]));
+  assert.strictEqual(sent[1].max_tokens, 1024);
+});
+
 test("config: picks the provider from the environment", () => {
   assert.strictEqual(assistantConfig({}), null);
   assert.deepStrictEqual(assistantConfig({ ANTHROPIC_API_KEY: "k" }), { provider: "anthropic", model: "claude-opus-5-5" });
