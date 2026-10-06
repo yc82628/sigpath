@@ -499,7 +499,7 @@ answers in a few sentences, with the results as cards in the chat.
 - **Cost guard:** 20 turns per 10 minutes per client; messages up to 2,000 characters, 24 turns.
 - **Any model that can use tools** ([lib/assistant/models.ts](lib/assistant/models.ts)), chosen by `ASSISTANT_PROVIDER`:
   - `ollama`: a model on this machine. Free and offline, no account. Default `qwen2.5:7b`, which fits an 8 GB GPU.
-  - `openai`: any OpenAI-compatible API, such as Google Gemini (free tier), OpenAI or OpenRouter, with `ASSISTANT_BASE_URL`, `ASSISTANT_API_KEY` and `ASSISTANT_MODEL`.
+  - `openai`: any OpenAI-compatible API, such as Google Gemini (free tier), OpenAI or OpenRouter, with `ASSISTANT_BASE_URL`, `ASSISTANT_API_KEY` and `ASSISTANT_MODEL`. The live demo at sigpath.vercel.app runs Gemini `gemini-3.5-flash` through `https://generativelanguage.googleapis.com/v1beta/openai`. For Gemini, SigPath asks for brief thinking and sends Gemini 3's thought signatures back with each search call, which it otherwise refuses.
   - `anthropic`: Claude, with `ANTHROPIC_API_KEY`. It needs API credit, which is separate from a Claude app plan. Default `claude-opus-5-5`.
 
   The chat button is hidden when no model is configured, and the chat says which kind of model answers.
