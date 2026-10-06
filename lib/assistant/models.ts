@@ -18,6 +18,12 @@ export interface ToolCall {
   name: string;
   /** Parsed JSON arguments; null when the model sent something unparseable. */
   input: unknown;
+  /**
+   * Provider data that must go back with the call, untouched: Gemini 3 signs
+   * its reasoning (extra_content.google.thought_signature) and refuses the
+   * next turn without it.
+   */
+  extra?: unknown;
 }
 
 export type ChatMsg =
@@ -115,7 +121,7 @@ export function anthropicModel(client: StreamingClient, model = DEFAULT_ANTHROPI
 
 type OpenAIMessage =
   | { role: "system" | "user"; content: string }
-  | { role: "assistant"; content: string | null; tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[] }
+  | { role: "assistant"; content: string | null; tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string }; extra_content?: unknown }[] }
   | { role: "tool"; tool_call_id: string; content: string };
 
 function toOpenAI(system: string, messages: ChatMsg[]): OpenAIMessage[] {
@@ -128,7 +134,14 @@ function toOpenAI(system: string, messages: ChatMsg[]): OpenAIMessage[] {
         role: "assistant",
         content: m.content || null,
         ...(m.toolCalls?.length
-          ? { tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: "function" as const, function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) } })) }
+          ? {
+              tool_calls: m.toolCalls.map((c) => ({
+                id: c.id,
+                type: "function" as const,
+                function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) },
+                ...(c.extra !== undefined ? { extra_content: c.extra } : {}),
+              })),
+            }
           : {}),
       };
     }),
@@ -225,7 +238,7 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
       // pieces too, keyed by index, and are assembled before use.
       let text = "";
       let refused = false;
-      const calls = new Map<number, { id: string; name: string; args: string }>();
+      const calls = new Map<number, { id: string; name: string; args: string; extra?: unknown }>();
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -239,7 +252,10 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
           const data = line.trim().replace(/^data:\s*/, "");
           if (!data || data === "[DONE]" || !line.trim().startsWith("data:")) continue;
           const chunk = JSON.parse(data) as {
-            choices?: { delta?: { content?: string | null; tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[] }; finish_reason?: string | null }[];
+            choices?: {
+              delta?: { content?: string | null; tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string }; extra_content?: unknown }[] };
+              finish_reason?: string | null;
+            }[];
           };
           const choice = chunk.choices?.[0];
           if (!choice) continue;
@@ -253,6 +269,7 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
             if (tc.id) cur.id = tc.id;
             if (tc.function?.name) cur.name += tc.function.name;
             if (tc.function?.arguments) cur.args += tc.function.arguments;
+            if (tc.extra_content !== undefined) cur.extra = tc.extra_content;
             calls.set(i, cur);
           }
           if (choice.finish_reason === "content_filter") refused = true;
@@ -260,7 +277,7 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
       }
       const toolCalls = [...calls.entries()]
         .sort(([a], [b]) => a - b)
-        .map(([i, c]) => ({ id: c.id || `call_${i}`, name: c.name, input: parseArgs(c.args) }));
+        .map(([i, c]) => ({ id: c.id || `call_${i}`, name: c.name, input: parseArgs(c.args), ...(c.extra !== undefined ? { extra: c.extra } : {}) }));
       return { text, toolCalls, refused };
     },
   };

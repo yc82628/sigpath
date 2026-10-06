@@ -283,6 +283,36 @@ test("openai-compatible: a busy API gets one retry, then the error stands", asyn
   assert.strictEqual(broken.calls(), 1, "a real error isn't retried");
 });
 
+test("openai-compatible: Gemini's thought signature goes back with its tool call", async () => {
+  const signature = { google: { thought_signature: "c2lnbmVk" } };
+  const sent: { messages: { role: string; tool_calls?: { extra_content?: unknown }[] }[] }[] = [];
+  const fetchImpl = (async (_url: string, init: RequestInit) => {
+    sent.push(JSON.parse(String(init.body)));
+    if (sent.length === 1) {
+      const call = { index: 0, id: "c1", type: "function", function: { name: "search_deals", arguments: '{"query":"x"}' }, extra_content: signature };
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\ndata: [DONE]\n\n`);
+    }
+    return new Response('data: {"choices":[{"delta":{"content":"done"}}]}\n\ndata: [DONE]\n\n');
+  }) as unknown as typeof fetch;
+  const model = openAICompatModel({ baseUrl: "http://x/v1", model: "g", fetchImpl });
+  const base = { system: "s", tools: [], allowTools: true, onText: () => {} };
+  const first = await model.turn({ ...base, messages: [{ role: "user", content: "hi" }] });
+  assert.deepStrictEqual(first.toolCalls[0].extra, signature);
+  await model.turn({
+    ...base,
+    messages: [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "", toolCalls: first.toolCalls },
+      { role: "tool", toolCallId: "c1", content: "{}" },
+    ],
+  });
+  const assistant = sent[1].messages.find((m) => m.role === "assistant");
+  assert.deepStrictEqual(assistant?.tool_calls?.[0].extra_content, signature);
+  // Providers that send none get none back.
+  const plain = await openAICompatModel({ baseUrl: "http://x/v1", model: "q", fetchImpl: (async () => new Response(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c2", function: { name: "search_deals", arguments: "{}" } }] } }] })}\n\ndata: [DONE]\n\n`)) as unknown as typeof fetch }).turn({ ...base, messages: [{ role: "user", content: "hi" }] });
+  assert.ok(!("extra" in plain.toolCalls[0]));
+});
+
 test("config: Gemini is asked for brief thinking, other APIs get no extra fields", async () => {
   const sent: Record<string, unknown>[] = [];
   const capture = (async (_url: string, init: RequestInit) => {
