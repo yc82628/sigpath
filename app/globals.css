@@ -3,45 +3,54 @@
    --------------------------------------------------------------------------
    Every colour on the site comes from these variables. Three kinds:
 
-   LOGO (--ink, --cyan, --cyan-light)
-     The logo's exact colours (finalised 2026-10-02): cyan artwork on a black
-     brush circle, on a cyan gradient. Used as-is for the header, the hero and
-     the buttons (cyan on black is 8.8:1).
+   PALETTE (--brass, --sand, --stone, --sage, --sage-light, --ink)
+     Sage & Brass (chosen 2026-10-06): brass #b09763, sand #dfd7c6, stone
+     #7d7875, sage #668a84 and light sage #89b09f, with a warm charcoal ink.
+     Used as-is for the header, the hero and the buttons: brass and light
+     sage both read on the ink (5.3:1 and 6.2:1), and ink reads on both.
 
    BRAND (--brand*, --bg, --surface*, --fg, --muted, --border)
-     Logo cyan is too light to be text on white (2.1:1), so text accents use
-     a deep cyan in light mode and a bright one in dark. Every text pair passes
-     WCAG AA (lowest 4.95:1 in light, 6.8:1 in dark).
+     Sage and stone are too light to be text on sand (3.8:1 to 3.9:1), so text
+     uses deeper shades of them. Every text pair passes WCAG AA (lowest 5.1:1
+     in light, 6.4:1 in dark).
 
    TRUST (--ok*, --warn*)
      What the checks MEAN: green for SigPath-checked, amber for "look closer".
-     Kept clear of the brand cyan, and every verdict also carries an icon and
-     words, so a shopper never tells them apart by colour alone.
+     They sit near the sage and the brass in hue, so they are kept deeper and
+     more saturated, used only for verdicts, and every verdict also carries an
+     icon and words: a shopper never tells them apart by colour alone.
    ========================================================================== */
 
 :root {
-  --ink: #111111;
-  --cyan: #3ec1d3;
-  --cyan-light: #6dd0de;
+  --brass: #b09763;
+  --sand: #dfd7c6;
+  --stone: #7d7875;
+  --sage: #668a84;
+  --sage-light: #89b09f;
+  --ink: #2a2725;
+  /* Light text and lines on the ink (header, chat, code). */
+  --on-ink: #ece8df;
+  --on-ink-muted: #c4bdb3;
+  --ink-line: #3d3936;
 
-  --bg: #f2f8f9;
-  --surface: #ffffff;
-  --surface-2: #e4f1f3;
-  --fg: #111111;
-  --muted: #4b585b;
-  --border: #cfe3e7;
+  --bg: #f4f0e7;
+  --surface: #fcfaf5;
+  --surface-2: #ebe4d6;
+  --fg: #2a2725;
+  --muted: #625d5a;
+  --border: var(--sand);
 
-  --brand: #0a6774;
+  --brand: #46685f;
   --brand-ink: #ffffff;   /* text on --brand */
-  --brand-soft: #ddf2f5;  /* tinted backgrounds */
+  --brand-soft: #e3ece8;  /* tinted backgrounds */
   /* The identity pages and the camera component still say --accent. */
   --accent: var(--brand);
 
-  /* Primary buttons wear the logo: cyan on black. */
-  --cta: var(--ink);
-  --cta-ink: var(--cyan);
+  /* Primary buttons are brass with ink text. */
+  --cta: var(--brass);
+  --cta-ink: var(--ink);
 
-  --hero-bg: linear-gradient(135deg, var(--cyan), var(--cyan-light));
+  --hero-bg: linear-gradient(135deg, var(--sage-light), var(--sand));
   --hero-fg: var(--ink);
 
   --ok: #22703d;
@@ -51,29 +60,29 @@
 
   --radius: 14px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(17, 17, 17, 0.05), 0 6px 16px rgba(17, 17, 17, 0.06);
-  --shadow-lift: 0 2px 4px rgba(17, 17, 17, 0.08), 0 12px 28px rgba(17, 17, 17, 0.12);
+  --shadow: 0 1px 2px rgba(42, 39, 37, 0.05), 0 6px 16px rgba(42, 39, 37, 0.07);
+  --shadow-lift: 0 2px 4px rgba(42, 39, 37, 0.08), 0 12px 28px rgba(42, 39, 37, 0.13);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* By night: the logo's black, with the cyan doing the talking. */
-    --bg: #0c0e0f;
-    --surface: #141819;
-    --surface-2: #1b2123;
-    --fg: #eaf4f5;
-    --muted: #9db0b4;
-    --border: #263235;
+    /* By night: a deep green-black, with light sage doing the talking. */
+    --bg: #151716;
+    --surface: #1d201f;
+    --surface-2: #252928;
+    --fg: #ece8df;
+    --muted: #aaa49f;
+    --border: #343937;
 
-    --brand: #4fd0e0;
-    --brand-ink: #0c0e0f;
-    --brand-soft: #10282c;
+    --brand: var(--sage-light);
+    --brand-ink: #151716;
+    --brand-soft: #1f2b28;
 
-    --cta: var(--cyan);
-    --cta-ink: var(--ink);
+    --cta: var(--brass);
+    --cta-ink: #151716;
 
-    --hero-bg: radial-gradient(900px 420px at 50% 0%, #0f3a41, transparent 75%), var(--bg);
+    --hero-bg: radial-gradient(900px 420px at 50% 0%, #2c3d39, transparent 75%), var(--bg);
     --hero-fg: var(--fg);
 
     --ok: #5fc08a;
@@ -133,11 +142,11 @@ button { font-family: var(--font-sans); }
    Header and footer
    ========================================================================== */
 
-/* The header is the logo's black in both modes: the cyan wordmark sits on it. */
+/* The header is the ink in both modes: the wordmark sits on it. */
 .site-header {
   position: sticky; top: 0; z-index: 10;
   background: var(--ink);
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid var(--ink-line);
 }
 .site-header-inner, .site-footer-inner {
   max-width: 1040px; margin: 0 auto; padding: 0 16px;
@@ -148,11 +157,11 @@ button { font-family: var(--font-sans); }
 .logo-wordmark { display: block; height: 24px; width: auto; }
 .site-nav { display: flex; gap: 4px; }
 .site-nav a {
-  color: #c9d6d8; text-decoration: none; font-weight: 600; font-size: 0.92rem;
+  color: var(--on-ink-muted); text-decoration: none; font-weight: 600; font-size: 0.92rem;
   padding: 6px 12px; border-radius: 999px;
 }
-.site-nav a:hover { color: var(--cyan); background: #222; }
-.site-header :focus-visible { outline-color: var(--cyan); }
+.site-nav a:hover { color: var(--brass); text-decoration: underline; text-underline-offset: 4px; }
+.site-header :focus-visible { outline-color: var(--brass); }
 
 .site-footer { margin-top: 64px; border-top: 1px solid var(--border); background: var(--surface); }
 .site-footer-inner { display: block; padding: 28px 16px; font-size: 0.9rem; }
@@ -178,8 +187,8 @@ button { font-family: var(--font-sans); }
   color: var(--muted); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em;
 }
 @media (prefers-color-scheme: dark) {
-  /* Black badge on a near-black page: a soft cyan glow keeps its edge. */
-  .hero-badge { filter: drop-shadow(0 0 28px rgba(62, 193, 211, 0.28)); }
+  /* Black badge on a near-black page: a soft sage glow keeps its edge. */
+  .hero-badge { filter: drop-shadow(0 0 28px rgba(137, 176, 159, 0.28)); }
 }
 .nowrap { white-space: nowrap; }
 .hero-title { font-size: clamp(2.1rem, 6vw, 3.4rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.08; margin: 0 0 8px; }
@@ -217,8 +226,8 @@ button { font-family: var(--font-sans); }
   display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px;
   background: var(--brand-soft); color: var(--brand);
 }
-/* Every other tile wears the logo: cyan on black. */
-.category-grid li:nth-child(even) .category-icon { background: var(--ink); color: var(--cyan); }
+/* Every other tile wears the palette: light sage on ink. */
+.category-grid li:nth-child(even) .category-icon { background: var(--ink); color: var(--sage-light); }
 @media (max-width: 640px) {
   .category-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-inner { padding: 56px 16px 44px; }
@@ -339,8 +348,8 @@ button { font-family: var(--font-sans); }
   display: inline-block; font-size: 0.74rem; font-weight: 700; color: var(--ok);
   background: var(--ok-soft); border: 1px solid var(--ok); border-radius: 999px; padding: 0 8px; text-decoration: none;
 }
-/* The business tier wears the logo: cyan on black. */
-.verified.business { color: var(--cyan); background: var(--ink); border-color: var(--cyan); }
+/* The business tier wears the palette: light sage on ink. */
+.verified.business { color: var(--sage-light); background: var(--ink); border-color: var(--sage-light); }
 
 /* The SigPath-checked label. Checked is green, "look closer" amber (an
    observation, not an alarm), and "not price-checked" neutral — an Etsy mug
@@ -482,10 +491,9 @@ button { font-family: var(--font-sans); }
    Palette candidates — compared side by side on /palettes
    --------------------------------------------------------------------------
    Each class redefines the tokens for everything inside it, so the real
-   components render in that palette. These are INTERPRETATIONS of the two
-   styles under consideration, not the source palettes' exact codes: replace
-   the hex values once those are in. Every text pair here is checked to WCAG
-   AA (4.5:1). The winner's values move to :root.
+   components render in that palette (light mode). Sage & Brass is the live
+   palette and matches :root; Logo Cyan is the one it replaced. Every text
+   pair here is checked to WCAG AA (4.5:1).
    ========================================================================== */
 
 .theme-cyan {
@@ -497,11 +505,11 @@ button { font-family: var(--font-sans); }
   --ok: #22703d; --ok-soft: #e2f0e5; --warn: #8e5a14; --warn-soft: #f6ecdb;
 }
 .theme-sage {
-  --bg: #f6f3ec; --surface: #fcfbf8; --surface-2: #eee8dc;
-  --fg: #2a2725; --muted: #67625f; --border: #dfd7c6;
-  --brand: #46685f; --brand-ink: #ffffff; --brand-soft: #e4ede9; --accent: var(--brand);
-  --cta: #46685f; --cta-ink: #ffffff;
-  --hero-bg: #f6f3ec; --hero-fg: #2a2725;
+  --bg: #f4f0e7; --surface: #fcfaf5; --surface-2: #ebe4d6;
+  --fg: #2a2725; --muted: #625d5a; --border: #dfd7c6;
+  --brand: #46685f; --brand-ink: #ffffff; --brand-soft: #e3ece8; --accent: var(--brand);
+  --cta: #b09763; --cta-ink: #2a2725;
+  --hero-bg: linear-gradient(135deg, #89b09f, #dfd7c6); --hero-fg: #2a2725;
   --ok: #22703d; --ok-soft: #e2f0e5; --warn: #8e5a14; --warn-soft: #f6ecdb;
 }
 
@@ -545,7 +553,7 @@ button { font-family: var(--font-sans); }
 /* Code on the logo's black, in both modes. */
 .code-block {
   margin: 12px 0 0; padding: 16px 18px; overflow-x: auto;
-  background: var(--ink); color: #d7e6e8; border-radius: var(--radius);
+  background: var(--ink); color: var(--on-ink); border-radius: var(--radius);
   font: 0.85rem/1.55 ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 .code-block code { background: none; border: 0; padding: 0; color: inherit; font: inherit; white-space: pre; }
@@ -557,12 +565,12 @@ button { font-family: var(--font-sans); }
 .chat-launcher {
   position: fixed; right: 20px; bottom: 20px; z-index: 30;
   display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px 13px 16px;
-  background: var(--ink); color: var(--cyan); border: 1px solid #2a2a2a; border-radius: 999px;
+  background: var(--ink); color: var(--brass); border: 1px solid var(--ink-line); border-radius: 999px;
   font: 700 0.95rem/1 var(--font-sans); cursor: pointer;
   box-shadow: 0 6px 20px rgba(17, 17, 17, 0.28); transition: transform 0.12s ease;
 }
 .chat-launcher:hover { transform: translateY(-2px); }
-.chat-launcher:focus-visible { outline-color: var(--cyan); }
+.chat-launcher:focus-visible { outline-color: var(--sage-light); }
 
 .chat-panel {
   position: fixed; right: 20px; bottom: 20px; z-index: 30;
@@ -571,12 +579,12 @@ button { font-family: var(--font-sans); }
   background: var(--bg); border: 1px solid var(--border); border-radius: 18px; overflow: hidden;
   box-shadow: 0 12px 40px rgba(17, 17, 17, 0.25);
 }
-.chat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--ink); color: #eaf4f5; }
-.chat-head strong { display: block; color: var(--cyan); font-size: 1rem; }
-.chat-head span { font-size: 0.8rem; color: #a9bcc0; }
-.chat-close { background: none; border: 0; color: #eaf4f5; font-size: 1.6rem; line-height: 1; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
-.chat-close:hover { background: #222; }
-.chat-close:focus-visible { outline-color: var(--cyan); }
+.chat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--ink); color: var(--on-ink); }
+.chat-head strong { display: block; color: var(--sage-light); font-size: 1rem; }
+.chat-head span { font-size: 0.8rem; color: var(--on-ink-muted); }
+.chat-close { background: none; border: 0; color: var(--on-ink); font-size: 1.6rem; line-height: 1; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.chat-close:hover { background: var(--ink-line); }
+.chat-close:focus-visible { outline-color: var(--sage-light); }
 
 .chat-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .chat-welcome p { margin: 0 0 12px; color: var(--muted); font-size: 0.92rem; }
@@ -590,7 +598,7 @@ button { font-family: var(--font-sans); }
 .chat-turn { display: flex; flex-direction: column; gap: 8px; }
 .chat-turn.user { align-items: flex-end; }
 .chat-bubble { margin: 0; padding: 10px 14px; border-radius: 16px; max-width: 88%; white-space: pre-wrap; font-size: 0.93rem; line-height: 1.5; }
-.chat-turn.user .chat-bubble { background: var(--ink); color: #eaf4f5; border-bottom-right-radius: 4px; }
+.chat-turn.user .chat-bubble { background: var(--ink); color: var(--on-ink); border-bottom-right-radius: 4px; }
 .chat-turn.assistant .chat-bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 .chat-note { margin: 0; color: var(--muted); font-size: 0.82rem; font-style: italic; }
 .chat-error { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 0.88rem; }
@@ -638,10 +646,10 @@ a.chat-card-title:hover { text-decoration: underline; }
   .chat-panel { right: 0; bottom: 0; width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
 }
 
-/* Ai-chan's avatar: 愛 ("ai", love) in the logo's cyan on black. */
+/* Ai-chan's avatar: 愛 ("ai", love) in light sage on ink. */
 .chat-avatar {
   flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
-  background: var(--ink); color: var(--cyan); border: 1.5px solid var(--cyan);
+  background: var(--ink); color: var(--sage-light); border: 1.5px solid var(--sage-light);
   font: 700 0.85rem/1 "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo", sans-serif;
 }
 .chat-who { display: flex; align-items: center; gap: 10px; }

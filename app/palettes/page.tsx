@@ -10,6 +10,22 @@ export const metadata = { title: "Palette comparison — SigPath" };
 
 const THEMES = [
   {
+    cls: "theme-sage",
+    name: "Sage & Brass",
+    blurb: "Sage, teal and brass on sand. Warm and natural, with brass buttons.",
+    swatches: [
+      ["#b09763", "brass"],
+      ["#dfd7c6", "sand"],
+      ["#7d7875", "stone"],
+      ["#668a84", "sage"],
+      ["#89b09f", "light sage"],
+      ["#46685f", "text accent"],
+      ["#2a2725", "ink"],
+      ["#22703d", "checked"],
+      ["#8e5a14", "look closer"],
+    ],
+  },
+  {
     cls: "theme-cyan",
     name: "Logo Cyan",
     blurb: "The logo's cyan and black. Bold and bright, with black buttons wearing the cyan.",
@@ -19,20 +35,6 @@ const THEMES = [
       ["#0a6774", "text accent"],
       ["#f2f8f9", "page"],
       ["#4b585b", "muted"],
-      ["#22703d", "checked"],
-      ["#8e5a14", "look closer"],
-    ],
-  },
-  {
-    cls: "theme-sage",
-    name: "Sage & Brass",
-    blurb: "Sage, teal and brass on sand. Warm and natural, with a touch of gold.",
-    swatches: [
-      ["#46685f", "brand"],
-      ["#f6f3ec", "page"],
-      ["#fcfbf8", "card"],
-      ["#2a2725", "text"],
-      ["#67625f", "muted"],
       ["#22703d", "checked"],
       ["#8e5a14", "look closer"],
     ],
@@ -158,12 +160,12 @@ export default function PalettesPage() {
     <main className="container palette-page" id="preview">
       <h1>Palette comparison</h1>
       <p className="lede">
-        The same components in the live palette and the one it replaced. Logo Cyan takes its colours straight from the
-        logo; text accents use a deeper cyan so they stay readable.
+        The same components in the live palette and the one it replaced. Sage &amp; Brass uses its five colours as-is
+        for the hero, buttons and badges; text accents use a deeper sage so they stay readable.
       </p>
       <p className="notice">
-        <strong>Logo Cyan is live</strong> across the site (with the finalised logo, 2026-10-02), with a matching dark
-        mode. Sage &amp; Brass is kept here for comparison.
+        <strong>Sage &amp; Brass is live</strong> across the site (2026-10-06), with a matching dark mode. Logo Cyan,
+        the palette before it, is kept here for comparison.
       </p>
       <div className="palette-compare">
         {THEMES.map((t) => (

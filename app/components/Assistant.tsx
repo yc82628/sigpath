@@ -28,7 +28,7 @@ const VERDICT_LABEL: Record<AssistantCard["verdict"], string> = {
   unchecked: "Not price-checked",
 };
 
-/** Ai-chan's face: 愛 ("ai", love) in the logo's cyan on black. */
+/** Ai-chan's face: 愛 ("ai", love) in the logo's light sage on ink. */
 function Avatar() {
   return (
     <span className="chat-avatar" aria-hidden="true">

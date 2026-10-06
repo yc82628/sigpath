@@ -484,7 +484,7 @@ instance.
 ## Ai-chan — the shopping assistant
 
 A chat on every page: the "Ask Ai-chan" button in the corner. Her name is a pun:
-"Ai" is AI and 愛, love in Japanese, and her avatar is 愛 in the logo's cyan. A
+"Ai" is AI and 愛, love in Japanese, and her avatar is 愛 in the logo's light sage. A
 shopper describes what they
 want in their own words, e.g. "a used ThinkPad under €400, safe sellers only".
 The model turns that into a search with filters (condition, budget, marketplace,
@@ -1025,7 +1025,7 @@ signed by the wallet that holds the badges:
 | **It's a registered business** | The EU VAT number, checked live against the EU's **VIES** register. The name shown is the register's, never what the seller typed. Where a country doesn't publish names through VIES (Germany, for one), the number is valid but the profile says the name isn't confirmed |
 | **It runs its website** (optional) | A one-time TXT record at `_sigpath.<domain>`, bound to the wallet and the domain |
 
-- **Badge and profile.** Listings show **✓ Verified business** (cyan on black),
+- **Badge and profile.** Listings show **✓ Verified business** (light sage on ink),
   linking to a public trust profile at `/business/<id>`: what was verified and
   when, the linked accounts with their on-chain badges, and what it doesn't mean.
   Businesses can link to it from their own shop.
