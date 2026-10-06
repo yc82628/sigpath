@@ -152,6 +152,34 @@ export interface OpenAICompatOptions {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * A model API refusing a request. Carries the HTTP status and the provider's
+ * short error code (e.g. NOT_FOUND, API_KEY_INVALID), never the error message,
+ * which can quote the request.
+ */
+export class ModelApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(`model API answered ${status}${code ? ` ${code}` : ""}`);
+    this.name = "ModelApiError";
+  }
+}
+
+/** The short code from an error body: Gemini nests it in a list, OpenAI does not. */
+async function errorCode(res: Response): Promise<string | undefined> {
+  try {
+    const body = (await res.json()) as unknown;
+    const err = ((Array.isArray(body) ? body[0] : body) as { error?: { status?: unknown; code?: unknown; type?: unknown; details?: { reason?: unknown }[] } })?.error;
+    const reason = err?.details?.find((d) => typeof d?.reason === "string")?.reason;
+    const code = [reason, err?.status, err?.type, err?.code].find((c) => typeof c === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(c));
+    return code as string | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
   const doFetch = opts.fetchImpl ?? fetch;
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
@@ -170,7 +198,7 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
           tool_choice: allowTools ? "auto" : "none",
         }),
       });
-      if (!res.ok || !res.body) throw new Error(`model API answered ${res.status}`);
+      if (!res.ok || !res.body) throw new ModelApiError(res.status, res.ok ? undefined : await errorCode(res));
 
       // Server-sent events: text arrives in pieces; tool calls arrive in
       // pieces too, keyed by index, and are assembled before use.

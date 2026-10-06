@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "@/lib/assistant/assistant";
-import { assistantConfig, assistantSetupGaps, modelFromConfig } from "@/lib/assistant/models";
+import { assistantConfig, assistantSetupGaps, ModelApiError, modelFromConfig } from "@/lib/assistant/models";
 import { RateLimiter } from "@/lib/assistant/rate-limit";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 
@@ -54,10 +54,14 @@ export async function POST(req: NextRequest) {
           search: (q, currency) => labelledSearch(q, { limit: 20, currency }),
         });
       } catch (err) {
-        // Status only: an error message could echo the conversation.
-        const status = err instanceof Anthropic.APIError ? err.status : undefined;
-        console.error("assistant: turn failed", config.provider, status ?? (err instanceof Error ? err.name : "unknown"));
-        emit({ type: "error", message: "Sorry, something went wrong on our side. Please try again." });
+        // Status and code only: an error message could echo the conversation.
+        const reason =
+          err instanceof ModelApiError ? `${err.status}${err.code ? ` ${err.code}` : ""}`
+          : err instanceof Anthropic.APIError ? String(err.status)
+          : err instanceof Error ? err.name : "unknown";
+        console.error("assistant: turn failed", config.provider, reason);
+        // The code helps whoever runs the site; it says nothing about the shopper.
+        emit({ type: "error", message: `Sorry, something went wrong on our side. Please try again. (model error ${reason})` });
       } finally {
         controller.close();
       }

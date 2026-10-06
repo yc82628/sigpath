@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import type Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "../lib/assistant/assistant";
-import { anthropicModel, assistantConfig, assistantSetupGaps, openAICompatModel, type StreamingClient } from "../lib/assistant/models";
+import { anthropicModel, assistantConfig, assistantSetupGaps, ModelApiError, openAICompatModel, type StreamingClient } from "../lib/assistant/models";
 import { SearchInput, filterResults } from "../lib/assistant/search-tool";
 import { RateLimiter } from "../lib/assistant/rate-limit";
 import { withLabels } from "../lib/marketplace/label";
@@ -243,6 +243,22 @@ test("openai adapter: sends the API key only when configured, and fails loudly o
   assert.strictEqual(auth, "Bearer k");
   const down = (async () => new Response("no", { status: 502 })) as unknown as typeof fetch;
   await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: down }).turn(turn), /502/);
+});
+
+test("openai-compatible: a refusal carries the short error code, never the message", async () => {
+  const turn = { system: "s", messages: [{ role: "user" as const, content: "my address is 1 Main St" }], tools: [], allowTools: true, onText: () => {} };
+  const reply = (body: unknown, status: number) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  // Gemini wraps its error in a list and puts the precise reason in details.
+  const gemini = reply([{ error: { code: 400, message: "API key not valid: my address is 1 Main St", status: "INVALID_ARGUMENT", details: [{ reason: "API_KEY_INVALID" }] } }], 400);
+  const err = await openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: gemini }).turn(turn).catch((e) => e);
+  assert.ok(err instanceof ModelApiError);
+  assert.strictEqual(err.status, 400);
+  assert.strictEqual(err.code, "API_KEY_INVALID");
+  assert.ok(!err.message.includes("Main St"));
+  const missing = reply([{ error: { code: 404, message: "models/x is not found", status: "NOT_FOUND" } }], 404);
+  await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: missing }).turn(turn), /404 NOT_FOUND/);
+  const openai = reply({ error: { message: "nope", type: "invalid_request_error" } }, 400);
+  await assert.rejects(openAICompatModel({ baseUrl: "http://x/v1", model: "m", fetchImpl: openai }).turn(turn), /400 invalid_request_error/);
 });
 
 test("config: picks the provider from the environment", () => {
