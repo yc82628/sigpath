@@ -46,6 +46,9 @@
   /* The identity pages and the camera component still say --accent. */
   --accent: var(--brand);
 
+  /* The page itself; in dark mode a gradient over the whole screen. */
+  --page-bg: var(--bg);
+
   /* Primary buttons are brass with ink text. */
   --cta: var(--brass);
   --cta-ink: var(--ink);
@@ -67,22 +70,25 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* By night: a deep green-black, with light sage doing the talking. */
-    --bg: #151716;
-    --surface: #1d201f;
-    --surface-2: #252928;
+    /* By night: dark olive, lighter towards the bottom of the screen, with
+       light sage and brass doing the talking. */
+    --bg: #1f2318;
+    --page-bg: linear-gradient(to top, #343925 0%, #262a1c 45%, #1a1d14 100%) fixed;
+    --surface: #272b1f;
+    --surface-2: #30352a;
     --fg: #ece8df;
     --muted: #aaa49f;
-    --border: #343937;
+    --border: #3d4230;
 
     --brand: var(--sage-light);
-    --brand-ink: #151716;
-    --brand-soft: #1f2b28;
+    --brand-ink: #1a1d14;
+    --brand-soft: #2a3324;
 
     --cta: var(--brass);
-    --cta-ink: #151716;
+    --cta-ink: #1a1d14;
 
-    --hero-bg: radial-gradient(900px 420px at 50% 0%, #2c3d39, transparent 75%), var(--bg);
+    /* The hero lets the page gradient show through. */
+    --hero-bg: transparent;
     --hero-fg: var(--fg);
 
     --ok: #5fc08a;
@@ -101,9 +107,11 @@
 
 * { box-sizing: border-box; }
 
+html { background: var(--bg); }
 body {
   margin: 0;
-  background: var(--bg);
+  min-height: 100vh;
+  background: var(--page-bg);
   color: var(--fg);
   font: 16px/1.6 var(--font-sans);
   -webkit-font-smoothing: antialiased;
