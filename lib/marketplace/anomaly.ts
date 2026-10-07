@@ -40,6 +40,9 @@ import type { Listing, MarketplaceId, SourceResult } from "./types";
 import { listingKey, totalPrice } from "./types";
 import { identify, sameProduct, type Identity } from "./identity";
 
+/** The offline demo feed (sources/stub.ts): invented prices, compared only with each other. */
+const DEMO_SOURCE = "stub";
+
 /**
  * Below this fraction of the comparable median, a listing is flagged.
  *
@@ -98,7 +101,7 @@ export interface Analysis {
    * Per listing (by listingKey): how many same-product listings its price was
    * compared with, and their median. Only listings that were price-checked.
    */
-  comparisons: Record<string, { sampleSize: number; median: number }>;
+  comparisons: Record<string, { sampleSize: number; median: number; scope?: string }>;
   /**
    * Per listing: why its price was NOT compared, when that is specific to the
    * listing: an accessory, sold for parts, or too few of the same product.
@@ -117,6 +120,8 @@ export interface Analysis {
    * page: each listing's own verdict uses `comparisons`, not this.
    */
   median?: number;
+  /** Where the summary medians come from, e.g. "on eBay" or "on the demo feed". */
+  medianScope?: string;
   currency?: string;
   /** How many new/refurbished listings that median was taken over. */
   sampleSize?: number;
@@ -334,28 +339,43 @@ export function analyse(
   }
   const products = sameCurrency.filter((l) => idOf(l).kind === "product");
 
-  const groups: { label: string; listings: Listing[] }[] = [
-    { label: "new", listings: products.filter((l) => l.condition === "new" || l.condition === "refurbished") },
-    { label: "used", listings: products.filter((l) => l.condition === "used") },
+  // The demo feed's prices are made up, so they are never pooled with real
+  // marketplace listings: each is compared only within its own world. Pooling
+  // them would price real eBay listings against invented ones, and the other
+  // way round.
+  const worlds: { demo: boolean; listings: Listing[] }[] = [
+    { demo: false, listings: products.filter((l) => l.source !== DEMO_SOURCE) },
+    { demo: true, listings: products.filter((l) => l.source === DEMO_SOURCE) },
   ];
+  const groups: { label: string; demo: boolean; listings: Listing[] }[] = worlds.flatMap((w) => [
+    { label: "new", demo: w.demo, listings: w.listings.filter((l) => l.condition === "new" || l.condition === "refurbished") },
+    { label: "used", demo: w.demo, listings: w.listings.filter((l) => l.condition === "used") },
+  ]);
 
   // Scope the claim to what was actually searched. Saying "across marketplaces"
   // when one marketplace answered would overstate the evidence.
   const NAMES: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", feed: "the partner feed", stub: "the demo feed" };
-  const scope =
-    coverage.length > 1
-      ? `across ${coverage.length} marketplaces`
-      : `on ${coverage[0] ? (NAMES[coverage[0]] ?? coverage[0]) : "this marketplace"}`;
+  const realCoverage = coverage.filter((c) => c !== DEMO_SOURCE);
+  const scopeOf = (demo: boolean) =>
+    demo
+      ? "on the demo feed"
+      : realCoverage.length > 1
+        ? `across ${realCoverage.length} marketplaces`
+        : `on ${realCoverage[0] ? (NAMES[realCoverage[0]] ?? realCoverage[0]) : "this marketplace"}`;
 
+  // The page's summary medians come from the real marketplaces when they have
+  // enough listings, and from the demo feed only when nothing real does.
   const medians: Record<string, { median: number; sampleSize: number }> = {};
+  const demoMedians: Record<string, { median: number; sampleSize: number }> = {};
   const priceChecked: string[] = [];
-  const comparisons: Record<string, { sampleSize: number; median: number }> = {};
+  const comparisons: Record<string, { sampleSize: number; median: number; scope?: string }> = {};
 
   for (const g of groups) {
+    const scope = scopeOf(g.demo);
     // Too few in THIS group means no comparison for THIS group. Borrowing the
     // other group's median instead would be the used-vs-new mistake again.
     if (g.listings.length < MIN_SAMPLE) continue;
-    medians[g.label] = { median: median(g.listings.map((l) => totalPrice(l).amount)), sampleSize: g.listings.length };
+    (g.demo ? demoMedians : medians)[g.label] = { median: median(g.listings.map((l) => totalPrice(l).amount)), sampleSize: g.listings.length };
 
     for (const l of g.listings) {
       // Each listing against the listings that are the same product as it: an
@@ -367,7 +387,7 @@ export function analyse(
         continue;
       }
       const m = median(same.map((o) => totalPrice(o).amount));
-      comparisons[listingKey(l)] = { sampleSize: same.length, median: m };
+      comparisons[listingKey(l)] = { sampleSize: same.length, median: m, scope };
       priceChecked.push(listingKey(l));
       if (totalPrice(l).amount < m * UNDERPRICED_RATIO) {
         flags.push({
@@ -389,11 +409,17 @@ export function analyse(
     comparisons, notCompared, identities, reportsChecked: false,
   };
 
+  let medianScope = scopeOf(false);
   if (!medians.new && !medians.used) {
+    Object.assign(medians, demoMedians);
+    medianScope = scopeOf(true);
+  }
+  if (!medians.new && !medians.used) {
+    const count = (label: string) => groups.filter((g) => g.label === label).reduce((n, g) => n + g.listings.length, 0);
     return {
       status: "insufficient_sample",
       reason:
-        `Only ${groups[0].listings.length} new and ${groups[1].listings.length} used comparable listing(s); ` +
+        `Only ${count("new")} new and ${count("used")} used comparable listing(s); ` +
         `at least ${MIN_SAMPLE} of one condition are needed before a price is worth comparing.`,
       ...common,
     };
@@ -401,6 +427,7 @@ export function analyse(
 
   return {
     status: "ok",
+    medianScope,
     median: medians.new?.median,
     sampleSize: medians.new?.sampleSize,
     used: medians.used,

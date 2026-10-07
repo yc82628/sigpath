@@ -4,7 +4,7 @@ import { analyse, median, MIN_SAMPLE, UNDERPRICED_RATIO } from "../lib/marketpla
 import { searchAll } from "../lib/marketplace/search";
 import { StubSource } from "../lib/marketplace/sources/stub";
 import { EbaySource, toMinorUnits } from "../lib/marketplace/sources/ebay";
-import { totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
+import { listingKey, totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
 import type { MarketplaceSource } from "../lib/marketplace/sources/types";
 import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
 import { AmazonSource, signPaapiRequest } from "../lib/marketplace/sources/amazon";
@@ -96,13 +96,33 @@ test("a single-source median does not claim to be cross-marketplace", () => {
 });
 
 test("a multi-source median does say across marketplaces", () => {
+  const from = (source: "ebay" | "amazon" | "feed", ls: Listing[]) => ({ source, status: "ok" as const, listings: ls.map((l, i) => ({ ...l, id: `${source}${i}`, source })) });
   const a = analyse([
-    ok(honest(6)),
-    { source: "ebay", status: "ok", listings: honest(6).map((l, i) => ({ ...l, id: `e${i}`, source: "ebay" as const })) },
-    ok([listing({ id: "bait", price: { amount: 2000, currency: "EUR" } })]),
+    from("amazon", honest(6)),
+    from("ebay", honest(6)),
+    from("feed", [listing({ id: "bait", price: { amount: 2000, currency: "EUR" } })]),
   ]);
   const flag = a.flags.find((f) => f.kind === "underpriced");
   assert.match(flag!.message, /across 3 marketplaces/);
+});
+
+test("the demo feed is never pooled with real marketplaces", () => {
+  // Real eBay listings around 300 EUR; invented demo ones around 100 EUR.
+  const ebay = honest(6, 30000).map((l, i) => ({ ...l, id: `e${i}`, source: "ebay" as const }));
+  const a = analyse([ok(honest(6, 10000)), { source: "ebay", status: "ok", listings: ebay }]);
+  // Pooled, the demo listings would drag eBay's median down (and look cheap against it).
+  for (const l of ebay) {
+    const c = a.comparisons[listingKey(l)];
+    assert.equal(c.median, 30000);
+    assert.equal(c.sampleSize, 6);
+    assert.equal(c.scope, "on eBay");
+  }
+  const demo = a.comparisons[listingKey(honest(6, 10000)[0])];
+  assert.equal(demo.median, 10000);
+  assert.equal(demo.scope, "on the demo feed");
+  // The page summary comes from the real marketplace.
+  assert.equal(a.median, 30000);
+  assert.equal(a.flags.filter((f) => f.kind === "underpriced").length, 0);
 });
 
 test("the degraded sources are always named", () => {

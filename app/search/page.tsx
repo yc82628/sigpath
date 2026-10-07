@@ -387,9 +387,12 @@ async function SearchResults({
               {formatMoney({ amount: a.used.median, currency: a.currency! })} across {a.used.sampleSize} listings
             </>
           )}
-          {a.coverage.length > 1
-            ? ` on ${a.coverage.length} marketplaces`
-            : ` on ${a.coverage[0] === "stub" ? "the demo feed" : marketLabel(a.coverage[0])}`}
+          {/* Real marketplaces and the demo feed are never pooled: say which one the median is from. */}
+          {a.medianScope
+            ? ` ${a.medianScope}`
+            : a.coverage.length > 1
+              ? ` on ${a.coverage.length} marketplaces`
+              : ` on ${a.coverage[0] === "stub" ? "the demo feed" : marketLabel(a.coverage[0])}`}
           .
           {a.notConfigured.length > 0 && (
             <> Not searched yet: {a.notConfigured.map(marketLabel).join(", ")}.</>

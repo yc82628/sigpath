@@ -161,11 +161,13 @@ export function checkLabel(
     const what = specs ? `the same model and configuration (${specs})` : "the same product";
     const group = conditionGroup(listing) === "used" ? "used " : "";
     const above = totalPrice(listing).amount > comparison.median * 1.5;
+    // What it was actually compared with: real marketplaces and the demo feed are never pooled.
+    const where = comparison.scope ?? `on ${marketplaces(analysis)}`;
     points.push({
       tone: above ? "info" : "good",
       text: above
-        ? `Priced above most of the ${comparison.sampleSize} ${group}listings of ${what} on ${marketplaces(analysis)} (median ${formatMoney({ amount: comparison.median, currency: listing.price.currency })}). You may find it cheaper.`
-        : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} on ${marketplaces(analysis)}.`,
+        ? `Priced above most of the ${comparison.sampleSize} ${group}listings of ${what} ${where} (median ${formatMoney({ amount: comparison.median, currency: listing.price.currency })}). You may find it cheaper.`
+        : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
     });
     // A title that names no model details was compared with every version, and says so.
     const othersSpecified = Object.values(analysis.identities ?? {}).some((i) => i.kind === "product" && describeSpecs(i) !== null);
@@ -210,7 +212,8 @@ export function bestCheckedDeals(
     const group = conditionGroup(l);
     const cur = best.get(group);
     if (!cur || total.amount < cur.total.amount) {
-      const median = group === "used" ? analysis.used?.median : analysis.median;
+      // Its own comparison's median: the same product, in the same world (real or demo).
+      const median = analysis.comparisons?.[listingKey(l)]?.median ?? (group === "used" ? analysis.used?.median : analysis.median);
       const gap = median !== undefined ? median - total.amount : 0;
       best.set(group, { listing: l, group, total, belowMedian: gap > 0 ? { amount: gap, currency: total.currency } : undefined });
     }
