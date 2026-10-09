@@ -58,8 +58,8 @@ test("a game, a controller and a spare part are never priced against consoles", 
   assert.equal(a.flags.filter((f) => f.kind === "underpriced").length, 0, "no false scam flags");
   for (const l of others) {
     assert.ok(!a.priceChecked.includes(listingKey(l)), l.title);
-    // Either guard may catch it first: the category, or the title ("für PlayStation 5").
-    assert.match(a.notCompared[listingKey(l)], /Listed under ".+", not "Konsolen"|sold for use with/);
+    // Whichever guard catches it first (the category, "für PlayStation 5", "Ersatz"), it says why.
+    assert.ok(a.notCompared[listingKey(l)], `${l.title}: a reason is given`);
   }
   // The consoles themselves are still compared with each other.
   assert.equal(consoles().length, 6);
@@ -78,15 +78,28 @@ test("a real scam in the main category is still flagged", () => {
   assert.ok(a.flags.some((f) => f.kind === "underpriced" && f.listingId === bait.id));
 });
 
-test("far below the median on a title that doesn't name the product: silence, with the reason", () => {
+test("a title that doesn't name the searched model is never compared, cheap or not", () => {
   const portal = ebay("Sony PlayStation Portal Handheld-System Remote Player für PS5 Schwarz", 145, CONSOLES);
   const a = analyse([ok([...consoles(), portal])], { query: "PlayStation 5" });
   assert.ok(!a.flags.some((f) => f.listingId === portal.id));
   assert.match(a.notCompared[listingKey(portal)], /doesn't name the PlayStation 5/);
-  // A normally priced listing that doesn't name it is still compared.
-  const slim = ebay("PS5 Slim Digital", 520, CONSOLES);
-  const b = analyse([ok([...consoles(), slim])], { query: "PlayStation 5" });
-  assert.ok(b.priceChecked.includes(listingKey(slim)));
+  // The real "best used deal" in an "iPhone 14 128GB" search, before this fix: an iPhone 12.
+  const phones = [1, 2, 3, 4, 5, 6].map((i) => ebay(`Apple iPhone 14 128GB Blau gebraucht ${i}`, 300 + i, undefined, { condition: "used" }));
+  const twelve = ebay("Apple iPhone 12 - Blau, 128 GB, ohne Simlock", 165.52, undefined, { condition: "used" });
+  const b = analyse([ok([...phones, twelve])], { query: "iPhone 14 128GB" });
+  assert.ok(!b.priceChecked.includes(listingKey(twelve)));
+  assert.match(b.notCompared[listingKey(twelve)], /doesn't name the iPhone 14 128GB/);
+  // Spacing and punctuation don't matter: "HERO11" names "Hero 11", "(5. Generation)" names "Air 5".
+  assert.equal(identify("GoPro HERO11 Black Mini 5,3K", "GoPro Hero 11").named, true);
+  assert.equal(identify("Appel IPad Air (5. Generation), 64 GB, Wi-Fi", "iPad Air 5").named, true);
+});
+
+test("parts sold alone are recognised; the same part included with the product is not", () => {
+  assert.equal(identify("Apple AirPods Pro 2. Gen Ladecase A2700 – Lightning – Original Gebraucht", "AirPods Pro 2").kind, "parts");
+  assert.equal(identify("Original Airpods Pro 2 USBC Ladecase wie NEU Ersatz Einzeln I A2968", "AirPods Pro 2").kind, "parts");
+  assert.equal(identify("Apple AirPods Pro 2 mit MagSafe Ladecase (USB-C)", "AirPods Pro 2").kind, "product");
+  assert.equal(identify("Nintendo Switch OLED (nur Tablet)", "Nintendo Switch OLED").kind, "parts");
+  assert.equal(identify("Apple MacBook Air 13 Zoll (256GB SSD, M1, 8GB) Defektes Display!", "MacBook Air M1").kind, "parts");
 });
 
 test("German titles: accessories, broken units and repair services are recognised", () => {
@@ -99,6 +112,12 @@ test("German titles: accessories, broken units and repair services are recognise
   assert.equal(repair.kind, "accessory");
   assert.match(repair.kindReason!, /service/);
   assert.equal(identify("Kabel für PlayStation 5", "PlayStation 5").kind, "accessory", "sold for use with it");
+  // The real "best used deal" on an "iPhone 13 128GB" search, before this fix: a cracked iPhone 13 mini.
+  const mini = identify("Apple iPhone 13 mini 128GB schwarz iOS Smartphone (Rückseite Glas gesprungen)", "iPhone 13 128GB");
+  assert.equal(mini.kind, "parts", "cracked glass");
+  assert.deepEqual(identify("Apple iPhone 13 mini 128GB Mitternacht", "iPhone 13 128GB").variant, ["mini"]);
+  assert.deepEqual(identify("Apple iPhone 13 – 128GB – Mitternacht (Ohne Simlock)", "iPhone 13 128GB").variant, []);
+  assert.equal(identify("iPhone 13 128GB keine Risse, top Zustand", "iPhone 13 128GB").kind, "product");
   const motor = identify("Dyson V11 SV17 SV15 Hauptgerät Motor Zyklon + Filter - Gebraucht", "Dyson V11");
   assert.equal(motor.kind, "parts");
   assert.match(motor.kindReason!, /only part of the product/);

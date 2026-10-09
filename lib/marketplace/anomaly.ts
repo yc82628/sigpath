@@ -25,8 +25,7 @@
  *     with its own (see identity.ts), and accessories and for-parts items are
  *     never compared at all
  *   - the listing sits in a different marketplace category from most results
- *     (a game in a console search), or is far below the median on a title
- *     that doesn't name the product
+ *     (a game in a console search), or its title doesn't name the product
  *
  * WHY DEGRADED COVERAGE MUST BLOCK THE WHOLE CHECK
  * This is the same bug that produced three confidently wrong runs in the
@@ -359,7 +358,19 @@ export function analyse(
   // parts, and eBay files each under its own category: a 15-euro game priced
   // against 500-euro consoles is exactly the false alarm this module exists to
   // avoid. A listing whose marketplace publishes no category stays in.
-  const candidates = sameCurrency.filter((l) => idOf(l).kind === "product");
+  // A title that doesn't name the searched model (an "iPhone 12" in an
+  // "iPhone 14" search, a remote player "für PS5") is never compared: there is
+  // no telling what it is, and compared, it was either a false alarm or a
+  // false "best deal".
+  const name = opts.query?.trim();
+  const candidates = sameCurrency.filter((l) => {
+    if (idOf(l).kind !== "product") return false;
+    if (name && idOf(l).named === false) {
+      notCompared[listingKey(l)] = `Its title doesn't name the ${name}, so it isn't compared with listings that do.`;
+      return false;
+    }
+    return true;
+  });
   const mainBySource = new Map<string, { id: string; name: string } | undefined>();
   for (const source of new Set(candidates.map((l) => l.source))) {
     mainBySource.set(source, mainCategory(candidates.filter((l) => l.source === source)));
@@ -420,15 +431,6 @@ export function analyse(
       }
       const m = median(same.map((o) => totalPrice(o).amount));
       const underpriced = totalPrice(l).amount < m * UNDERPRICED_RATIO;
-      // Far below the product's price, on a title that doesn't even name the
-      // product: far more often a different item (a game, a spare part, a
-      // remote player "for PS5") than a scam. Stay silent, and say why.
-      const name = opts.query?.trim();
-      if (underpriced && name && idOf(l).variant === undefined) {
-        notCompared[listingKey(l)] =
-          `Its title doesn't name the ${name}, and it costs far less than listings that do, so it may be a different item. Its price isn't compared.`;
-        continue;
-      }
       comparisons[listingKey(l)] = { sampleSize: same.length, median: m, scope };
       priceChecked.push(listingKey(l));
       if (underpriced) {

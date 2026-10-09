@@ -36,6 +36,13 @@ export interface Identity {
    * the variant is unknown, and an unknown never conflicts.
    */
   variant?: string[];
+  /**
+   * Whether the title names the searched model at all, ignoring spaces and
+   * punctuation ("HERO11" names "Hero 11"; "iPad Air (5. Generation)" names
+   * "iPad Air 5"). A title that doesn't, an "iPhone 12" in an "iPhone 14"
+   * search, is never compared: there is no telling what it is.
+   */
+  named?: boolean;
   generation?: number;
   storageGB?: number;
   ramGB?: number;
@@ -62,10 +69,24 @@ const PARTS_PHRASES = [
   "blacklisted", "bad esn", "as is, untested", "untested",
   "defekt", "kaputt", "für bastler", "bastlerware", "funktioniert nicht", "nicht funktionsfähig", "ersatzteil",
   "als ersatzteil", "gesperrt", "icloud gesperrt", "displaybruch", "wasserschaden",
+  "gesprungen", "glasbruch", "riss", "risse", "gerissen", "beschädigt", "beschaedigt", "displayschaden",
+  "defekte", "defekter", "defektes", "defektem", "beschädigte", "beschädigter", "beschädigtes",
 ];
 
 /** Phrases that say only part of the product is sold (a Dyson "Hauptgerät" is the motor unit alone). */
-const PARTIAL_PHRASES = ["hauptgerät", "nur hauptgerät", "nur gerät", "ohne akku", "body only", "main unit only", "without battery"];
+const PARTIAL_PHRASES = [
+  "hauptgerät", "nur hauptgerät", "nur gerät", "ohne akku", "body only", "main unit only", "without battery",
+  "nur tablet", "nur konsole", "nur ladecase", "nur case", "case only", "einzeln", "ersatz", "linker", "rechter",
+  "left earbud", "right earbud", "ohne ovp und zubehör",
+];
+
+/**
+ * Parts that are also sold alone: only when nothing in the title says the
+ * listing comes WITH them ("AirPods Pro 2 mit MagSafe Ladecase" is the whole
+ * set; "AirPods Pro 2 Ladecase A2700" is the case alone).
+ */
+const PART_ALONE_WORDS = ["ladecase", "charging case only"];
+const COMES_WITH = /(^|[^a-z0-9])(mit|inkl\.?|inklusive|und|samt|with|incl\.?|including|plus|\+|&)([^a-z0-9]|$)/i;
 
 /**
  * Model words that change what the product is. "Pro" is not a "Pro Max";
@@ -125,7 +146,13 @@ export function identify(title: string, query: string): Identity {
   let kind: ListingKind = "product";
   let kindReason: string | undefined;
   const parts = PARTS_PHRASES.find((p) => !hasPhrase(q, p) && countsAs(t, p, NEGATED_BEFORE));
-  const partial = PARTIAL_PHRASES.find((p) => !hasPhrase(q, p) && hasPhrase(t, p));
+  const partial =
+    PARTIAL_PHRASES.find((p) => !hasPhrase(q, p) && hasPhrase(t, p)) ??
+    PART_ALONE_WORDS.find((p) => {
+      if (hasPhrase(q, p) || !hasPhrase(t, p)) return false;
+      const at = t.search(phraseRegex(p));
+      return !COMES_WITH.test(t.slice(Math.max(0, at - 30), at));
+    });
   if (parts) {
     kind = "parts";
     kindReason = `The listing says "${parts}", so it isn't compared with working ones.`;
@@ -157,7 +184,13 @@ export function identify(title: string, query: string): Identity {
   // --- variant -----------------------------------------------------------------
   // Only the words straight after the product name count: "ThinkPad X1 Carbon"
   // is a Carbon, but "ThinkPad X1, must go today" is not a Surface Go.
-  const qw = words(q);
+  // The model is the search without its specs: in "iPhone 13 128GB" the model
+  // is "iPhone 13", so "iPhone 13 mini 128GB" reads as a mini, not as unknown.
+  const allQw = words(q);
+  const specWord = (w: string, i: number) =>
+    /^\d+(gb|tb)$/.test(w) || ((w === "gb" || w === "tb") && i > 0) || (/^\d+$/.test(w) && /^(gb|tb)$/.test(allQw[i + 1] ?? ""));
+  const modelQw = allQw.filter((w, i) => !specWord(w, i));
+  const qw = modelQw.length ? modelQw : allQw;
   const tw = words(t);
   let variant: string[] | undefined;
   const at = qw.length ? tw.findIndex((_, i) => qw.every((w, j) => tw[i + j] === w)) : -1;
@@ -192,7 +225,10 @@ export function identify(title: string, query: string): Identity {
     else if (ramGB === undefined && n <= 64 && storageGB !== undefined && n < storageGB) ramGB = n;
   }
 
-  return { kind, kindReason, variant, generation, storageGB, ramGB };
+  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const named = qw.length ? squash(t).includes(qw.join("")) : undefined;
+
+  return { kind, kindReason, variant, named, generation, storageGB, ramGB };
 }
 
 /** Do two products' known specs agree? An unknown never conflicts. */
