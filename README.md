@@ -55,6 +55,9 @@ screen. Ai-chan answers there too, on Google Gemini.
   fulfilled. If it isn't fulfilled in time, anyone can trigger the refund, and
   it can only go back to the buyer. Your delivery address is stored encrypted and
   deleted when the order ends.
+- **One small, upfront fee.** SigPath adds a 2% service fee, shown in euros and
+  USDC before you pay. It sits in the same escrow and is refunded with the price
+  if the order isn't fulfilled.
 
 ## How fakes are kept out, and why it needs a blockchain
 
@@ -91,7 +94,7 @@ prices are only ever compared with each other, never with real listings. Set
 `STUB_FEED=false` to hide it.
 
 ```powershell
-npm test                                   # 453 tests, as of 2026-10-09
+npm test                                   # 473 tests, as of 2026-10-09
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -259,7 +262,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (453 as of 2026-10-09), then a dev server on http://localhost:3000.
+Expect every test to pass (473 as of 2026-10-09), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
@@ -772,6 +775,29 @@ Search → **Pay with USDC** → `/checkout` → Phantom signs → `/order/<addr
 | SigPath won't buy a price nobody could check | A listing must have been compared against enough listings **of its own condition** — new with new, used with used. Too few comparables, unknown condition, or a marketplace down: no pay button, with the reason shown |
 | No under-quoting | Listings with unpublished shipping (all of Etsy, some eBay) can't be checked out |
 | The price shown is the price charged | EUR→USDC at the ECB rate, shown with its date, integer arithmetic, rounded **up** |
+| The fee shown is the fee charged | SigPath's service fee is **signed into each quote** with the price, so it can't be edited in the browser, and a later change to the setting doesn't touch quotes already shown |
+| The fee is protected like the price | It is paid into the escrow with the price: SigPath receives it only through `fulfil`, and a refund returns it with everything else |
+| Both currencies, before paying | Pay buttons show the USDC total, fee included; the checkout ends with an EUR + USDC breakdown, and the Pay button names both |
+
+**The service fee.** 2% by default, set with `SIGPATH_FEE_BPS` in basis points
+(`200` = 2%, `150` = 1.5%, `0` = none; anything invalid means 2%, anything
+over 10% is refused). It is rounded **up** to the smallest unit in both
+currencies, so it is never slightly under the rate (`lib/checkout/fee.ts`).
+Quotes signed before the fee existed are honoured without one. It is always
+called a *service fee*, never VAT or a tax: those are the state's. Example, a
+ThinkPad X1 Carbon on eBay at 1.1206 USD per EUR:
+
+| | EUR | USDC |
+|---|---:|---:|
+| Item, including shipping | 142.96 | 160.200976 |
+| SigPath service fee (2%) | 2.86 | 3.20402 |
+| **Total** | **145.82** | **163.404996** |
+
+**Not enough USDC?** When a wallet is short, the checkout says by how much and
+offers to top up through MoonPay: its own page, pre-filled with USDC on Solana,
+the missing amount, euros and the shopper's wallet, the link signed server-side
+(`lib/onramp/moonpay.ts`). Test keys only on devnet, since MoonPay delivers
+mainnet USDC. On devnet the checkout also links to faucet.circle.com.
 
 **Why the gate is stricter than the warnings.** A price flag on the search page
 needs solid evidence, because a false one defames an honest seller — so a used
@@ -797,16 +823,19 @@ stance is "nothing stored about you". So:
 - never shown on the public order page — which also withholds the item title,
   since the order address is public on chain
 
-Deletion removes the file; it does not scrub disk sectors. A production
-deployment would move the store into a database with its own erasure
-guarantees, and needs a real privacy policy reviewed by someone qualified —
-this README is not one.
+Records live in a shared database (Upstash Redis, `lib/kv/upstash.ts`) when
+one is configured, which a deployment on Vercel needs: its disk is temporary and
+per instance. The database only ever holds ciphertext, and each record also
+expires there at its retention limit, so it is deleted even if every sweep
+failed. Without a database, records are files. Prove the connection with
+`npx tsx scripts/kv-check.ts`. A production deployment still needs a real
+privacy policy reviewed by someone qualified — this README is not one.
 
 **Operator workflow:**
 
 ```powershell
 npx tsx scripts/orders-admin.ts list                 # paid orders, time left — no addresses shown
-npx tsx scripts/orders-admin.ts show <order>         # item link + delivery address
+npx tsx scripts/orders-admin.ts show <order>         # item link + delivery address, and the service fee within the total
 # ...buy it on the retailer's site, shipping to that address...
 npx tsx scripts/orders-admin.ts fulfil <order> <retailer order number>   # paid; address deleted
 npx tsx scripts/orders-admin.ts refund <order>       # item unavailable; address deleted
