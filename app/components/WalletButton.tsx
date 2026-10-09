@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  connectWallet,
-  NO_WALLET_MESSAGE,
-  walletErrorMessage,
-  walletRegistry,
-  type ConnectedWallet,
-  type StandardWallet,
-} from "./wallet";
+import { NO_WALLET_MESSAGE, walletErrorMessage, walletOptions, walletRegistry, type ConnectedWallet, type WalletOption } from "./wallet";
 
 /**
  * One button for every wallet step. With one Solana wallet installed it
  * connects straight away; with several, it asks which one first.
+ *
+ * Wallets are found through the Wallet Standard and, failing that, the older
+ * objects wallets put on `window` (see wallet.ts). The list is read again on
+ * click, after a short wait if it is still empty, because an extension can
+ * finish loading after the page.
  *
  * `onConnect` gets the connected wallet and does the rest of the step (and
  * handles its own errors); `onError` gets the reason a wallet couldn't connect.
@@ -30,23 +28,22 @@ export default function WalletButton({
   onConnect: (wallet: ConnectedWallet) => void | Promise<void>;
   onError: (message: string) => void;
 }) {
-  const [wallets, setWallets] = useState<StandardWallet[]>([]);
+  const [choices, setChoices] = useState<WalletOption[]>([]);
   const [choosing, setChoosing] = useState(false);
   const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     const registry = walletRegistry();
     if (!registry) return;
-    setWallets(registry.get());
-    return registry.on(() => setWallets(registry.get()));
+    return registry.on(() => setChoices(walletOptions(registry)));
   }, []);
 
-  async function use(wallet: StandardWallet) {
+  async function use(option: WalletOption) {
     setChoosing(false);
     setConnecting(true);
     let connected: ConnectedWallet;
     try {
-      connected = await connectWallet(wallet);
+      connected = await option.connect();
     } catch (err) {
       onError(`Wallet connection refused: ${walletErrorMessage(err)}`);
       return;
@@ -56,19 +53,27 @@ export default function WalletButton({
     await onConnect(connected);
   }
 
-  function start() {
-    if (wallets.length === 0) onError(NO_WALLET_MESSAGE);
-    else if (wallets.length === 1) void use(wallets[0]);
+  async function start() {
+    let found = walletOptions();
+    if (!found.length) {
+      setConnecting(true);
+      await new Promise((r) => setTimeout(r, 800));
+      setConnecting(false);
+      found = walletOptions();
+    }
+    setChoices(found);
+    if (found.length === 0) onError(NO_WALLET_MESSAGE);
+    else if (found.length === 1) void use(found[0]);
     else setChoosing(true);
   }
 
   if (choosing) {
     return (
       <div className="wallet-choice" role="group" aria-label="Choose a wallet">
-        {wallets.map((w) => (
+        {choices.map((w) => (
           <button key={w.name} type="button" onClick={() => use(w)}>
             {/* Wallets give their icon as a data: URI, so a plain img is right. */}
-            <img src={w.icon} alt="" width={20} height={20} />
+            {w.icon && <img src={w.icon} alt="" width={20} height={20} />}
             {w.name}
           </button>
         ))}

@@ -65,9 +65,11 @@ export interface ConnectedWallet {
 export const DEVNET = !(process.env.NEXT_PUBLIC_RPC_URL ?? "").includes("mainnet");
 export const SOLANA_CHAIN = DEVNET ? "solana:devnet" : "solana:mainnet";
 
-export const NO_WALLET_MESSAGE = DEVNET
-  ? "No Solana wallet found. Install one (Phantom, Solflare or Backpack), set it to Devnet, and reload."
-  : "No Solana wallet found. Install one (Phantom, Solflare or Backpack) and reload.";
+export const NO_WALLET_MESSAGE =
+  (DEVNET
+    ? "No Solana wallet found. Install one (Phantom, Solflare or Backpack), set it to Devnet, and reload."
+    : "No Solana wallet found. Install one (Phantom, Solflare or Backpack) and reload.") +
+  " Already installed? Unlock it, make sure it's allowed on this site, and reload.";
 
 /** A wallet we can use: it connects, and it speaks Solana. */
 export function isSolanaWallet(w: StandardWallet): boolean {
@@ -78,6 +80,8 @@ export interface WalletRegistry {
   get(): StandardWallet[];
   /** Called whenever a wallet registers. Returns the unsubscribe. */
   on(listener: () => void): () => void;
+  /** What wallets call to register; also handed to the older navigator.wallets form. */
+  register(...wallets: StandardWallet[]): () => void;
 }
 
 /**
@@ -114,7 +118,32 @@ export function createWalletRegistry(target: EventTarget): WalletRegistry {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    register: api.register,
   };
+}
+
+type RegisterCallback = (api: { register: WalletRegistry["register"] }) => void;
+
+/**
+ * The first version of the Wallet Standard: wallets pushed a callback onto a
+ * `navigator.wallets` array instead of sending an event. Some wallet versions
+ * still do, so take what is queued there and catch anything pushed later.
+ */
+export function adoptNavigatorWallets(nav: { wallets?: unknown }, registry: WalletRegistry): void {
+  const run = (cb: unknown) => {
+    try {
+      if (typeof cb === "function") (cb as RegisterCallback)({ register: registry.register });
+    } catch {
+      /* a broken wallet must not break the page */
+    }
+  };
+  const queued = Array.isArray(nav.wallets) ? [...nav.wallets] : [];
+  try {
+    Object.defineProperty(nav, "wallets", { value: Object.freeze({ push: (...cbs: unknown[]) => cbs.forEach(run) }), configurable: true });
+  } catch {
+    /* already taken by another app on the page: the event handshake still works */
+  }
+  queued.forEach(run);
 }
 
 let registry: WalletRegistry | null = null;
@@ -122,8 +151,83 @@ let registry: WalletRegistry | null = null;
 /** The page's one registry, started on first use (in the browser only). */
 export function walletRegistry(): WalletRegistry | null {
   if (typeof window === "undefined") return null;
-  registry ??= createWalletRegistry(window);
+  if (!registry) {
+    registry = createWalletRegistry(window);
+    adoptNavigatorWallets(window.navigator as { wallets?: unknown }, registry);
+  }
   return registry;
+}
+
+/**
+ * The older way wallets show themselves: an object on `window`. Used only for
+ * a wallet the Wallet Standard didn't announce (a browser where the extension
+ * didn't register, or an older extension), so nobody with a wallet is told
+ * they have none.
+ */
+interface InjectedProvider {
+  publicKey?: { toBase58(): string } | null;
+  connect(): Promise<{ publicKey?: { toBase58(): string } } | void>;
+  signAndSendTransaction?(tx: unknown): Promise<{ signature: string }>;
+  signMessage?(message: Uint8Array, display?: "utf8"): Promise<{ signature: Uint8Array } | Uint8Array>;
+}
+
+type AnyWindow = Record<string, unknown> & {
+  phantom?: { solana?: InjectedProvider & { isPhantom?: boolean } };
+  solflare?: InjectedProvider & { isSolflare?: boolean };
+  backpack?: (InjectedProvider & { isBackpack?: boolean }) & { solana?: InjectedProvider };
+  solana?: InjectedProvider & { isPhantom?: boolean };
+};
+
+export function injectedWallets(win?: unknown): { name: string; provider: InjectedProvider }[] {
+  const w = (win ?? (typeof window === "undefined" ? undefined : window)) as AnyWindow | undefined;
+  if (!w) return [];
+  const found: { name: string; provider: InjectedProvider }[] = [];
+  const phantom = w.phantom?.solana?.isPhantom ? w.phantom.solana : w.solana?.isPhantom ? w.solana : undefined;
+  if (phantom) found.push({ name: "Phantom", provider: phantom });
+  if (w.solflare?.isSolflare) found.push({ name: "Solflare", provider: w.solflare });
+  const backpack = w.backpack?.solana ?? (w.backpack?.isBackpack ? w.backpack : undefined);
+  if (backpack) found.push({ name: "Backpack", provider: backpack });
+  return found;
+}
+
+/** Connect an injected wallet, wrapped exactly like a Wallet Standard one. */
+export async function connectInjected(name: string, provider: InjectedProvider): Promise<ConnectedWallet> {
+  const res = await provider.connect();
+  const key = (res && typeof res === "object" && res.publicKey) || provider.publicKey;
+  if (!key) throw new Error(`${name} didn't share an account.`);
+  return {
+    name,
+    address: key.toBase58(),
+    async signAndSend(transactionBase64) {
+      if (!provider.signAndSendTransaction) throw new Error(`${name} can't send transactions. Try Phantom, Solflare or Backpack.`);
+      // These providers take a Transaction object rather than bytes.
+      const { Transaction } = await import("@solana/web3.js");
+      await provider.signAndSendTransaction(Transaction.from(base64ToBytes(transactionBase64)));
+    },
+    async signMessage(text) {
+      if (!provider.signMessage) throw new Error(`${name} can't sign messages. Try Phantom, Solflare or Backpack.`);
+      const r = await provider.signMessage(new TextEncoder().encode(text), "utf8");
+      return bytesToBase64(r instanceof Uint8Array ? r : r.signature);
+    },
+  };
+}
+
+/** A wallet the page can offer, however it was found. */
+export interface WalletOption {
+  name: string;
+  icon?: string;
+  connect(): Promise<ConnectedWallet>;
+}
+
+/** Every wallet on offer: the Wallet Standard ones, then any injected wallet they didn't already cover. */
+export function walletOptions(reg: WalletRegistry | null = walletRegistry(), win?: unknown): WalletOption[] {
+  const options: WalletOption[] = (reg?.get() ?? []).map((w) => ({ name: w.name, icon: w.icon, connect: () => connectWallet(w) }));
+  for (const inj of injectedWallets(win)) {
+    if (!options.some((o) => o.name.toLowerCase().includes(inj.name.toLowerCase()))) {
+      options.push({ name: inj.name, connect: () => connectInjected(inj.name, inj.provider) });
+    }
+  }
+  return options;
 }
 
 /** Ask the wallet to connect, and wrap the account it gives us. */
