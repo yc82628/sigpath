@@ -24,7 +24,7 @@
 
 import { join } from "path";
 import { MAX_WINDOW_SECS } from "../chains/solana/orders";
-import { EncryptedStore, keyFromEnv } from "../checkout/encrypted-store";
+import { EncryptedStore, backendFromEnv, keyFromEnv } from "../checkout/encrypted-store";
 import { PENDING_TTL_SECONDS } from "../checkout/address-store";
 import { dataDir } from "../data-dir";
 
@@ -49,7 +49,13 @@ export class OrderMetaStore extends EncryptedStore<OrderMeta> {
   static fromEnv(env: Record<string, string | undefined> = process.env): OrderMetaStore | null {
     const key = keyFromEnv(env);
     if (!key) return null;
-    return new OrderMetaStore(env.ORDER_META_DIR?.trim() || join(dataDir(env), "order-meta"), key, "order-meta");
+    const backend = backendFromEnv(env, {
+      explicitDir: env.ORDER_META_DIR,
+      defaultDir: join(dataDir(env), "order-meta"),
+      namespace: "order-meta",
+      ttlSecs: ORDER_META_RETENTION_SECS,
+    });
+    return new OrderMetaStore(backend, key, "order-meta");
   }
 
   static withKey(dir: string, key: Buffer): OrderMetaStore {

@@ -41,7 +41,7 @@ import { createHash, randomBytes, randomUUID } from "crypto";
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { EncryptedStore, keyFromEnv } from "../checkout/encrypted-store";
+import { EncryptedStore, backendFromEnv, keyFromEnv } from "../checkout/encrypted-store";
 import { readOrder } from "../checkout/checkout";
 import { OrderMetaStore, REPORT_WINDOW_SECS, type OrderMeta } from "./order-meta";
 import type { ChallengeVerification } from "../challenge/verify";
@@ -87,7 +87,13 @@ export class ReportStore extends EncryptedStore<ReportRecord> {
   static fromEnv(env: Record<string, string | undefined> = process.env): ReportStore | null {
     const key = keyFromEnv(env);
     if (!key) return null;
-    return new ReportStore(env.REPORT_STORE_DIR?.trim() || join(dataDir(env), "reports", "pending"), key, "report");
+    const backend = backendFromEnv(env, {
+      explicitDir: env.REPORT_STORE_DIR,
+      defaultDir: join(dataDir(env), "reports", "pending"),
+      namespace: "report",
+      ttlSecs: PENDING_REPORT_MAX_SECS,
+    });
+    return new ReportStore(backend, key, "report");
   }
 
   static withKey(dir: string, key: Buffer): ReportStore {
