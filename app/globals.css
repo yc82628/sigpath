@@ -773,3 +773,8 @@ a.chat-card-title:hover { text-decoration: underline; }
 .wallet-choice button:hover { border-color: var(--brand); }
 .wallet-choice img { border-radius: 4px; }
 .wallet-choice button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 10px 8px; }
+
+/* Impressum and privacy policy: plain reading pages. */
+.legal h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+.legal p, .legal li { line-height: 1.6; }
+.legal ul { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }

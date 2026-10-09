@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
+import { amazonTag } from "@/lib/legal/site";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -46,11 +47,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/seller/verify">For sellers</Link>
               <Link href="/suppliers">Check a supplier</Link>
               <Link href="/developers">API</Link>
+              <Link href="/impressum">Impressum</Link>
+              <Link href="/privacy">Privacy</Link>
             </p>
             <p className="hint">
               No account, no tracking. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the
               item is genuine.
             </p>
+            {amazonTag() && (
+              <p className="hint">
+                As an Amazon Associate, SigPath earns from qualifying purchases. (Als Amazon-Partner verdient SigPath an
+                qualifizierten Verkäufen.)
+              </p>
+            )}
           </div>
         </footer>
         <ShoppingAssistant />
