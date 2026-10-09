@@ -40,7 +40,12 @@ export async function POST(req: NextRequest) {
     { quote: body.quote, buyer: body.buyer, address: body.address },
     { store, metaStore, conn, upheldReports: await DecisionLog.fromEnv().upheldCounts() },
   );
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, ...(result.shortfallUsdc ? { shortfallUsdc: result.shortfallUsdc } : {}) },
+      { status: result.status },
+    );
+  }
 
   return NextResponse.json({
     transaction: result.transaction,

@@ -131,6 +131,8 @@ export interface CheckoutError {
   /** HTTP status the route should answer with. */
   status: number;
   error: string;
+  /** When the wallet is short of USDC: how much more it needs, in whole USDC. */
+  shortfallUsdc?: number;
 }
 
 export async function prepareCheckout(
@@ -216,6 +218,7 @@ export async function prepareCheckout(
     return {
       ok: false,
       status: 402,
+      shortfallUsdc: Number(usdc - have) / 10 ** orders.USDC_DECIMALS,
       error: `This wallet holds ${orders.formatUsdc(have)}; the order needs ${orders.formatUsdc(usdc)}.`,
     };
   }

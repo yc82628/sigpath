@@ -476,6 +476,9 @@ test("a wallet that cannot pay gets a plain message, and no address is stored", 
   assert.equal(r.ok, false);
   assert.equal(!r.ok && r.status, 402);
   assert.match(!r.ok ? r.error : "", /1\.00 USDC/);
+  // The page offers to top up exactly the missing amount (MoonPay).
+  const needed = Number(!r.ok && r.error.match(/needs ([\d.]+) USDC/)?.[1]);
+  assert.ok(!r.ok && Math.abs((r.shortfallUsdc ?? 0) - (needed - 1)) < 1e-6);
   assert.equal(readdirSync(dir).length, 0);
 });
 

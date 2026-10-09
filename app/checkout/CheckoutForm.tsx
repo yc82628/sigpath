@@ -24,12 +24,42 @@ const FIELDS: { key: string; label: string; required: boolean; autoComplete: str
 
 type Phase = "idle" | "building" | "signing" | "confirming" | "error";
 
+// The escrow is on devnet unless the site points at mainnet: MoonPay then only
+// runs in its sandbox, and real test USDC comes from Circle's faucet.
+const DEVNET = !(process.env.NEXT_PUBLIC_RPC_URL ?? "").includes("mainnet");
+
 export default function CheckoutForm({ quote, usdcDisplay }: { quote: string; usdcDisplay: string }) {
   const router = useRouter();
   const [address, setAddress] = useState<Record<string, string>>({ country: "DE" });
   const [wallet, setWallet] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState("");
+  /** How much more USDC the connected wallet needs, when it's short. */
+  const [shortfall, setShortfall] = useState<number | null>(null);
+  const [topUpNote, setTopUpNote] = useState("");
+
+  async function buyWithMoonPay() {
+    if (!wallet || shortfall === null) return;
+    // Opened now, inside the click, so a popup blocker lets it through; filled once the link is signed.
+    const tab = window.open("", "_blank");
+    setTopUpNote("Opening MoonPay…");
+    try {
+      const qs = new URLSearchParams({ wallet, usdc: String(shortfall), back: window.location.href });
+      const res = await fetch(`/api/onramp/moonpay?${qs}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "MoonPay isn't available right now.");
+      if (tab) tab.location.href = body.url;
+      else window.location.href = body.url;
+      setTopUpNote(
+        body.test
+          ? "MoonPay opened in test mode: no real money moves. When your USDC arrives, press Pay again."
+          : "When MoonPay has delivered your USDC to this wallet, press Pay again.",
+      );
+    } catch (err) {
+      tab?.close();
+      setTopUpNote(err instanceof Error ? err.message : "MoonPay isn't available right now.");
+    }
+  }
 
   async function connect() {
     const phantom = getPhantom();
@@ -56,6 +86,8 @@ export default function CheckoutForm({ quote, usdcDisplay }: { quote: string; us
 
     setPhase("building");
     setMessage("Preparing your order…");
+    setShortfall(null);
+    setTopUpNote("");
     let order: string;
     let transaction: string;
     try {
@@ -65,6 +97,7 @@ export default function CheckoutForm({ quote, usdcDisplay }: { quote: string; us
         body: JSON.stringify({ quote, buyer: wallet, address }),
       });
       const body = await res.json();
+      if (res.status === 402 && typeof body.shortfallUsdc === "number") setShortfall(body.shortfallUsdc);
       if (!res.ok) throw new Error(body.error ?? `Checkout failed (${res.status}).`);
       order = body.order;
       transaction = body.transaction;
@@ -131,6 +164,29 @@ export default function CheckoutForm({ quote, usdcDisplay }: { quote: string; us
       )}
 
       {message && <p className={phase === "error" ? "notice withheld" : "notice"}>{message}</p>}
+
+      {shortfall !== null && wallet && (
+        <section className="top-up">
+          <h3>Top up your wallet</h3>
+          <p className="hint">
+            Buy USDC with a card or a SEPA transfer through MoonPay. It goes straight to this wallet
+            ({wallet.slice(0, 4)}…{wallet.slice(-4)}); SigPath never sees your payment details.
+          </p>
+          <button type="button" className="primary" onClick={buyWithMoonPay}>
+            Buy USDC with MoonPay
+          </button>
+          {DEVNET && (
+            <p className="hint">
+              This shop runs on Solana devnet: free test USDC comes from{" "}
+              <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer">
+                faucet.circle.com
+              </a>{" "}
+              (choose USDC, Solana Devnet). MoonPay opens in its test mode here.
+            </p>
+          )}
+          {topUpNote && <p className="hint">{topUpNote}</p>}
+        </section>
+      )}
     </form>
   );
 }
