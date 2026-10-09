@@ -762,3 +762,14 @@ a.chat-card-title:hover { text-decoration: underline; }
 .api-table code { white-space: nowrap; }
 .api-table .method { font-weight: 800; color: var(--brand); }
 .api-table .price { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+
+/* "Which wallet?" when more than one Solana wallet is installed. */
+.wallet-choice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.wallet-choice button {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
+  font: 600 0.95rem/1.2 var(--font-sans); color: var(--fg);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+}
+.wallet-choice button:hover { border-color: var(--brand); }
+.wallet-choice img { border-radius: 4px; }
+.wallet-choice button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 10px 8px; }

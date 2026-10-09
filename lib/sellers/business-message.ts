@@ -1,7 +1,7 @@
 /**
  * What the wallet signs for each business step. Shared by the browser (which
- * asks Phantom to sign it) and the server (which rebuilds it to verify), so it
- * lives apart from the server-only business code. Phantom shows the text in
+ * asks the wallet to sign it) and the server (which rebuilds it to verify), so it
+ * lives apart from the server-only business code. Wallets show the text in
  * full, so it says exactly what it approves.
  */
 

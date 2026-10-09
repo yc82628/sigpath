@@ -9,7 +9,8 @@
  */
 
 import { useState } from "react";
-import { bytesToBase64, getPhantom, walletErrorMessage } from "../../components/phantom";
+import WalletButton from "../../components/WalletButton";
+import { walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
 // The browser-safe half: the server rebuilds exactly this text to verify the signature.
 import { businessMessage, domainAction, vatAction } from "@/lib/sellers/business-message";
 import type { BusinessStatus } from "@/lib/sellers/business-api";
@@ -38,7 +39,8 @@ async function postJson<T>(url: string, body: unknown): Promise<{ ok: true; valu
 }
 
 export default function BusinessForm() {
-  const [wallet, setWallet] = useState<string | null>(null);
+  const [connected, setConnected] = useState<ConnectedWallet | null>(null);
+  const wallet = connected?.address ?? null;
   const [status, setStatus] = useState<BusinessStatus | null>(null);
   const [business, setBusiness] = useState<BusinessView | null>(null);
   const [country, setCountry] = useState("DE");
@@ -49,11 +51,10 @@ export default function BusinessForm() {
   const [error, setError] = useState<string | null>(null);
 
   async function sign(action: string): Promise<{ time: string; signature: string } | null> {
-    const phantom = getPhantom();
-    if (!phantom || !wallet) return null;
+    if (!connected || !wallet) return null;
     const time = new Date().toISOString();
-    const { signature } = await phantom.signMessage(new TextEncoder().encode(businessMessage(action, wallet, time)), "utf8");
-    return { time, signature: bytesToBase64(signature) };
+    const signature = await connected.signMessage(businessMessage(action, wallet, time));
+    return { time, signature };
   }
 
   async function run(fn: () => Promise<void>) {
@@ -68,16 +69,10 @@ export default function BusinessForm() {
     }
   }
 
-  const connect = () =>
+  const connect = (c: ConnectedWallet) =>
     run(async () => {
-      const phantom = getPhantom();
-      if (!phantom) {
-        setError("Phantom wallet not found. Install it from phantom.app, set it to Devnet, and reload.");
-        return;
-      }
-      const { publicKey } = await phantom.connect();
-      const w = publicKey.toBase58();
-      setWallet(w);
+      const w = c.address;
+      setConnected(c);
       const res = await fetch(`/api/business/status?wallet=${encodeURIComponent(w)}`);
       const s = (await res.json()) as BusinessStatus;
       setStatus(s);
@@ -121,9 +116,7 @@ export default function BusinessForm() {
         <section className="step">
           <h2>1. Connect your wallet</h2>
           <p className="hint">The same wallet you used to verify your marketplace accounts.</p>
-          <button type="button" className="primary" disabled={busy} onClick={connect}>
-            Connect Phantom
-          </button>
+          <WalletButton label="Connect wallet" disabled={busy} onConnect={connect} onError={setError} />
         </section>
       )}
 

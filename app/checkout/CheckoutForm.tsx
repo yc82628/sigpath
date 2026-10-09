@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getPhantom, txFromBase64, waitForOrder, walletErrorMessage } from "../components/phantom";
+import WalletButton from "../components/WalletButton";
+import { DEVNET, waitForOrder, walletErrorMessage, type ConnectedWallet } from "../components/wallet";
 
 /**
  * The delivery form and the wallet step.
@@ -24,10 +25,6 @@ const FIELDS: { key: string; label: string; required: boolean; autoComplete: str
 
 type Phase = "idle" | "building" | "signing" | "confirming" | "error";
 
-// The escrow is on devnet unless the site points at mainnet: MoonPay then only
-// runs in its sandbox, and real test USDC comes from Circle's faucet.
-const DEVNET = !(process.env.NEXT_PUBLIC_RPC_URL ?? "").includes("mainnet");
-
 export default function CheckoutForm({
   quote,
   usdcDisplay,
@@ -40,7 +37,7 @@ export default function CheckoutForm({
 }) {
   const router = useRouter();
   const [address, setAddress] = useState<Record<string, string>>({ country: "DE" });
-  const [wallet, setWallet] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState("");
   /** How much more USDC the connected wallet needs, when it's short. */
@@ -53,7 +50,7 @@ export default function CheckoutForm({
     const tab = window.open("", "_blank");
     setTopUpNote("Opening MoonPay…");
     try {
-      const qs = new URLSearchParams({ wallet, usdc: String(shortfall), back: window.location.href });
+      const qs = new URLSearchParams({ wallet: wallet.address, usdc: String(shortfall), back: window.location.href });
       const res = await fetch(`/api/onramp/moonpay?${qs}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "MoonPay isn't available right now.");
@@ -70,28 +67,20 @@ export default function CheckoutForm({
     }
   }
 
-  async function connect() {
-    const phantom = getPhantom();
-    if (!phantom) {
-      setPhase("error");
-      setMessage("Phantom wallet not found. Install it from phantom.app, set it to Devnet, and reload.");
-      return;
-    }
-    try {
-      const { publicKey } = await phantom.connect();
-      setWallet(publicKey.toBase58());
-      setPhase("idle");
-      setMessage("");
-    } catch (err) {
-      setPhase("error");
-      setMessage(`Wallet connection refused: ${walletErrorMessage(err)}`);
-    }
+  function connected(w: ConnectedWallet) {
+    setWallet(w);
+    setPhase("idle");
+    setMessage("");
+  }
+
+  function walletError(text: string) {
+    setPhase("error");
+    setMessage(text);
   }
 
   async function pay(e: React.FormEvent) {
     e.preventDefault();
-    const phantom = getPhantom();
-    if (!phantom || !wallet) return;
+    if (!wallet) return;
 
     setPhase("building");
     setMessage("Preparing your order…");
@@ -103,7 +92,7 @@ export default function CheckoutForm({
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ quote, buyer: wallet, address }),
+        body: JSON.stringify({ quote, buyer: wallet.address, address }),
       });
       const body = await res.json();
       if (res.status === 402 && typeof body.shortfallUsdc === "number") setShortfall(body.shortfallUsdc);
@@ -117,9 +106,9 @@ export default function CheckoutForm({
     }
 
     setPhase("signing");
-    setMessage("Approve the payment in Phantom. Check the amount it shows before you approve.");
+    setMessage(`Approve the payment in ${wallet.name}. Check the amount it shows before you approve.`);
     try {
-      await phantom.signAndSendTransaction(txFromBase64(transaction));
+      await wallet.signAndSend(transaction);
     } catch (err) {
       // Nothing was paid. The stored address is deleted by the sweep once the
       // order has failed to appear for fifteen minutes.
@@ -158,13 +147,11 @@ export default function CheckoutForm({
       </fieldset>
 
       {!wallet ? (
-        <button type="button" className="primary" onClick={connect}>
-          Connect Phantom
-        </button>
+        <WalletButton label="Connect wallet" onConnect={connected} onError={walletError} />
       ) : (
         <>
           <p className="hint">
-            Paying from <code>{wallet.slice(0, 4)}…{wallet.slice(-4)}</code>
+            Paying from {wallet.name} <code>{wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}</code>
           </p>
           <button type="submit" className="primary" disabled={busy}>
             {busy ? "Working…" : `Pay ${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`}
@@ -179,7 +166,7 @@ export default function CheckoutForm({
           <h3>Top up your wallet</h3>
           <p className="hint">
             Buy USDC with a card or a SEPA transfer through MoonPay. It goes straight to this wallet
-            ({wallet.slice(0, 4)}…{wallet.slice(-4)}); SigPath never sees your payment details.
+            ({wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}); SigPath never sees your payment details.
           </p>
           <button type="button" className="primary" onClick={buyWithMoonPay}>
             Buy USDC with MoonPay

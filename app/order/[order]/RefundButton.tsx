@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getPhantom, txFromBase64, waitForOrder, walletErrorMessage } from "../../components/phantom";
+import WalletButton from "../../components/WalletButton";
+import { waitForOrder, walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
 
 /**
  * Trigger the refund once the deadline has passed.
@@ -16,25 +17,19 @@ export default function RefundButton({ order }: { order: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function refund() {
-    const phantom = getPhantom();
-    if (!phantom) {
-      setMessage("Phantom wallet not found. Install it, set it to Devnet, and reload.");
-      return;
-    }
+  async function refund(wallet: ConnectedWallet) {
     setBusy(true);
     try {
-      const { publicKey } = await phantom.connect();
       const res = await fetch(`/api/orders/${order}/refund`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ caller: publicKey.toBase58() }),
+        body: JSON.stringify({ caller: wallet.address }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Refund failed (${res.status}).`);
 
-      setMessage("Approve the refund in Phantom.");
-      await phantom.signAndSendTransaction(txFromBase64(body.transaction));
+      setMessage(`Approve the refund in ${wallet.name}.`);
+      await wallet.signAndSend(body.transaction);
 
       setMessage("Refund sent. Waiting for confirmation…");
       await waitForOrder(order, (s) => s.status === "refunded");
@@ -48,9 +43,7 @@ export default function RefundButton({ order }: { order: string }) {
 
   return (
     <div>
-      <button type="button" className="primary" onClick={refund} disabled={busy}>
-        {busy ? "Working…" : "Refund this order"}
-      </button>
+      <WalletButton label={busy ? "Working…" : "Refund this order"} disabled={busy} onConnect={refund} onError={setMessage} />
       {message && <p className="hint">{message}</p>}
     </div>
   );

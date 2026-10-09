@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import CameraCapture, { type CaptureChallenge, type FrameResult } from "../../components/CameraCapture";
-import { bytesToBase64, getPhantom, walletErrorMessage } from "../../components/phantom";
+import WalletButton from "../../components/WalletButton";
+import { walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
 
 /**
  * Claim the verified-seller badge, in four steps the seller can see:
@@ -33,6 +34,7 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
   const [signature, setSignature] = useState("");
   const [badge, setBadge] = useState<{ sellerKey: string; attestation: string; mint: string; expiresAt: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
 
   async function post(path: string, body: unknown) {
     const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -41,17 +43,16 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
     return data;
   }
 
-  async function connect() {
-    const phantom = getPhantom();
-    if (!phantom) {
-      setStep("error");
-      setMessage("Phantom wallet not found. Install it from phantom.app, set it to Devnet, and reload.");
-      return;
-    }
+  function walletError(text: string) {
+    setStep("error");
+    setMessage(text);
+  }
+
+  async function connect(w: ConnectedWallet) {
     try {
       setBusy(true);
-      const { publicKey } = await phantom.connect();
-      setClaim(await post("/api/sellers/claim/start", { wallet: publicKey.toBase58() }));
+      setWallet(w);
+      setClaim(await post("/api/sellers/claim/start", { wallet: w.address }));
       setStep("listing");
       setMessage("");
     } catch (err) {
@@ -76,12 +77,10 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
   }
 
   async function sign() {
-    const phantom = getPhantom();
-    if (!phantom || !proven) return;
+    if (!wallet || !proven) return;
     try {
       setBusy(true);
-      const { signature } = await phantom.signMessage(new TextEncoder().encode(proven.message), "utf8");
-      setSignature(bytesToBase64(signature));
+      setSignature(await wallet.signMessage(proven.message));
       setStep("capture");
       setMessage("");
     } catch (err) {
@@ -138,9 +137,7 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
       {(step === "connect" || (step === "error" && !claim)) && (
         <>
           <p className="hint">1. Connect the wallet the badge will live in. It can never be moved out of it.</p>
-          <button type="button" className="primary" disabled={busy} onClick={connect}>
-            Connect Phantom
-          </button>
+          <WalletButton label="Connect wallet" disabled={busy} onConnect={connect} onError={walletError} />
         </>
       )}
 
@@ -183,7 +180,7 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
             claim that account — a signature over text, nothing moves.
           </p>
           <button type="button" className="primary" disabled={busy} onClick={sign}>
-            Sign in Phantom
+            Sign in {wallet?.name ?? "your wallet"}
           </button>
         </section>
       )}

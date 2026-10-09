@@ -163,8 +163,8 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
 
           <CheckoutForm quote={token} usdcDisplay={formatUsdc(usdc)} localDisplay={local(l.amount + feeMinor)} />
           <p className="hint">
-            Devnet only: set Phantom to Devnet first, and pay with devnet USDC from
-            faucet.circle.com.
+            Devnet only: pay from any Solana wallet (Phantom, Solflare, Backpack…) set to Devnet,
+            with devnet USDC from faucet.circle.com.
           </p>
         </>
       )}

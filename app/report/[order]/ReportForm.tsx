@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import CameraCapture, { type CaptureChallenge, type FrameResult } from "../../components/CameraCapture";
-import { bytesToBase64, getPhantom, walletErrorMessage } from "../../components/phantom";
+import WalletButton from "../../components/WalletButton";
+import { walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
 
 /**
  * Report a fake product, in three steps the buyer can see:
@@ -32,28 +33,25 @@ export default function ReportForm({ order }: { order: string }) {
 
   const ready = category !== "" && description.trim().length >= 10 && description.length <= 500;
 
-  async function signAsBuyer() {
-    const phantom = getPhantom();
-    if (!phantom) {
-      setStep("error");
-      setMessage("Phantom wallet not found. Install it from phantom.app, set it to Devnet, and reload.");
-      return;
-    }
+  function walletError(text: string) {
+    setStep("error");
+    setMessage(text);
+  }
+
+  async function signAsBuyer(wallet: ConnectedWallet) {
     setStep("signing");
-    setMessage("Connect the wallet that paid for this order.");
     try {
-      const { publicKey } = await phantom.connect();
       const res = await fetch("/api/reports/intent", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ order, wallet: publicKey.toBase58() }),
+        body: JSON.stringify({ order, wallet: wallet.address }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Couldn't start the report (${res.status}).`);
 
-      setMessage("Sign the message in Phantom. It moves no funds — it only proves you're the buyer.");
-      const { signature } = await phantom.signMessage(new TextEncoder().encode(body.message), "utf8");
-      setIntent({ intentId: body.intentId, signature: bytesToBase64(signature) });
+      setMessage(`Sign the message in ${wallet.name}. It moves no funds — it only proves you're the buyer.`);
+      const signature = await wallet.signMessage(body.message);
+      setIntent({ intentId: body.intentId, signature });
       setStep("capture");
       setMessage("");
     } catch (err) {
@@ -124,9 +122,7 @@ export default function ReportForm({ order }: { order: string }) {
       {(step === "describe" || step === "error") && (
         <>
           <p className="hint">2. Prove you&apos;re the buyer — sign with the wallet that paid.</p>
-          <button type="button" className="primary" disabled={!ready} onClick={signAsBuyer}>
-            Connect Phantom and sign
-          </button>
+          <WalletButton label="Connect wallet and sign" disabled={!ready} onConnect={signAsBuyer} onError={walletError} />
         </>
       )}
 

@@ -94,7 +94,7 @@ prices are only ever compared with each other, never with real listings. Set
 `STUB_FEED=false` to hide it.
 
 ```powershell
-npm test                                   # 473 tests, as of 2026-10-09
+npm test                                   # 479 tests, as of 2026-10-09
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -262,7 +262,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (473 as of 2026-10-09), then a dev server on http://localhost:3000.
+Expect every test to pass (479 as of 2026-10-09), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
@@ -765,7 +765,12 @@ keeps the rent until `solana program close --buffers --url devnet` returns it.
 
 ### The checkout
 
-Search → **Pay with USDC** → `/checkout` → Phantom signs → `/order/<address>`.
+Search → **Pay with USDC** → `/checkout` → the shopper's wallet signs → `/order/<address>`.
+
+Any Solana wallet works (Phantom, Solflare, Backpack…): the pages find installed
+wallets through the [Wallet Standard](https://github.com/wallet-standard/wallet-standard)
+(`app/components/wallet.ts`, no wallet-adapter packages) and ask which one to
+use when there is more than one.
 
 | Guarantee | How |
 |---|---|
@@ -848,14 +853,14 @@ npx tsx scripts/orders-admin.ts sweep                # delete anything no longer
 npx tsx scripts/checkout-e2e.ts
 ```
 
-A keypair stands in for Phantom: the server builds each transaction, only the
+A keypair stands in for the shopper's wallet: the server builds each transaction, only the
 buyer signs, the chain decides — then it checks that every way an order ends
 (fulfilled, refunded early, refunded after the deadline by a stranger,
 abandoned) also deletes the address. Measured 2026-09-25: **19 passed, 0
 failed**, store empty at the end.
 
-**Shoppers need:** Phantom set to **Devnet** (Settings → Developer Settings →
-Testnet Mode), devnet USDC from [faucet.circle.com](https://faucet.circle.com),
+**Shoppers need:** a Solana wallet set to **Devnet** (in Phantom: Settings →
+Developer Settings → Testnet Mode), devnet USDC from [faucet.circle.com](https://faucet.circle.com),
 and ~0.006 SOL for fees and account rent. The checkout checks all of this
 before asking the wallet to sign.
 
