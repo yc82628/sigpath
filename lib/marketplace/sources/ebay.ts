@@ -61,6 +61,14 @@ export type EbayEnv = keyof typeof HOSTS;
 const SCOPE = "https://api.ebay.com/oauth/api_scope";
 
 /**
+ * eBay is asked for at least this many results. A price is only compared with
+ * at least 5 listings of the same model and configuration, and a broad search
+ * ("ThinkPad X1") spreads 20 results over too many generations and storage
+ * sizes for that. One call either way; eBay allows up to 200.
+ */
+export const EBAY_MIN_RESULTS = 50;
+
+/**
  * eBay's condition -> our buckets. Unknown maps to "unknown", never "new".
  *
  * The numeric conditionId comes first: it is the same on every eBay site,
@@ -264,7 +272,7 @@ export class EbaySource implements MarketplaceSource {
       const url =
         `${HOSTS[creds.env]}/buy/browse/v1/item_summary/search` +
         `?q=${encodeURIComponent(query)}` +
-        `&limit=${Math.min(opts.limit ?? 20, 200)}`;
+        `&limit=${Math.min(Math.max(opts.limit ?? 20, EBAY_MIN_RESULTS), 200)}`;
 
       const res = await this.fetchImpl(url, {
         headers: {

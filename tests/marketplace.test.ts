@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { analyse, median, MIN_SAMPLE, UNDERPRICED_RATIO } from "../lib/marketplace/anomaly";
 import { searchAll } from "../lib/marketplace/search";
 import { StubSource } from "../lib/marketplace/sources/stub";
-import { EbaySource, mapCondition, toMinorUnits } from "../lib/marketplace/sources/ebay";
+import { EBAY_MIN_RESULTS, EbaySource, mapCondition, toMinorUnits } from "../lib/marketplace/sources/ebay";
 import { listingKey, totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
 import type { MarketplaceSource } from "../lib/marketplace/sources/types";
 import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
@@ -399,6 +399,19 @@ test("an eBay 429 is rate_limited, distinct from an error", async () => {
 
   const r = await new EbaySource({ EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "s" }, fetchImpl).search("x");
   assert.equal(r.status, "rate_limited");
+});
+
+test("eBay is asked for enough results to compare like with like", async () => {
+  const urls: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    urls.push(String(url));
+    if (String(url).includes("oauth2/token")) return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    return new Response(JSON.stringify({ itemSummaries: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const ebay = new EbaySource({ EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "s" }, fetchImpl);
+  await ebay.search("x", { limit: 20 });
+  await ebay.search("x", { limit: 120 });
+  assert.deepEqual(urls.filter((u) => u.includes("item_summary")).map((u) => new URL(u).searchParams.get("limit")), [String(EBAY_MIN_RESULTS), "120"]);
 });
 
 test("eBay requests are never served from a stored copy", async () => {
