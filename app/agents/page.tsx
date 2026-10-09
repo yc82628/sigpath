@@ -56,6 +56,28 @@ export default async function AgentsPage() {
 npx @solana/pay --sandbox curl "http://127.0.0.1:1402/api/check?q=ThinkPad%20X1"`}</code>
       </pre>
 
+      <h2>Funding the agent&apos;s wallet</h2>
+      <p className="hint">
+        On mainnet an agent pays from a Solana wallet holding a little USDC, plus a little SOL for network fees. The{" "}
+        <a href="https://www.moonpay.com/agents" rel="noopener">MoonPay CLI</a> gives an agent its own wallet and buys
+        crypto with a card. Its keys stay on the machine it runs on: write down the recovery phrase it shows you. Not
+        needed for the sandbox above.
+      </p>
+      <pre className="code-block">
+        <code>{`npm i -g @moonpay/cli
+mp login --email you@example.com          # then mp verify with the emailed code
+mp wallet create --name "agent"
+mp buy --token SOL --chain solana --amount 1 --wallet agent
+mp token swap --wallet agent --chain solana \\
+  --from-token So11111111111111111111111111111111111111111 --from-amount 0.1 \\
+  --to-token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v   # SOL to USDC
+mp token balance list --wallet <address> --chain solana`}</code>
+      </pre>
+      <p className="hint">
+        If the agent pays from a different wallet, send the USDC there; <code>mp tools</code> lists every command. The
+        MoonPay CLI is MoonPay&apos;s, not SigPath&apos;s: SigPath never sees the wallet or the purchase.
+      </p>
+
       <h2>What comes back</h2>
       <p className="hint">A live answer from the demo feed, trimmed to one deal and one warning.</p>
       <pre className="code-block">
