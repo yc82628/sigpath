@@ -227,6 +227,7 @@ export class AmazonSource implements MarketplaceSource {
         method: "POST",
         headers: signed.headers,
         body: signed.body,
+        cache: "no-store",
         signal: AbortSignal.timeout(opts.timeoutMs ?? 8000),
       });
 

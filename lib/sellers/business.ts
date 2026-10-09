@@ -80,6 +80,7 @@ export async function checkVat(country: string, number: string, fetchImpl: typeo
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ countryCode: country, vatNumber: number }),
+      cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
     const body = (await res.json().catch(() => null)) as { valid?: boolean; name?: string; errorWrappers?: { error?: string }[] } | null;

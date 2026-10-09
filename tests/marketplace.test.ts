@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { analyse, median, MIN_SAMPLE, UNDERPRICED_RATIO } from "../lib/marketplace/anomaly";
 import { searchAll } from "../lib/marketplace/search";
 import { StubSource } from "../lib/marketplace/sources/stub";
-import { EbaySource, toMinorUnits } from "../lib/marketplace/sources/ebay";
+import { EbaySource, mapCondition, toMinorUnits } from "../lib/marketplace/sources/ebay";
 import { listingKey, totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
 import type { MarketplaceSource } from "../lib/marketplace/sources/types";
 import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
@@ -399,6 +399,36 @@ test("an eBay 429 is rate_limited, distinct from an error", async () => {
 
   const r = await new EbaySource({ EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "s" }, fetchImpl).search("x");
   assert.equal(r.status, "rate_limited");
+});
+
+test("eBay requests are never served from a stored copy", async () => {
+  // Next.js stores server fetches by default: a stored token expires after two
+  // hours ("Invalid access token"), and a stored search freezes its prices.
+  const seen: (RequestCache | undefined)[] = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    seen.push(init?.cache);
+    if (String(url).includes("oauth2/token")) return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    return new Response(JSON.stringify({ itemSummaries: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+  await new EbaySource({ EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "s" }, fetchImpl).search("x");
+  assert.deepEqual(seen, ["no-store", "no-store"]);
+});
+
+test("eBay conditions are read by ID first, so translated names still count", () => {
+  // What eBay Germany actually returns: the text is German, the ID is universal.
+  assert.equal(mapCondition("Gebraucht", "3000"), "used");
+  assert.equal(mapCondition("Gut - Refurbished", "2030"), "refurbished");
+  assert.equal(mapCondition("Zertifiziert - Refurbished", "2000"), "refurbished");
+  assert.equal(mapCondition("Neu", "1000"), "new");
+  assert.equal(mapCondition("Neu: Sonstige (siehe Artikelbeschreibung)", "1500"), "new");
+  assert.equal(mapCondition("Neuwertig", "2750"), "used");
+  assert.equal(mapCondition("Als Ersatzteil / defekt", "7000"), "unknown", "for parts is never compared with working units");
+  // Without an ID, the German and French names are still understood.
+  assert.equal(mapCondition("Gebraucht"), "used");
+  assert.equal(mapCondition("Neuwertig"), "used");
+  assert.equal(mapCondition("Neu"), "new");
+  assert.equal(mapCondition("Occasion"), "used");
+  assert.equal(mapCondition(undefined), "unknown");
 });
 
 test("an unknown eBay condition never becomes 'new'", async () => {

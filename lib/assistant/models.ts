@@ -224,6 +224,7 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}) },
           body,
+          cache: "no-store",
           signal,
         });
       let res = await send();

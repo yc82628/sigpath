@@ -211,7 +211,7 @@ export class FeedSource implements MarketplaceSource {
 
     const text = /^https?:\/\//i.test(cfg.source)
       ? await (async () => {
-          const res = await this.fetchImpl(cfg.source, { signal: AbortSignal.timeout(30_000) });
+          const res = await this.fetchImpl(cfg.source, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
           if (!res.ok) throw new Error(`feed fetch returned ${res.status}`);
           return res.text();
         })()

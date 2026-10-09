@@ -60,12 +60,26 @@ export type EbayEnv = keyof typeof HOSTS;
 
 const SCOPE = "https://api.ebay.com/oauth/api_scope";
 
-/** eBay condition strings -> our buckets. Unknown maps to "unknown", never "new". */
-function mapCondition(c?: string): Condition {
+/**
+ * eBay's condition -> our buckets. Unknown maps to "unknown", never "new".
+ *
+ * The numeric conditionId comes first: it is the same on every eBay site,
+ * while the text is translated ("Gebraucht" on EBAY_DE, "Occasion" on EBAY_FR)
+ * and would otherwise leave most German listings uncompared.
+ * https://developer.ebay.com/api-docs/sell/static/metadata/condition-id-values.html
+ */
+export function mapCondition(c?: string, conditionId?: string): Condition {
+  const id = Number(conditionId);
+  if (Number.isInteger(id) && id > 0) {
+    if (id === 1000 || id === 1500) return "new"; // new; new other (open box)
+    if (id >= 2000 && id <= 2500) return "refurbished"; // certified, excellent, very good, good, seller refurbished
+    if (id === 1750 || (id >= 2750 && id <= 6000)) return "used"; // new with defects, like new, pre-owned grades, used
+    return "unknown"; // 7000 for parts or not working: never compared with working units
+  }
   const s = (c ?? "").toLowerCase();
-  if (s.includes("refurbish")) return "refurbished";
-  if (s.includes("new")) return "new";
-  if (s.includes("used") || s.includes("pre-owned") || s.includes("good")) return "used";
+  if (s.includes("refurbish") || s.includes("generalüberholt") || s.includes("reconditionn")) return "refurbished";
+  if (s.includes("neuwertig") || s.includes("gebraucht") || s.includes("used") || s.includes("pre-owned") || s.includes("occasion") || s.includes("good")) return "used";
+  if (s.includes("new") || s.startsWith("neu") || s.includes("neuf")) return "new";
   return "unknown";
 }
 
@@ -91,6 +105,7 @@ interface EbayItemSummary {
   price?: { value?: string; currency?: string };
   shippingOptions?: { shippingCost?: { value?: string; currency?: string } }[];
   condition?: string;
+  conditionId?: string;
   image?: { imageUrl?: string };
   seller?: { username?: string; feedbackScore?: number; feedbackPercentage?: string };
   itemCreationDate?: string;
@@ -134,6 +149,8 @@ export class EbaySource implements MarketplaceSource {
 
     const basic = Buffer.from(`${id}:${secret}`).toString("base64");
     const res = await this.fetchImpl(`${HOSTS[env]}/identity/v1/oauth2/token`, {
+      // Next.js would otherwise store this response and hand back an expired token.
+      cache: "no-store",
       method: "POST",
       headers: {
         authorization: `Basic ${basic}`,
@@ -187,6 +204,7 @@ export class EbaySource implements MarketplaceSource {
       const token = await this.accessToken(creds.id, creds.secret, creds.env);
       const res = await this.fetchImpl(`${HOSTS[creds.env]}/commerce/notification/v1/public_key/${kid}`, {
         headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) return null;
@@ -213,6 +231,7 @@ export class EbaySource implements MarketplaceSource {
         `${HOSTS[creds.env]}/buy/browse/v1/item/get_item_by_legacy_id?legacy_item_id=${itemNumber}`,
         {
           headers: { authorization: `Bearer ${token}`, "X-EBAY-C-MARKETPLACE-ID": creds.marketplace },
+          cache: "no-store",
           signal: AbortSignal.timeout(timeoutMs),
         },
       );
@@ -252,6 +271,8 @@ export class EbaySource implements MarketplaceSource {
           authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": creds.marketplace,
         },
+        // Live prices: never a stored copy of an earlier search.
+        cache: "no-store",
         signal: AbortSignal.timeout(opts.timeoutMs ?? 8000),
       });
 
@@ -289,7 +310,7 @@ export class EbaySource implements MarketplaceSource {
           url: it.itemWebUrl,
           price,
           shipping: money(it.shippingOptions?.[0]?.shippingCost),
-          condition: mapCondition(it.condition),
+          condition: mapCondition(it.condition, it.conditionId),
           imageUrl: it.image?.imageUrl,
           seller: {
             handle: it.seller?.username ?? "unknown",

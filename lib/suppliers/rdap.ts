@@ -55,6 +55,8 @@ export async function domainRegistration(domain: string, fetchImpl: typeof fetch
   try {
     const res = await fetchImpl(`${server.replace(/\/?$/, "/")}domain/${encodeURIComponent(domain)}`, {
       headers: { Accept: "application/rdap+json, application/json" },
+      // A domain registered since the last check must not read as missing.
+      cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
     if (res.status === 404) return { status: "not_registered", registry };

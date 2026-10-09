@@ -128,6 +128,7 @@ export class EtsySource implements MarketplaceSource {
         `${BASE}/listings/batch?listing_ids=${ids.join(",")}` + `&includes=${["Shop", "Images"].join(",")}`;
       const res = await this.fetchImpl(url, {
         headers: { "x-api-key": key },
+        cache: "no-store",
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) return { ok: false, byId };
@@ -149,6 +150,7 @@ export class EtsySource implements MarketplaceSource {
     try {
       const res = await this.fetchImpl(`${BASE}/listings/${listingId}`, {
         headers: { "x-api-key": key },
+        cache: "no-store",
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.status === 404) return { ok: false, error: "Etsy has no listing with that id." };
@@ -182,6 +184,7 @@ export class EtsySource implements MarketplaceSource {
 
       const res = await this.fetchImpl(url, {
         headers: { "x-api-key": key },
+        cache: "no-store",
         signal: AbortSignal.timeout(timeoutMs),
       });
 
