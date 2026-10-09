@@ -6,7 +6,7 @@ import { StubSource } from "../lib/marketplace/sources/stub";
 import { EBAY_MIN_RESULTS, EbaySource, mapCondition, toMinorUnits } from "../lib/marketplace/sources/ebay";
 import { listingKey, totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
 import type { MarketplaceSource } from "../lib/marketplace/sources/types";
-import { MARKETPLACES, linkOutTargets } from "../lib/marketplace/registry";
+import { MARKETPLACES, amazonSearchLink, linkOutTargets } from "../lib/marketplace/registry";
 import { AmazonSource, signPaapiRequest } from "../lib/marketplace/sources/amazon";
 import { FeedSource, parseDelimited, feedPriceToMinorUnits } from "../lib/marketplace/sources/feed";
 import { EtsySource, etsyMoneyToMinorUnits, etsyCondition } from "../lib/marketplace/sources/etsy";
@@ -516,9 +516,32 @@ test("link-out targets never contribute listings or prices", async () => {
   // median. Claiming a cross-marketplace comparison that silently included a
   // site we never queried would be the worst kind of wrong.
   const r = await searchAll("thinkpad x1", [new StubSource()]);
-  assert.equal(r.linkOut.length, 2);
+  assert.deepEqual(r.linkOut.map((t) => t.id), ["amazon", "idealo", "kleinanzeigen"]);
   assert.ok(r.listings.every((l) => l.source !== "idealo" && l.source !== "kleinanzeigen"));
   assert.ok(!r.analysis.coverage.includes("idealo" as never));
+});
+
+test("the Amazon search link carries a valid Associates tag, and nothing else", () => {
+  const tagged = amazonSearchLink("thinkpad x1 carbon", { AMAZON_PARTNER_TAG: "sigpath-21" });
+  assert.equal(tagged.url, "https://www.amazon.de/s?k=thinkpad%20x1%20carbon&tag=sigpath-21");
+  assert.equal(tagged.affiliate, true);
+  // No tag: still a useful link, just not an affiliate one (so no disclosure).
+  const plain = amazonSearchLink("thinkpad", {});
+  assert.equal(plain.url, "https://www.amazon.de/s?k=thinkpad");
+  assert.equal(plain.affiliate, false);
+  // A tag that isn't a tracking id never reaches the URL.
+  const odd = amazonSearchLink("thinkpad", { AMAZON_PARTNER_TAG: "x&evil=1" });
+  assert.equal(odd.url, "https://www.amazon.de/s?k=thinkpad");
+  assert.equal(odd.affiliate, false);
+  // The storefront follows AMAZON_LOCALE; an unknown one falls back to amazon.de.
+  assert.ok(amazonSearchLink("x", { AMAZON_LOCALE: "uk" }).url.startsWith("https://www.amazon.co.uk/"));
+  assert.ok(amazonSearchLink("x", { AMAZON_LOCALE: "zz" }).url.startsWith("https://www.amazon.de/"));
+});
+
+test("Amazon is a link-out only while it isn't a live source", async () => {
+  const live = { id: "amazon" as const, search: async () => ({ source: "amazon" as const, status: "ok" as const, listings: [] }) };
+  const r = await searchAll("thinkpad", [new StubSource(), live as unknown as MarketplaceSource]);
+  assert.ok(!r.linkOut.some((t) => t.id === "amazon"));
 });
 
 // ---------------------------------------------------------------------------

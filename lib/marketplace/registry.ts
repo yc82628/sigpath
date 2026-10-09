@@ -24,14 +24,14 @@
  *                  kept out of the median — handmade and vintage goods are not
  *                  comparable with retail. See sources/etsy.ts.
  *
- *   Amazon         Product Advertising API 5.0 is a real, legitimate API and
- *                  sources/amazon.ts implements it properly. But access
- *                  requires an Associates account that has made qualifying
- *                  referred sales — three within 180 days to be granted it, and
- *                  continued sales to keep it, with access revoked after a
- *                  30-day dry spell. A project without live affiliate traffic
- *                  will not hold credentials. The client is built and ready if
- *                  you have them; it reports not_configured if you do not.
+ *   Amazon         sources/amazon.ts implements Product Advertising API 5.0,
+ *                  which Amazon retired in 2026. Its successor, the Creators
+ *                  API, is open only to an Associates account with at least 10
+ *                  qualifying sales in the past 30 days. Until SigPath has that,
+ *                  Amazon is a link-out too: a search link carrying the
+ *                  Associates tag (AMAZON_PARTNER_TAG), so referred purchases
+ *                  count towards access. It is shown only while Amazon is not a
+ *                  live source, and it never touches a verdict.
  *
  *   idealo         developer.idealo.com is a PARTNER API for retailers pushing
  *                  their own offers INTO idealo. It is not read access to
@@ -114,13 +114,47 @@ export const MARKETPLACES: MarketplaceInfo[] = [
   },
 ];
 
-export function linkOutTargets(query: string): { id: MarketplaceId; label: string; url: string; note?: string }[] {
-  return MARKETPLACES.filter((m) => m.access === "link_out" && m.searchUrl).map((m) => ({
+export interface LinkOut {
+  id: MarketplaceId;
+  label: string;
+  url: string;
+  note?: string;
+  /** An affiliate link: shown with the disclosure, and rel="sponsored". */
+  affiliate?: boolean;
+}
+
+/** Amazon's storefront per AMAZON_LOCALE, the same codes sources/amazon.ts takes. */
+const AMAZON_STORES: Record<string, string> = { DE: "www.amazon.de", UK: "www.amazon.co.uk", FR: "www.amazon.fr", US: "www.amazon.com" };
+
+/**
+ * A search link into Amazon's own storefront, carrying the Associates tag when
+ * one is set. An Associates tracking id is short: letters, digits and hyphens
+ * (e.g. "sigpath-21"); anything else is ignored rather than put in a URL.
+ */
+export function amazonSearchLink(query: string, env: Record<string, string | undefined> = process.env): LinkOut {
+  const store = AMAZON_STORES[(env.AMAZON_LOCALE?.trim() || "DE").toUpperCase()] ?? AMAZON_STORES.DE;
+  const tag = env.AMAZON_PARTNER_TAG?.trim();
+  const tagged = !!tag && /^[A-Za-z0-9-]{1,64}$/.test(tag);
+  return {
+    id: "amazon",
+    label: "Amazon",
+    url: `https://${store}/s?k=${encodeURIComponent(query)}${tagged ? `&tag=${tag}` : ""}`,
+    note: "Amazon's product API isn't open to SigPath yet, so its prices aren't compared.",
+    affiliate: tagged,
+  };
+}
+
+export function linkOutTargets(
+  query: string,
+  opts: { amazon?: boolean; env?: Record<string, string | undefined> } = {},
+): LinkOut[] {
+  const fixed: LinkOut[] = MARKETPLACES.filter((m) => m.access === "link_out" && m.searchUrl).map((m) => ({
     id: m.id,
     label: m.label,
     url: m.searchUrl!(query),
     note: m.note,
   }));
+  return opts.amazon ? [amazonSearchLink(query, opts.env), ...fixed] : fixed;
 }
 
 export function marketplaceLabel(id: MarketplaceId): string {

@@ -473,19 +473,26 @@ async function SearchResults({
         <section className="linkout">
           <h2>Also search directly</h2>
           <p className="hint">
-            These have no API we may use, so their prices are not part of the
+            SigPath can't query these, so their prices are not part of the
             comparison above.
           </p>
           <ul>
             {result.linkOut.map((t) => (
               <li key={t.id}>
-                <a href={t.url} target="_blank" rel="noopener noreferrer">
+                <a href={t.url} target="_blank" rel={t.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}>
                   {t.label} &rarr;
                 </a>
                 {t.note && <span className="hint"> {t.note}</span>}
               </li>
             ))}
           </ul>
+          {result.linkOut.some((t) => t.affiliate) && (
+            // Amazon requires this disclosure wherever an Associates link appears.
+            <p className="hint affiliate-note">
+              As an Amazon Associate, SigPath earns from qualifying purchases (Als Amazon-Partner verdient SigPath an
+              qualifizierten Verkäufen). It never changes a verdict or the order of results.
+            </p>
+          )}
         </section>
       )}
     </>

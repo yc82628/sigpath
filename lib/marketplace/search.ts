@@ -13,7 +13,7 @@ import type { Listing, SearchOptions, SourceResult } from "./types";
 import { sellerKey, totalPrice } from "./types";
 import type { MarketplaceSource } from "./sources/types";
 import { analyse, type Analysis, type Flag } from "./anomaly";
-import { linkOutTargets } from "./registry";
+import { linkOutTargets, type LinkOut } from "./registry";
 
 export interface SearchResponse {
   query: string;
@@ -30,7 +30,7 @@ export interface SearchResponse {
    * a separate field rather than a fake source: nothing here may ever reach the
    * median.
    */
-  linkOut: { id: string; label: string; url: string; note?: string }[];
+  linkOut: LinkOut[];
 }
 
 /** Cheapest first, by what the buyer actually pays. */
@@ -116,7 +116,8 @@ export function assembleSearch(
     // Pass the FULL results, failures included. Passing only the ok ones would
     // silently re-enable the biased comparison this design exists to prevent.
     analysis: withReportFlags(analyse(results, { currency: opts.currency, query: q }), listings, context.upheldReports),
-    linkOut: linkOutTargets(q),
+    // Amazon gets a search link only while it isn't answering as a live source.
+    linkOut: linkOutTargets(q, { amazon: !results.some((r) => r.source === "amazon" && r.status === "ok") }),
   };
 }
 
