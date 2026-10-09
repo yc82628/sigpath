@@ -24,11 +24,14 @@ const SOURCES = [
   { value: "stub", label: "Demo marketplace", hint: "Demo only: type handle:listing text, e.g. my_shop:Genuine boots SIGPATH-ABCD-EFGH" },
 ] as const;
 
-export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase: string; demoEnabled: boolean }) {
+export default function VerifyForm({ explorerBase, marketplaces }: { explorerBase: string; marketplaces: readonly string[] }) {
+  // Only the marketplaces this site can actually read (lib/sellers/claim.ts claimMarketplaces).
+  const offered = SOURCES.filter((s) => marketplaces.includes(s.value));
+  const realNames = offered.filter((s) => s.value !== "stub").map((s) => s.label);
   const [step, setStep] = useState<Step>("connect");
   const [message, setMessage] = useState("");
   const [claim, setClaim] = useState<{ claimToken: string; code: string } | null>(null);
-  const [source, setSource] = useState<string>("ebay");
+  const [source, setSource] = useState<string>(offered[0]?.value ?? "ebay");
   const [listingId, setListingId] = useState("");
   const [proven, setProven] = useState<{ provenToken: string; sellerKey: string; message: string } | null>(null);
   const [signature, setSignature] = useState("");
@@ -138,6 +141,9 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
         <>
           <p className="hint">1. Connect the wallet the badge will live in. It can never be moved out of it.</p>
           <WalletButton label="Connect wallet" disabled={busy} onConnect={connect} onError={walletError} />
+          <p className="hint">
+            {realNames.length ? `Works with your ${realNames.join(" or ")} listings. ` : ""}Amazon sellers: coming soon.
+          </p>
         </>
       )}
 
@@ -154,7 +160,7 @@ export default function VerifyForm({ explorerBase, demoEnabled }: { explorerBase
           <label className="stacked">
             <span>Marketplace</span>
             <select value={source} onChange={(e) => setSource(e.target.value)}>
-              {SOURCES.filter((s) => demoEnabled || s.value !== "stub").map((s) => (
+              {offered.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>

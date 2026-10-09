@@ -94,7 +94,7 @@ prices are only ever compared with each other, never with real listings. Set
 `STUB_FEED=false` to hide it.
 
 ```powershell
-npm test                                   # 491 tests, as of 2026-10-09
+npm test                                   # 492 tests, as of 2026-10-09
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -262,7 +262,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (491 as of 2026-10-09), then a dev server on http://localhost:3000.
+Expect every test to pass (492 as of 2026-10-09), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.

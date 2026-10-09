@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { claimMarketplaces } from "@/lib/sellers/claim";
 import VerifyForm from "./VerifyForm";
 
 /**
@@ -10,12 +11,16 @@ import VerifyForm from "./VerifyForm";
 
 export const dynamic = "force-dynamic";
 
+const NAMES: Record<string, string> = { ebay: "eBay", etsy: "Etsy" };
+
 export default function VerifyPage() {
+  const marketplaces = claimMarketplaces();
+  const real = marketplaces.filter((m) => m !== "stub").map((m) => NAMES[m]);
   return (
     <main className="container">
       <h1>Become a verified seller</h1>
       <p className="lede">
-        Sell on eBay or Etsy? Prove the account is yours and that a real person runs it, and your
+        {real.length ? `Sell on ${real.join(" or ")}? ` : ""}Prove the account is yours and that a real person runs it, and your
         listings show a <strong>Verified seller</strong> badge on every SigPath search.
       </p>
 
@@ -51,11 +56,14 @@ export default function VerifyPage() {
         </ul>
       </section>
 
-      <VerifyForm explorerBase="https://explorer.solana.com" demoEnabled={process.env.STUB_FEED !== "false"} />
+      {marketplaces.length ? (
+        <VerifyForm explorerBase="https://explorer.solana.com" marketplaces={marketplaces} />
+      ) : (
+        <p className="notice">Seller verification isn&apos;t switched on for this site yet.</p>
+      )}
 
       <p className="hint" style={{ marginTop: 24 }}>
-        Amazon isn&apos;t supported: its API doesn&apos;t show listing text, so there&apos;s no way to prove the
-        account is yours. <Link href="/search">Back to search</Link>
+        <Link href="/search">Back to search</Link>
       </p>
     </main>
   );

@@ -16,6 +16,7 @@ import {
   _clearClaimSessions,
   CLAIM_TTL_SECS,
   PROVEN_TTL_SECS,
+  claimMarketplaces,
   type ClaimableSource,
 } from "../lib/sellers/claim";
 import { VerifiedSellerLog, badgeFor, type Badge } from "../lib/sellers/verified-log";
@@ -139,6 +140,13 @@ test("Amazon can't be proved, and the demo marketplace is off when the stub feed
   assert.equal(!amazon.ok && amazon.status, 400);
   const stubOff = await proveHandle({ claimToken: w.start.claimToken, source: "stub", listingId: "x:y" }, { ...w.deps, env: { ...ENV, STUB_FEED: "false" } });
   assert.equal(!stubOff.ok && stubOff.status, 400);
+});
+
+test("the form only offers marketplaces this site can read", () => {
+  assert.deepEqual(claimMarketplaces({ EBAY_CLIENT_ID: "a", EBAY_CLIENT_SECRET: "b", STUB_FEED: "false" }), ["ebay"]);
+  assert.deepEqual(claimMarketplaces({ EBAY_CLIENT_ID: "a", EBAY_CLIENT_SECRET: "b" }), ["ebay", "stub"]);
+  assert.deepEqual(claimMarketplaces({ ETSY_KEYSTRING: "k", ETSY_SHARED_SECRET: "s", STUB_FEED: "false" }), ["etsy"]);
+  assert.deepEqual(claimMarketplaces({ EBAY_CLIENT_ID: "a", ETSY_KEYSTRING: "k", STUB_FEED: "false" }), [], "a half-set keyset counts as off");
 });
 
 test("a seller with an upheld report can't verify — a penalty can't be papered over", async () => {

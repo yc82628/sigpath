@@ -31,3 +31,6 @@ test-images/*.png
 
 # Local-validator USDC mint written by scripts/orders-roundtrip.ts --write-mint
 usdc-mint.json
+
+# Pitch deck exports (kept local)
+SigPath-Pitch.pptx

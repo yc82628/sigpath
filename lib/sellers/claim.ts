@@ -47,6 +47,19 @@ const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
 export const CLAIMABLE_SOURCES = ["ebay", "etsy", "stub"] as const;
 export type ClaimableSource = (typeof CLAIMABLE_SOURCES)[number];
 
+/**
+ * The marketplaces a seller can verify on THIS deployment: the ones whose API
+ * keys are set (and the demo, unless it's turned off). The form offers only
+ * these, so nobody connects a wallet and edits a listing for a marketplace the
+ * site can't read.
+ */
+export function claimMarketplaces(env: Record<string, string | undefined> = process.env): ClaimableSource[] {
+  const has = (...keys: string[]) => keys.every((k) => !!env[k]?.trim());
+  return CLAIMABLE_SOURCES.filter((s) =>
+    s === "ebay" ? has("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET") : s === "etsy" ? has("ETSY_KEYSTRING", "ETSY_SHARED_SECRET") : env.STUB_FEED !== "false",
+  );
+}
+
 type Env = Record<string, string | undefined>;
 type Refusal = { ok: false; status: number; error: string };
 
@@ -182,7 +195,7 @@ export async function proveHandle(
   if (!claim) return { ok: false, status: 401, error: "This claim has expired or isn't valid. Start again for a new code." };
 
   const source = CLAIMABLE_SOURCES.find((s) => s === input.source);
-  if (!source) return { ok: false, status: 400, error: "Verification works for eBay and Etsy sellers. Amazon's API doesn't show listing text, so it can't be proved there." };
+  if (!source) return { ok: false, status: 400, error: "Verification isn't available for that marketplace yet." };
   if (source === "stub" && env.STUB_FEED === "false") return { ok: false, status: 400, error: "The demo marketplace is turned off." };
   const listingId = String(input.listingId ?? "").trim();
   if (!listingId || listingId.length > 200) return { ok: false, status: 400, error: "Enter the listing's item number." };
