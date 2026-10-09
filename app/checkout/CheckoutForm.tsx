@@ -28,7 +28,16 @@ type Phase = "idle" | "building" | "signing" | "confirming" | "error";
 // runs in its sandbox, and real test USDC comes from Circle's faucet.
 const DEVNET = !(process.env.NEXT_PUBLIC_RPC_URL ?? "").includes("mainnet");
 
-export default function CheckoutForm({ quote, usdcDisplay }: { quote: string; usdcDisplay: string }) {
+export default function CheckoutForm({
+  quote,
+  usdcDisplay,
+  localDisplay,
+}: {
+  quote: string;
+  usdcDisplay: string;
+  /** The same total in the listing's currency, for reference (e.g. "145,82 €"). */
+  localDisplay?: string;
+}) {
   const router = useRouter();
   const [address, setAddress] = useState<Record<string, string>>({ country: "DE" });
   const [wallet, setWallet] = useState<string | null>(null);
@@ -158,7 +167,7 @@ export default function CheckoutForm({ quote, usdcDisplay }: { quote: string; us
             Paying from <code>{wallet.slice(0, 4)}…{wallet.slice(-4)}</code>
           </p>
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Working…" : `Pay ${usdcDisplay}`}
+            {busy ? "Working…" : `Pay ${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`}
           </button>
         </>
       )}

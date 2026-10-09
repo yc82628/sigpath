@@ -113,14 +113,14 @@ async function main() {
       { env, conn, store, fetchImpl: offline },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("priced at 283.0383 USDC (249.00 EUR x 1.1367)", r.usdcBaseUnits === "283038300", r.usdcDisplay);
+    check("priced at 283.0383 USDC (249.00 EUR x 1.1367) + 2% service fee = 288.699066", r.usdcBaseUnits === "288699066" && r.feeBaseUnits === "5660766", r.usdcDisplay);
     check("address stored before the transaction was handed out", (await store.get(r.order)) !== null);
 
     const before = await bal(buyerAta);
     await walletSignsAndSends(r.transaction, buyer);
     const state = await readOrder(conn, new PublicKey(r.order));
     check("the chain accepted a transaction signed ONLY by the shopper", state.found && state.status === "funded");
-    check("escrow holds exactly the quoted amount", state.found && state.amount === 283_038_300n);
+    check("escrow holds exactly the quoted amount, fee included", state.found && state.amount === 288_699_066n);
     check("shopper debited exactly that", (await bal(buyerAta)) === before - 283_038_300n);
 
     const opBefore = await bal(operatorAta);
@@ -139,7 +139,7 @@ async function main() {
       { env, conn, store, fetchImpl: offline },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("USD needs no exchange rate", r.usdcBaseUnits === "50000000" && r.rate === null);
+    check("USD needs no exchange rate (50 USDC + 2% fee)", r.usdcBaseUnits === "51000000" && r.rate === null);
     const before = await bal(buyerAta);
     await walletSignsAndSends(r.transaction, buyer);
     const res = await refundOrderAsOperator(conn, operator, new PublicKey(r.order), store);

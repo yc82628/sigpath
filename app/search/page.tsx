@@ -6,6 +6,8 @@ import type { Flag } from "@/lib/marketplace/anomaly";
 import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
 import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
+import { eurUsdRate, toUsdcBaseUnits } from "@/lib/checkout/fx";
+import { formatFeeRate, serviceFeeBps, withServiceFee } from "@/lib/checkout/fee";
 import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
 import { BusinessLog, businessIndex, verifiedPhotoFlags } from "@/lib/sellers/business";
@@ -49,7 +51,12 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 /** Checkout offer for one listing: a signed quote, a reason there is none, or null when checkout is off. */
-type CheckoutOffer = { token: string } | { reason: string } | null;
+type CheckoutOffer = { token: string; usdc?: string } | { reason: string } | null;
+
+/** "163.41 USDC": a preview rounded UP to the cent, so the checkout never shows more than this. */
+function usdcPreview(baseUnits: bigint): string {
+  return `${(Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2)} USDC`;
+}
 
 function ListingRow({
   listing,
@@ -152,7 +159,7 @@ function ListingRow({
           // The price travels inside a server signature, so this link cannot
           // be edited into a cheaper order. See lib/checkout/quote.ts.
           <a className="pay" href={`/checkout?quote=${encodeURIComponent(checkout.token)}`}>
-            Pay with USDC &rarr;
+            Pay with USDC{checkout.usdc && <span className="pay-amount"> · {checkout.usdc}</span>} &rarr;
           </a>
         )}
         {checkout && "reason" in checkout && (
@@ -335,6 +342,15 @@ async function SearchResults({
   // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
   // encrypt delivery addresses. Missing either, no listing gets a pay button.
   const checkoutReady = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
+  // The conversion shown on each pay button: the same ECB rate and service fee
+  // the checkout charges. One rate fetch per page (it is cached), and none if
+  // checkout is off. No rate: the button simply shows no amount.
+  const feeBps = serviceFeeBps();
+  const rate = checkoutReady ? await eurUsdRate().catch(() => null) : null;
+  const usdcFor = (amount: number, currency: string) => {
+    const item = toUsdcBaseUnits(amount, currency, currency.toUpperCase() === "USD" ? null : rate);
+    return item === null ? undefined : usdcPreview(withServiceFee(item, feeBps).total);
+  };
   const checkoutOffer = (l: Listing, flags: Flag[]): CheckoutOffer => {
     if (!checkoutReady || !a) return null;
     const e = checkoutEligibility(l, flags, priceCheckFor(l, a));
@@ -349,7 +365,7 @@ async function SearchResults({
       amount: total.amount,
       currency: total.currency,
     });
-    return token ? { token } : null;
+    return token ? { token, usdc: usdcFor(total.amount, total.currency) } : null;
   };
 
   return (
@@ -439,6 +455,12 @@ async function SearchResults({
               <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>Show only the {checkedCount} checked</a>
             )
           )}
+        </p>
+      )}
+      {checkoutReady && rate && result.listings.length > 0 && (
+        <p className="hint">
+          Pay buttons show the total in USDC at {rate.display} USD per EUR ({rate.source}), including SigPath&apos;s{" "}
+          {formatFeeRate(feeBps)} service fee.
         </p>
       )}
 

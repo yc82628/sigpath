@@ -61,7 +61,10 @@ export interface OrderRecord {
   /** The wallet that paid. Personal data once linked to an address. */
   buyer: string;
   listing: { source: string; id: string; url: string; title: string; amount: number; currency: string };
+  /** What the escrow holds: item + service fee, USDC base units. */
   usdc: string;
+  /** The service fee within that, so the operator knows what the item may cost. */
+  feeUsdc?: string;
 }
 
 // ---------------------------------------------------------------------------

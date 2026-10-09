@@ -180,7 +180,7 @@ async function main() {
   {
     const r = await prepareCheckout({ quote: quote(100, "USD", "2"), buyer: buyer.publicKey.toBase58(), address }, deps);
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("USD needs no exchange rate", r.usdcBaseUnits === "1000000" && r.rate === null);
+    check("USD needs no exchange rate (1 USDC + 2% fee)", r.usdcBaseUnits === "1020000" && r.rate === null);
     const before = await bal(buyerAta);
     await walletSignsAndSends(r.transaction, buyer);
     const res = await retry429(() => refundOrderAsOperator(conn, operator, new PublicKey(r.order), store));

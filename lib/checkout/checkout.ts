@@ -29,6 +29,7 @@ import * as orders from "../chains/solana/orders";
 import { associatedTokenAddress, tokenAmountFromData } from "../chains/solana/spl";
 import { verifyQuote, type QuotedListing } from "./quote";
 import { eurUsdRate, toUsdcBaseUnits, type FxRate } from "./fx";
+import { withServiceFee } from "./fee";
 import { AddressStore, validateAddress } from "./address-store";
 import { OrderMetaStore, type ChainOrderView } from "../reports/order-meta";
 import { sellerKey } from "../marketplace/types";
@@ -119,8 +120,11 @@ export interface PreparedCheckout {
   /** Unsigned transaction, base64. The wallet signs and sends it. */
   transaction: string;
   order: string;
+  /** Total the escrow takes: item + service fee. */
   usdcBaseUnits: string;
   usdcDisplay: string;
+  /** The service fee within the total. */
+  feeBaseUnits: string;
   rate: FxRate | null;
   windowSecs: number;
   listing: QuotedListing;
@@ -194,8 +198,8 @@ export async function prepareCheckout(
 
   // 3. price in USDC
   const rate = listing.currency.toUpperCase() === "USD" ? null : await eurUsdRate(env, deps.fetchImpl);
-  const usdc = toUsdcBaseUnits(listing.amount, listing.currency, rate);
-  if (usdc === null) {
+  const itemUsdc = toUsdcBaseUnits(listing.amount, listing.currency, rate);
+  if (itemUsdc === null) {
     return {
       ok: false,
       status: listing.currency.toUpperCase() === "EUR" ? 503 : 400,
@@ -205,6 +209,9 @@ export async function prepareCheckout(
           : `Listings priced in ${listing.currency} cannot be paid in USDC yet.`,
     };
   }
+  // SigPath's service fee, at the rate signed into the quote, goes into the
+  // escrow with the price: paid out on fulfilment, refunded with it otherwise.
+  const { fee: feeUsdc, total: usdc } = withServiceFee(itemUsdc, listing.feeBps ?? 0);
   if (usdc > orders.MAX_AMOUNT) {
     return { ok: false, status: 400, error: `This costs ${orders.formatUsdc(usdc)}, over the ${orders.formatUsdc(orders.MAX_AMOUNT)} per-order limit.` };
   }
@@ -289,6 +296,7 @@ export async function prepareCheckout(
           currency: listing.currency,
         },
         usdc: usdc.toString(),
+        feeUsdc: feeUsdc.toString(),
       },
       deps.now,
     );
@@ -302,6 +310,7 @@ export async function prepareCheckout(
     order: order.toBase58(),
     usdcBaseUnits: usdc.toString(),
     usdcDisplay: orders.formatUsdc(usdc),
+    feeBaseUnits: feeUsdc.toString(),
     rate,
     windowSecs,
     listing,

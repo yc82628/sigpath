@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { verifyQuote } from "@/lib/checkout/quote";
 import { eurUsdRate, toUsdcBaseUnits } from "@/lib/checkout/fx";
+import { formatFeeRate, withServiceFee } from "@/lib/checkout/fee";
 import { checkoutWindowSecs } from "@/lib/checkout/checkout";
 import { AddressStore, RETENTION_MAX_SECONDS } from "@/lib/checkout/address-store";
 import { formatUsdc, MAX_AMOUNT } from "@/lib/chains/solana/orders";
@@ -48,7 +49,14 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
 
   const l = q.listing;
   const rate = l.currency.toUpperCase() === "USD" ? null : await eurUsdRate();
-  const usdc = toUsdcBaseUnits(l.amount, l.currency, rate);
+  const itemUsdc = toUsdcBaseUnits(l.amount, l.currency, rate);
+  // The same rule the server applies when it builds the payment: the rate signed into the quote.
+  const feeBps = l.feeBps ?? 0;
+  const priced = itemUsdc === null ? null : withServiceFee(itemUsdc, feeBps);
+  const usdc = priced?.total ?? null;
+  // The same fee in the listing's own currency, for reference: rounded up to the cent like the USDC one.
+  const feeMinor = Math.ceil((l.amount * feeBps) / 10_000);
+  const local = (minor: number) => formatMoney({ amount: minor, currency: l.currency });
   const windowSecs = checkoutWindowSecs();
 
   return (
@@ -62,10 +70,52 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
           </a>
         </h2>
         <p className="meta">{l.source}</p>
-        <p className="price-line">
-          {formatMoney({ amount: l.amount, currency: l.currency })} including shipping
-          {usdc !== null && <> &rarr; <strong>{formatUsdc(usdc)}</strong></>}
-        </p>
+        <p className="price-line">{local(l.amount)} including shipping</p>
+        {priced && (
+          <table className="price-breakdown">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <span className="sr-only">Item</span>
+                </th>
+                <th scope="col">{l.currency.toUpperCase()}</th>
+                <th scope="col">USDC</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Item, including shipping</th>
+                <td>{local(l.amount)}</td>
+                <td>{formatUsdc(priced.price)}</td>
+              </tr>
+              {feeBps > 0 && (
+                <tr>
+                  <th scope="row">SigPath service fee ({formatFeeRate(feeBps)})</th>
+                  <td>{local(feeMinor)}</td>
+                  <td>{formatUsdc(priced.fee)}</td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Total</th>
+                <td>{local(l.amount + feeMinor)}</td>
+                <td>{formatUsdc(priced.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+        {priced && (
+          <p className="hint">
+            You pay the USDC amount.{" "}
+            {l.currency.toUpperCase() === "USD" ? "" : `The ${l.currency.toUpperCase()} column is for reference, at the rate below.`}
+          </p>
+        )}
+        {feeBps > 0 && (
+          <p className="hint">
+            The service fee is held in escrow with the price, and refunded with it if your order isn&apos;t fulfilled.
+          </p>
+        )}
         {rate && (
           <p className="hint">
             At {rate.display} USD per EUR ({rate.source}). USDC tracks the US dollar.
@@ -111,7 +161,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             </p>
           </section>
 
-          <CheckoutForm quote={token} usdcDisplay={formatUsdc(usdc)} />
+          <CheckoutForm quote={token} usdcDisplay={formatUsdc(usdc)} localDisplay={local(l.amount + feeMinor)} />
           <p className="hint">
             Devnet only: set Phantom to Devnet first, and pay with devnet USDC from
             faucet.circle.com.

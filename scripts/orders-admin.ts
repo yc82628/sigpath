@@ -95,6 +95,7 @@ async function main() {
       console.log(`order     ${order}`);
       console.log(`status    ${state.found ? state.status : "not on chain"}${state.found ? `  (${hoursLeft(state.deadline)})` : ""}`);
       console.log(`paid      ${state.found ? formatUsdc(state.amount) : "-"}`);
+      if (record.feeUsdc && record.feeUsdc !== "0") console.log(`  of which SigPath service fee ${formatUsdc(BigInt(record.feeUsdc))}`);
       console.log(`item      ${record.listing.title}`);
       console.log(`          ${record.listing.url}`);
       console.log(`quoted    ${formatMoney({ amount: record.listing.amount, currency: record.listing.currency })} (${record.listing.source})`);

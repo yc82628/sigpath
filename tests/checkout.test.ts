@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { mkdtempSync, readdirSync, renameSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac } from "crypto";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { signQuote, verifyQuote, QUOTE_TTL_SECONDS } from "../lib/checkout/quote";
 import { eurUsdRate, rateToMicro, toUsdcBaseUnits, _resetFxCache } from "../lib/checkout/fx";
@@ -426,19 +426,52 @@ test("a valid checkout returns a transaction for exactly the quoted amount", asy
   assert.ok(r.ok, !r.ok ? r.error : "");
   if (!r.ok) return;
 
-  assert.equal(r.usdcBaseUnits, "283038300");
+  // Item 283.0383 USDC (249.00 EUR at 1.1367) + the 2% service fee 5.660766 = 288.699066.
+  assert.equal(r.feeBaseUnits, "5660766");
+  assert.equal(r.usdcBaseUnits, "288699066");
   const tx = Transaction.from(Buffer.from(r.transaction, "base64"));
   assert.ok(tx.feePayer?.equals(buyer), "the buyer pays the fee");
   assert.equal(tx.instructions.length, 1);
   const ix = tx.instructions[0];
   assert.ok(ix.programId.equals(orders.ORDERS_PROGRAM_ID));
-  assert.equal(ix.data.readBigUInt64LE(16), 283_038_300n, "the amount signed for is the amount quoted");
+  assert.equal(ix.data.readBigUInt64LE(16), 288_699_066n, "the amount signed for is the amount quoted, fee included");
   assert.deepEqual(ix.data.subarray(24, 56), orders.listingHash(LISTING), "the order commits to this listing");
   assert.ok(ix.keys[3].pubkey.equals(associatedTokenAddress(buyer, orders.USDC_MINT)));
   assert.equal(tx.signatures.every((s) => s.signature === null), true, "the server signs nothing");
 
-  // The address was stored BEFORE the transaction was handed back.
-  assert.equal((await store.get(r.order))?.record.address.city, "Berlin");
+  // The address was stored BEFORE the transaction was handed back, with the fee noted for the operator.
+  const rec = (await store.get(r.order))?.record;
+  assert.equal(rec?.address.city, "Berlin");
+  assert.equal(rec?.usdc, "288699066");
+  assert.equal(rec?.feeUsdc, "5660766");
+});
+
+test("the fee is the one signed into the quote, not whatever the setting says at checkout", async () => {
+  const { store } = tmpStore();
+  const quote = signQuote(LISTING, { ...ENV, SIGPATH_FEE_BPS: "150" })!;
+  // The setting changes between the search and the checkout: the shopper still pays what they were shown.
+  const r = await prepareCheckout(
+    { quote, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { env: { ...ENV, SIGPATH_FEE_BPS: "500" }, store, conn: rich(), fetchImpl: noFetch },
+  );
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(r.feeBaseUnits, "4245575", "1.5% of 283.0383, rounded up");
+});
+
+test("a quote from before the fee existed is honoured without one", async () => {
+  const { store } = tmpStore();
+  // Hand-made: the old format, without feeBps, signed as the old code did.
+  const body = Buffer.from(JSON.stringify({ ...LISTING, expiresAt: Math.floor(Date.now() / 1000) + 600 })).toString("base64url");
+  const mac = createHmac("sha256", ENV.QUOTE_SECRET).update("sigpath-quote-v1\n").update(body).digest("base64url");
+  const r = await prepareCheckout(
+    { quote: `${body}.${mac}`, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { env: ENV, store, conn: rich(), fetchImpl: noFetch },
+  );
+  assert.ok(r.ok, !r.ok ? r.error : "");
+  if (r.ok) {
+    assert.equal(r.feeBaseUnits, "0");
+    assert.equal(r.usdcBaseUnits, "283038300");
+  }
 });
 
 test("checkout records who the seller was, for fake-product reports later", async () => {

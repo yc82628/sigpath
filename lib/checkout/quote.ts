@@ -21,6 +21,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
+import { MAX_FEE_BPS, serviceFeeBps } from "./fee";
 
 /** A quote is good for this long. Prices move; a stale one is re-fetched by searching again. */
 export const QUOTE_TTL_SECONDS = 30 * 60;
@@ -39,6 +40,12 @@ export interface QuotedListing {
   /** Total the buyer pays (item + shipping), integer minor units. */
   amount: number;
   currency: string;
+  /**
+   * SigPath's service fee in basis points (200 = 2%), fixed when the quote is
+   * signed so the fee shown is the fee charged. Absent on quotes signed before
+   * the fee existed: those are honoured without one.
+   */
+  feeBps?: number;
   /** Unix seconds. */
   expiresAt: number;
 }
@@ -74,13 +81,13 @@ export function quoteSigningConfigured(env: Record<string, string | undefined> =
 
 /** Sign a quote. Returns null when QUOTE_SECRET is not configured. */
 export function signQuote(
-  listing: Omit<QuotedListing, "expiresAt">,
+  listing: Omit<QuotedListing, "expiresAt" | "feeBps">,
   env: Record<string, string | undefined> = process.env,
   now = Date.now(),
 ): string | null {
   const key = secret(env);
   if (!key) return null;
-  const body: QuotedListing = { ...listing, expiresAt: Math.floor(now / 1000) + QUOTE_TTL_SECONDS };
+  const body: QuotedListing = { ...listing, feeBps: serviceFeeBps(env), expiresAt: Math.floor(now / 1000) + QUOTE_TTL_SECONDS };
   const payload = b64url(Buffer.from(JSON.stringify(body), "utf8"));
   return `${payload}.${b64url(mac(key, payload))}`;
 }
@@ -118,7 +125,8 @@ export function verifyQuote(
     !Number.isInteger(listing.amount) ||
     listing.amount <= 0 ||
     typeof listing.currency !== "string" ||
-    typeof listing.expiresAt !== "number"
+    typeof listing.expiresAt !== "number" ||
+    (listing.feeBps !== undefined && (!Number.isInteger(listing.feeBps) || listing.feeBps < 0 || listing.feeBps > MAX_FEE_BPS))
   ) {
     return { ok: false, reason: "malformed" };
   }
