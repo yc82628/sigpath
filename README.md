@@ -13,6 +13,12 @@ ships, or comes back to you automatically. No account, no sign-in, no tracking.
 
 Built for the **Solana × Superteam Germany** hackathon.
 
+**Live at [sigpath.vercel.app](https://sigpath.vercel.app):** every search pulls
+50 real listings from **eBay** (eBay Germany, through the official Browse API)
+and checks each one against identical listings. A demo feed with scams planted
+on purpose runs next to it, in its own comparison, so a catch is always on
+screen. Ai-chan answers there too, on Google Gemini.
+
 | | Live on devnet |
 |---|---|
 | Order escrow (Anchor) | [`3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW`](https://explorer.solana.com/address/3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW?cluster=devnet) |
@@ -30,7 +36,10 @@ Built for the **Solana × Superteam Germany** hackathon.
 ## What a shopper gets
 
 - **One search, every marketplace.** eBay, Amazon and Etsy through their
-  official APIs, with prices compared including shipping. idealo and
+  official APIs, with prices compared including shipping. eBay is live; the
+  Etsy adapter is built and waits for its key. Amazon retired the Product
+  Advertising API that `sources/amazon.ts` uses (2026); its successor, the
+  Creators API, needs an Associates account with 10 sales in 30 days. idealo and
   Kleinanzeigen have no API SigPath may use, so they get a one-click link
   instead of scraping.
 - **One verdict per listing.** ✓ **SigPath-checked**: the price matches the market
@@ -77,10 +86,12 @@ default (`STUB_FEED=true`). It deliberately includes a bait listing, a recycled
 photo and a brand-new account, so every verdict is on screen without any keys.
 For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`,
 `ETSY_KEYSTRING`/`ETSY_SHARED_SECRET` or Amazon PA-API keys to `.env.local` (see
-`.env.local.example`), then set `STUB_FEED=false` once they answer.
+`.env.local.example`). The demo feed can stay on next to them: its invented
+prices are only ever compared with each other, never with real listings. Set
+`STUB_FEED=false` to hide it.
 
 ```powershell
-npm test                                   # 443 tests, as of 2026-10-04
+npm test                                   # 453 tests, as of 2026-10-09
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -248,7 +259,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (443 as of 2026-10-04), then a dev server on http://localhost:3000.
+Expect every test to pass (453 as of 2026-10-09), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
@@ -404,6 +415,11 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
   Etsy doesn't publish it"). There's no blanket "no warnings" line.
 - **"Checked" means checked, not guaranteed.** One line on every results page
   says so and says what to do if a fake gets through: report it.
+- **Real and demo are never pooled.** The demo feed's prices are invented, so
+  its listings are compared only with each other, and real marketplace listings
+  only with real ones. Each price line says which: "on eBay" or "on the demo
+  feed". The page's summary median comes from the real marketplaces whenever
+  they have enough listings (tested).
 - **A verified badge never upgrades a verdict.** It vouches for the account, not
   the price, so it appears as a point and nothing more.
 - **Best checked deal:** the cheapest *checked* listing for new and for used,
@@ -635,6 +651,30 @@ key, unknown key id and missing header are all refused), the purge leaving
 other sellers untouched with no handle left in the clear, idempotency, and a
 failed burn. On the dev server: the challenge answer is correct, and unsigned
 and forged notices get 412.
+
+### Live since 2026-10-09
+
+The production keyset is enabled and sigpath.vercel.app searches eBay Germany
+(`EBAY_MARKETPLACE_ID=EBAY_DE`). The live endpoint answered eBay's ownership
+challenge with the same hash as `.env.local` produces. Three things it took:
+
+- **50 results per search** (`EBAY_MIN_RESULTS`). A price is compared only with
+  at least 5 listings of the same model and configuration; 20 results for a broad
+  query like "ThinkPad X1 Carbon" spread over too many generations, so none were.
+  With 50, 20 of 50 were checked and 3 flagged "Look closer". One API call
+  either way.
+- **Conditions by ID, not by name.** eBay Germany names conditions in German
+  ("Gebraucht", "Gut - Refurbished"). SigPath reads the numeric `conditionId`,
+  the same on every eBay site: 1000/1500 new, 2000–2500 refurbished, 1750 and
+  2750–6000 used, 7000 for parts (never compared). Before this, most German
+  listings counted as "condition unknown".
+- **Fresh every time.** Next.js stores server fetches by default. It had stored
+  eBay's access token, which then expired ("Invalid access token"), and whole
+  searches, which froze their prices. Every marketplace, VAT-register, domain
+  registry and AI model request now sets `cache: "no-store"` (tested for eBay).
+
+eBay limits a new keyset to a daily number of Browse API calls; ask for more
+through eBay's application growth check once there is real traffic.
 
 ---
 
