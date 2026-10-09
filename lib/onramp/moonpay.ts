@@ -24,6 +24,14 @@
 import { createHmac } from "crypto";
 import { PublicKey } from "@solana/web3.js";
 
+/**
+ * THE SWITCH. false turns the MoonPay top-up off everywhere, whatever keys the
+ * host has: the checkout then offers no MoonPay button, and the endpoint answers
+ * 503. Off since 2026-10-09: MoonPay rejects every link from SigPath's account
+ * ("Signature check failed") until their support fixes it. Set back to true then.
+ */
+export const MOONPAY_ENABLED = false;
+
 export interface MoonPayConfig {
   publishableKey: string;
   secretKey: string;
@@ -57,6 +65,14 @@ export function moonPayConfig(env: Record<string, string | undefined> = process.
     test,
     currencyCode,
   };
+}
+
+/** The config the site actually uses: null while the switch above is off. */
+export function moonPayAvailable(
+  env: Record<string, string | undefined> = process.env,
+  enabled = MOONPAY_ENABLED,
+): MoonPayConfig | null {
+  return enabled ? moonPayConfig(env) : null;
 }
 
 /** MoonPay's signature: base64 HMAC-SHA256 of the query string, leading "?" included. */

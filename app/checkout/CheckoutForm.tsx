@@ -29,11 +29,14 @@ export default function CheckoutForm({
   quote,
   usdcDisplay,
   localDisplay,
+  moonPay = false,
 }: {
   quote: string;
   usdcDisplay: string;
   /** The same total in the listing's currency, for reference (e.g. "145,82 €"). */
   localDisplay?: string;
+  /** Whether to offer MoonPay when the wallet is short (see MOONPAY_ENABLED). */
+  moonPay?: boolean;
 }) {
   const router = useRouter();
   const [address, setAddress] = useState<Record<string, string>>({ country: "DE" });
@@ -164,20 +167,28 @@ export default function CheckoutForm({
       {shortfall !== null && wallet && (
         <section className="top-up">
           <h3>Top up your wallet</h3>
-          <p className="hint">
-            Buy USDC with a card or a SEPA transfer through MoonPay. It goes straight to this wallet
-            ({wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}); SigPath never sees your payment details.
-          </p>
-          <button type="button" className="primary" onClick={buyWithMoonPay}>
-            Buy USDC with MoonPay
-          </button>
+          {moonPay ? (
+            <>
+              <p className="hint">
+                Buy USDC with a card or a SEPA transfer through MoonPay. It goes straight to this wallet
+                ({wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}); SigPath never sees your payment details.
+              </p>
+              <button type="button" className="primary" onClick={buyWithMoonPay}>
+                Buy USDC with MoonPay
+              </button>
+            </>
+          ) : (
+            <p className="hint">
+              Add USDC to this wallet ({wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}), then press Pay again.
+            </p>
+          )}
           {DEVNET && (
             <p className="hint">
               This shop runs on Solana devnet: free test USDC comes from{" "}
               <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer">
                 faucet.circle.com
               </a>{" "}
-              (choose USDC, Solana Devnet). MoonPay opens in its test mode here.
+              (choose USDC, Solana Devnet).{moonPay && " MoonPay opens in its test mode here."}
             </p>
           )}
           {topUpNote && <p className="hint">{topUpNote}</p>}

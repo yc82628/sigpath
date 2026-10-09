@@ -6,6 +6,7 @@ import { checkoutWindowSecs } from "@/lib/checkout/checkout";
 import { AddressStore, RETENTION_MAX_SECONDS } from "@/lib/checkout/address-store";
 import { formatUsdc, MAX_AMOUNT } from "@/lib/chains/solana/orders";
 import { formatMoney } from "@/lib/marketplace/types";
+import { moonPayAvailable } from "@/lib/onramp/moonpay";
 import CheckoutForm from "./CheckoutForm";
 
 /**
@@ -161,7 +162,12 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             </p>
           </section>
 
-          <CheckoutForm quote={token} usdcDisplay={formatUsdc(usdc)} localDisplay={local(l.amount + feeMinor)} />
+          <CheckoutForm
+            quote={token}
+            usdcDisplay={formatUsdc(usdc)}
+            localDisplay={local(l.amount + feeMinor)}
+            moonPay={moonPayAvailable() !== null}
+          />
           <p className="hint">
             Devnet only: pay from any Solana wallet (Phantom, Solflare, Backpack…) set to Devnet,
             with devnet USDC from faucet.circle.com.

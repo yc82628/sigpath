@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { moonPayBuyUrl, moonPayConfig } from "@/lib/onramp/moonpay";
+import { moonPayAvailable, moonPayBuyUrl } from "@/lib/onramp/moonpay";
 
 // GET /api/onramp/moonpay?wallet=<address>&usdc=<amount>&back=<checkout url>
 //   -> { url, test }
@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const cfg = moonPayConfig();
+  const cfg = moonPayAvailable();
   if (!cfg) return NextResponse.json({ error: "Buying USDC through MoonPay isn't set up on this site." }, { status: 503 });
 
   const p = req.nextUrl.searchParams;

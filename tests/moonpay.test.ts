@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { Keypair } from "@solana/web3.js";
-import { moonPayBuyUrl, moonPayConfig, moonPaySignature } from "../lib/onramp/moonpay";
+import { MOONPAY_ENABLED, moonPayAvailable, moonPayBuyUrl, moonPayConfig, moonPaySignature } from "../lib/onramp/moonpay";
 
 const testKeys = { MOONPAY_PUBLISHABLE_KEY: "pk_test_abc", MOONPAY_SECRET_KEY: "sk_test_xyz" };
 const devnet = { NEXT_PUBLIC_RPC_URL: "https://api.devnet.solana.com" };
@@ -57,4 +57,12 @@ test("only a Solana wallet address is accepted", () => {
   const cfg = moonPayConfig({ ...testKeys, ...devnet })!;
   assert.throws(() => moonPayBuyUrl(cfg, { wallet: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe" }));
   assert.throws(() => moonPayBuyUrl(cfg, { wallet: "" }));
+});
+
+test("the switch turns MoonPay off whatever keys the host has", () => {
+  const keys = { MOONPAY_PUBLISHABLE_KEY: "pk_test_a", MOONPAY_SECRET_KEY: "sk_test_b", NEXT_PUBLIC_RPC_URL: "https://api.devnet.solana.com" };
+  assert.equal(MOONPAY_ENABLED, false, "off until MoonPay fixes the account; flip this test with the switch");
+  assert.equal(moonPayAvailable(keys), null);
+  assert.equal(moonPayAvailable(keys, true)!.test, true, "switched on, the keys are used as before");
+  assert.equal(moonPayAvailable({}, true), null);
 });

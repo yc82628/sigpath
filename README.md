@@ -94,7 +94,7 @@ prices are only ever compared with each other, never with real listings. Set
 `STUB_FEED=false` to hide it.
 
 ```powershell
-npm test                                   # 479 tests, as of 2026-10-09
+npm test                                   # 480 tests, as of 2026-10-09
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -262,7 +262,7 @@ npm test
 npm run dev
 ```
 
-Expect every test to pass (479 as of 2026-10-09), then a dev server on http://localhost:3000.
+Expect every test to pass (480 as of 2026-10-09), then a dev server on http://localhost:3000.
 
 **Restart the dev server after any `.env.local` change** — Next.js reads that file
 only at startup.
@@ -803,6 +803,9 @@ offers to top up through MoonPay: its own page, pre-filled with USDC on Solana,
 the missing amount, euros and the shopper's wallet, the link signed server-side
 (`lib/onramp/moonpay.ts`). Test keys only on devnet, since MoonPay delivers
 mainnet USDC. On devnet the checkout also links to faucet.circle.com.
+The MoonPay button is **switched off for now** (`MOONPAY_ENABLED` in the same
+file): MoonPay rejects every link from SigPath's account ("Signature check
+failed") until their support fixes it. The shortfall and the faucet link still show.
 
 **Why the gate is stricter than the warnings.** A price flag on the search page
 needs solid evidence, because a false one defames an honest seller — so a used
