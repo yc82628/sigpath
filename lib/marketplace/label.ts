@@ -108,7 +108,7 @@ function checkLines(listing: Listing, analysis: Analysis, now: number): LabelPoi
   lines.push(
     listing.imageHash
       ? { tone: "good", text: "Its photo isn't used by another seller on the same marketplace." }
-      : { tone: "info", text: "Photo not checked: there was no photo to compare." },
+      : { tone: "info", text: listing.photoNote ?? "Photo not checked: there was no photo to compare." },
   );
   const s = listing.seller;
   const market = MARKET[listing.source] ?? listing.source;

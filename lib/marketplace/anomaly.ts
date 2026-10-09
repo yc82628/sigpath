@@ -24,6 +24,9 @@
  *     with listings whose model, generation, storage and RAM do not conflict
  *     with its own (see identity.ts), and accessories and for-parts items are
  *     never compared at all
+ *   - the listing sits in a different marketplace category from most results
+ *     (a game in a console search), or is far below the median on a title
+ *     that doesn't name the product
  *
  * WHY DEGRADED COVERAGE MUST BLOCK THE WHOLE CHECK
  * This is the same bug that produced three confidently wrong runs in the
@@ -176,6 +179,20 @@ export interface Analysis {
    * Still reported, because the buyer should know what was not searched.
    */
   notConfigured: MarketplaceId[];
+}
+
+/** The category most of these listings share; ties go to the first seen. */
+export function mainCategory(listings: Listing[]): { id: string; name: string } | undefined {
+  const counts = new Map<string, { category: { id: string; name: string }; n: number }>();
+  for (const l of listings) {
+    if (!l.category) continue;
+    const c = counts.get(l.category.id) ?? { category: l.category, n: 0 };
+    c.n++;
+    counts.set(l.category.id, c);
+  }
+  let best: { category: { id: string; name: string }; n: number } | undefined;
+  for (const c of counts.values()) if (!best || c.n > best.n) best = c;
+  return best?.category;
 }
 
 export function median(values: number[]): number {
@@ -337,7 +354,22 @@ export function analyse(
     const id = idOf(l);
     if (id.kind !== "product" && id.kindReason) notCompared[listingKey(l)] = id.kindReason;
   }
-  const products = sameCurrency.filter((l) => idOf(l).kind === "product");
+  // Only the category most of a marketplace's results share is compared. A
+  // search for "PlayStation 5" returns consoles, games, controllers and spare
+  // parts, and eBay files each under its own category: a 15-euro game priced
+  // against 500-euro consoles is exactly the false alarm this module exists to
+  // avoid. A listing whose marketplace publishes no category stays in.
+  const candidates = sameCurrency.filter((l) => idOf(l).kind === "product");
+  const mainBySource = new Map<string, { id: string; name: string } | undefined>();
+  for (const source of new Set(candidates.map((l) => l.source))) {
+    mainBySource.set(source, mainCategory(candidates.filter((l) => l.source === source)));
+  }
+  const products = candidates.filter((l) => {
+    const main = mainBySource.get(l.source);
+    if (!main || !l.category || l.category.id === main.id) return true;
+    notCompared[listingKey(l)] = `Listed under "${l.category.name}", not "${main.name}" like most results, so its price isn't compared.`;
+    return false;
+  });
 
   // The demo feed's prices are made up, so they are never pooled with real
   // marketplace listings: each is compared only within its own world. Pooling
@@ -387,9 +419,19 @@ export function analyse(
         continue;
       }
       const m = median(same.map((o) => totalPrice(o).amount));
+      const underpriced = totalPrice(l).amount < m * UNDERPRICED_RATIO;
+      // Far below the product's price, on a title that doesn't even name the
+      // product: far more often a different item (a game, a spare part, a
+      // remote player "for PS5") than a scam. Stay silent, and say why.
+      const name = opts.query?.trim();
+      if (underpriced && name && idOf(l).variant === undefined) {
+        notCompared[listingKey(l)] =
+          `Its title doesn't name the ${name}, and it costs far less than listings that do, so it may be a different item. Its price isn't compared.`;
+        continue;
+      }
       comparisons[listingKey(l)] = { sampleSize: same.length, median: m, scope };
       priceChecked.push(listingKey(l));
-      if (totalPrice(l).amount < m * UNDERPRICED_RATIO) {
+      if (underpriced) {
         flags.push({
           source: l.source,
           listingId: l.id,

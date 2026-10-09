@@ -99,6 +99,18 @@ export interface Listing {
    * hashes across different sellers is the duplicate-listing signal.
    */
   imageHash?: string;
+  /**
+   * Why the photo was not compared, when it wasn't: a new item showing the
+   * maker's photo, a marketplace stock photo, or a photo that didn't load.
+   * Shown to the shopper in place of the photo check.
+   */
+  photoNote?: string;
+  /**
+   * The marketplace's own category for the listing, when it publishes one
+   * (eBay's leaf category, e.g. "Konsolen"). Prices are only compared within the
+   * category most of a search's results share: a game is not a cheap console.
+   */
+  category?: { id: string; name: string };
   seller: SellerRef;
   /** Unix seconds the listing went up, if published. */
   listedAt?: number;

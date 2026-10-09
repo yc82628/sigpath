@@ -46,14 +46,26 @@ const ACCESSORY_WORDS = [
   "charger", "charging", "adapter", "cable", "case", "cover", "sleeve", "bag", "pouch", "skin", "sticker", "decal",
   "stand", "dock", "mount", "holder", "strap", "band", "protector", "tempered glass", "keyboard cover", "power supply",
   "box only", "empty box", "dust bag", "controller grip", "earbud tips", "ear tips",
+  // German, for eBay.de titles. Only words that name a separate item: "Controller"
+  // or "Kabel" in a console's title usually lists what comes with it.
+  "ladegerät", "ladegeraet", "ladekabel", "netzteil", "hülle", "schutzhülle", "handyhülle", "schutzfolie",
+  "displayschutz", "displayschutzfolie", "panzerglas", "schutzglas", "halterung",
 ];
+
+/** Words that make a listing a service, not the product. */
+const SERVICE_WORDS = ["repair service", "reparatur", "reparaturservice", "austauschservice"];
 
 /** Phrases that say the item does not work as sold. */
 const PARTS_PHRASES = [
   "for parts", "parts only", "spares or repair", "spares/repair", "not working", "doesn't work", "does not work", "broken",
   "faulty", "defective", "cracked", "smashed", "water damaged", "won't turn on", "no power", "icloud locked", "activation locked",
   "blacklisted", "bad esn", "as is, untested", "untested",
+  "defekt", "kaputt", "für bastler", "bastlerware", "funktioniert nicht", "nicht funktionsfähig", "ersatzteil",
+  "als ersatzteil", "gesperrt", "icloud gesperrt", "displaybruch", "wasserschaden",
 ];
+
+/** Phrases that say only part of the product is sold (a Dyson "Hauptgerät" is the motor unit alone). */
+const PARTIAL_PHRASES = ["hauptgerät", "nur hauptgerät", "nur gerät", "ohne akku", "body only", "main unit only", "without battery"];
 
 /**
  * Model words that change what the product is. "Pro" is not a "Pro Max";
@@ -97,11 +109,12 @@ function countsAs(text: string, phrase: string, cancelBefore: RegExp, cancelAfte
 }
 
 /** "with a case", "incl. charger", "+ cover", "comes with sleeve" */
-const INCLUDED_BEFORE = /(with|w\/|incl\.?|including|includes|\+|&|and|plus)\s+(an?\s+|the\s+|original\s+|its\s+)?$/i;
-/** "charger included", "case incl." */
-const INCLUDED_AFTER = /^\s*(included|incl\b|inclusive)/i;
-/** "not cracked", "no broken", "never water damaged", "isn't faulty" */
-const NEGATED_BEFORE = /(not|no|never|isn'?t|wasn'?t|without|zero|free of)\s+(been\s+|any\s+)?$/i;
+const INCLUDED_BEFORE =
+  /(with|w\/|incl\.?|including|includes|\+|&|and|plus|mit|inkl\.?|inklusive|samt|und)\s+(an?\s+|the\s+|original\s+|its\s+|einem\s+|einer\s+|dem\s+|der\s+)?$/i;
+/** "charger included", "case incl.", "Hülle inklusive" */
+const INCLUDED_AFTER = /^\s*(included|incl\b|inclusive|inklusive|dabei)/i;
+/** "not cracked", "no broken", "never water damaged", "isn't faulty", "nicht defekt" */
+const NEGATED_BEFORE = /(not|no|never|isn'?t|wasn'?t|without|zero|free of|nicht|kein|keine|keinen|ohne|nie)\s+(been\s+|any\s+)?$/i;
 
 export function identify(title: string, query: string): Identity {
   const t = title.toLowerCase();
@@ -112,15 +125,27 @@ export function identify(title: string, query: string): Identity {
   let kind: ListingKind = "product";
   let kindReason: string | undefined;
   const parts = PARTS_PHRASES.find((p) => !hasPhrase(q, p) && countsAs(t, p, NEGATED_BEFORE));
+  const partial = PARTIAL_PHRASES.find((p) => !hasPhrase(q, p) && hasPhrase(t, p));
   if (parts) {
     kind = "parts";
     kindReason = `The listing says "${parts}", so it isn't compared with working ones.`;
+  } else if (partial) {
+    kind = "parts";
+    kindReason = `The listing says "${partial}": only part of the product, so it isn't compared with complete ones.`;
   } else {
     const accessory = ACCESSORY_WORDS.find((w) => !hasPhrase(q, w) && countsAs(t, w, INCLUDED_BEFORE, INCLUDED_AFTER));
-    // "… for ThinkPad X1", "fits ThinkPad X1": the searched product comes right after.
+    const service = SERVICE_WORDS.find((w) => !hasPhrase(q, w) && hasPhrase(t, w));
+    // "… for ThinkPad X1", "fits ThinkPad X1", "für PlayStation 5": the searched product comes right after.
     const at = q ? t.indexOf(q) : -1;
-    const soldForUseWith = at > 0 && /\b(for|fits|compatible with)\s+(the\s+|your\s+|all\s+)?$/i.test(t.slice(0, at));
-    if (accessory) {
+    const soldForUseWith =
+      at > 0 &&
+      /(^|[^a-z0-9])(for|fits|compatible with|für|fuer|passend für|kompatibel mit)\s+(the\s+|your\s+|all\s+|die\s+|den\s+|das\s+)?$/i.test(
+        t.slice(0, at),
+      );
+    if (service) {
+      kind = "accessory";
+      kindReason = `It looks like a service ("${service}"), not a ${query.trim()}, so it isn't compared with one.`;
+    } else if (accessory) {
       kind = "accessory";
       kindReason = `It looks like an accessory (${accessory}), not the ${query.trim()} itself, so it isn't compared with it.`;
     } else if (soldForUseWith) {

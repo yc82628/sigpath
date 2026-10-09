@@ -32,6 +32,7 @@
 
 import type { Condition, Listing, Money, SearchOptions, SourceResult } from "../types";
 import type { ListingProof, MarketplaceSource } from "./types";
+import { groupHashes, photoHash } from "../photo";
 
 /**
  * Sandbox and production are separate accounts with separate keysets.
@@ -115,6 +116,8 @@ interface EbayItemSummary {
   condition?: string;
   conditionId?: string;
   image?: { imageUrl?: string };
+  /** Leaf category first, then its parents. */
+  categories?: { categoryId?: string; categoryName?: string }[];
   seller?: { username?: string; feedbackScore?: number; feedbackPercentage?: string };
   itemCreationDate?: string;
 }
@@ -320,6 +323,10 @@ export class EbaySource implements MarketplaceSource {
           shipping: money(it.shippingOptions?.[0]?.shippingCost),
           condition: mapCondition(it.condition, it.conditionId),
           imageUrl: it.image?.imageUrl,
+          category:
+            it.categories?.[0]?.categoryId && it.categories[0].categoryName
+              ? { id: it.categories[0].categoryId, name: it.categories[0].categoryName }
+              : undefined,
           seller: {
             handle: it.seller?.username ?? "unknown",
             feedbackScore: it.seller?.feedbackScore,
@@ -330,6 +337,8 @@ export class EbaySource implements MarketplaceSource {
             : undefined,
         });
       }
+
+      await checkPhotos(listings, this.fetchImpl);
 
       return {
         source: this.id,
@@ -355,4 +364,44 @@ export class EbaySource implements MarketplaceSource {
       };
     }
   }
+}
+
+/** eBay's id for an uploaded picture: the part after /images/g/ in its URL. */
+export function ebayImageId(url?: string): string | undefined {
+  return url?.match(/\/images\/g\/([^/]+)\//)?.[1];
+}
+
+/**
+ * Hash the photos worth comparing (see lib/marketplace/photo.ts), and say why
+ * the others weren't. Mutates the listings: sets imageHash or photoNote.
+ */
+export async function checkPhotos(listings: Listing[], fetchImpl: typeof fetch = fetch): Promise<void> {
+  // One eBay picture id under several sellers is eBay's catalogue photo, not a copy.
+  const sellersByImage = new Map<string, Set<string>>();
+  for (const l of listings) {
+    const id = ebayImageId(l.imageUrl);
+    if (!id) continue;
+    const set = sellersByImage.get(id) ?? new Set<string>();
+    set.add(l.seller.handle.toLowerCase());
+    sellersByImage.set(id, set);
+  }
+
+  const toHash: Listing[] = [];
+  for (const l of listings) {
+    const id = ebayImageId(l.imageUrl);
+    if (!l.imageUrl) l.photoNote = "Photo not checked: the listing has no photo.";
+    else if (l.condition === "new") l.photoNote = "Photo not checked: new items often show the maker's own photo.";
+    else if (l.condition === "unknown") l.photoNote = "Photo not checked: the item's condition isn't stated.";
+    else if (id && (sellersByImage.get(id)?.size ?? 0) > 1) l.photoNote = "Photo not checked: it's eBay's stock photo for this product.";
+    else toHash.push(l);
+  }
+
+  const results = await Promise.all(toHash.map((l) => photoHash(l.imageUrl!, fetchImpl)));
+  const groups = groupHashes(results.flatMap((r) => (r && !r.studio ? [r.hash] : [])));
+  toHash.forEach((l, i) => {
+    const r = results[i];
+    if (!r) l.photoNote = "Photo not checked: the photo couldn't be loaded.";
+    else if (r.studio) l.photoNote = "Photo not checked: it's a product picture on a white background, not a photo of the item itself.";
+    else l.imageHash = `dhash:${groups.get(r.hash)}`;
+  });
 }
