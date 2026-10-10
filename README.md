@@ -1552,6 +1552,36 @@ override with `OLLAMA_KEEP_ALIVE` (`"-1"` never unloads, `"0"` unloads at once).
 > until 2026-09-22. The request field is the part we control, so that is where
 > it lives; the env var here only overrides what we send.
 
+### Live on Gemini (since 2026-10-10)
+
+The live site runs the photo check on **Google Gemini**, through the `remote`
+backend and Gemini's OpenAI-compatible endpoint: the same API key as Ai-chan, so
+no second account. On Vercel, the key is a Secret and the rest are plain config:
+
+```bash
+VISION_BACKEND=remote
+VISION_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai
+VISION_API_KEY=...            # the Gemini key (Secret)
+VISION_MODEL=gemini-3.5-flash
+```
+
+**Measured (`scripts/test-photo-check.ts`, gemini-3.5-flash, 2026-10-10),
+expected element "handwritten code 7K4M":**
+
+| Case | Source | Verdict | Confidence | Latency |
+|---|---|---|---|---|
+| Code typed in a computer font | synthetic | FAIL — "digitally rendered in a standard computer font rather than being handwritten" | 1.00 | 8.9 s |
+| Code on a phone screen (bezel, glare, scan lines) | synthetic | FAIL — "shown on an electronic display. A photo of a screen is not a live capture." | 1.00 | 7.5 s |
+
+Gemini answered in the strict JSON schema within the 1,024-token reply budget.
+It is sometimes briefly overloaded (`503 UNAVAILABLE`, "high demand"): the check
+then reports **unavailable**, never failed, and the person is asked to try again.
+The real-photo PASS case still has to come from a camera.
+
+`/privacy` names whichever provider these settings point at
+(`lib/legal/site.ts`), so it now reads "checked by an AI model from Google
+(Gemini API), USA".
+
 **Measured results (local backend, qwen2.5vl:7b, 2026-09-18):**
 
 | Case | Source | Verdict | Confidence |
@@ -1577,8 +1607,9 @@ below the 0.75 threshold and be rejected for the same reason. Calibrate
 Every negative above is synthetic. A real photograph of a real monitor is the
 outstanding test — see `test-images/README.md`.
 
-**Never tested against a real photograph.** The unit tests use a stubbed client
-and prove the control flow only. Before demoing, take three photos: the correct
+**Not yet tested against a real photograph on the live backend.** The unit tests
+use a stubbed client and prove the control flow only; the Gemini runs above use
+synthetic images. Before demoing, take three photos: the correct
 handwritten code, a wrong code, and the code displayed on a phone screen. The
 third is the load-bearing one.
 
@@ -1586,12 +1617,12 @@ third is the load-bearing one.
 
 ## Not done yet
 
-- **Live capture is wired but has never made a live API call.** `lib/challenge/`
-  and `lib/liveness/` are here, and `/api/attest` sets the on-chain
-  `LIVE_CAPTURE` flag when a capture session passed. But `LIVENESS_PROVIDER`
-  defaults to `mock`, which always passes and detects nothing. Switching it to
-  `vision` needs `ANTHROPIC_API_KEY`, and the prompt has never been tested
-  against a real photograph — see below.
+- **The photo check runs on Gemini, but not yet on a real photograph.** The
+  report and seller-badge checks call Gemini live (see "Live on Gemini" above),
+  and both synthetic fakes were rejected; the genuine handwritten PASS case is
+  still to be taken with a camera. Separately, the older `/api/attest` flow's
+  `LIVENESS_PROVIDER` defaults to `mock`, which always passes and detects
+  nothing: set it to `vision` to use the same backend.
 - **X and LinkedIn collectors are thin by necessity** — they contribute breadth
   and name agreement, not depth. See the comments in each file.
 - **The Base mirror has never been executed.** It needs a registered schema and a
