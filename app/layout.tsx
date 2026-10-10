@@ -4,7 +4,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
-import { amazonTag } from "@/lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, amazonTag } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
 import { ETSY_NOTICE, etsyOn } from "@/lib/marketplace/etsy-terms";
 import VisitCounter from "./components/VisitCounter";
@@ -61,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {amazonTag() && (
               <p className="hint">
                 As an Amazon Associate, SigPath earns from qualifying purchases. (Als Amazon-Partner verdient SigPath an
-                qualifizierten Verkäufen.)
+                qualifizierten Verkäufen.) {AMAZON_PRICE_DISCLAIMER}
               </p>
             )}
           </div>

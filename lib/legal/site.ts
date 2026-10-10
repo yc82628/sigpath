@@ -92,6 +92,15 @@ export const hasCheckout = (env: Env = process.env) => !!(clean(env.ADDRESS_KEY)
 /** Reports need the same encryption key (app/api/reports/*). */
 export const hasReports = (env: Env = process.env) => !!clean(env.ADDRESS_KEY);
 
+/**
+ * Amazon.de's Associates rules put a site where users search a product to
+ * compare sellers' prices in the "Comparison Shopping Engine" category, which
+ * must show these three statements (or a link to them) on every page. Shown
+ * whenever the tag is set, in the footer.
+ */
+export const AMAZON_PRICE_DISCLAIMER =
+  "Prices shown may have risen since they were last updated. The seller's price at the time of purchase applies. Prices can't be updated in real time.";
+
 /** The Associates tracking id, when set and well formed (lib/marketplace/registry.ts uses the same rule). */
 export function amazonTag(env: Env = process.env): string | null {
   const tag = clean(env.AMAZON_PARTNER_TAG);

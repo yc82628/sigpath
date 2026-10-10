@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { amazonTag, assistantProvider, hasPriceAlerts, operator, photoCheckProvider, providerFor, solanaRpcProvider } from "../lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, amazonTag, assistantProvider, hasPriceAlerts, operator, photoCheckProvider, providerFor, solanaRpcProvider } from "../lib/legal/site";
 
 test("the Impressum shows the operator only once name, address and email are all set", () => {
   assert.equal(operator({}), null);
@@ -29,4 +29,10 @@ test("the Amazon disclosure appears only with a well-formed tag", () => {
   assert.equal(amazonTag({}), null);
   assert.equal(amazonTag({ AMAZON_PARTNER_TAG: "sigpath-21" }), "sigpath-21");
   assert.equal(amazonTag({ AMAZON_PARTNER_TAG: "bad tag&x" }), null);
+});
+
+test("with a tag, every page carries Amazon.de's three price statements for comparison sites", () => {
+  assert.match(AMAZON_PRICE_DISCLAIMER, /may have risen since they were last updated/);
+  assert.match(AMAZON_PRICE_DISCLAIMER, /price at the time of purchase applies/);
+  assert.match(AMAZON_PRICE_DISCLAIMER, /can't be updated in real time/);
 });
