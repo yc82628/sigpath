@@ -189,8 +189,8 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
         {turns.length === 0 && (
           <div className="chat-welcome">
             <p>
-              Hi, I&apos;m Ai-chan! Tell me what you&apos;re looking for, with your budget and must-haves, and I&apos;ll search eBay,
-              Amazon and Etsy for the checked deals.
+              Hi, I&apos;m Ai-chan! Tell me what you&apos;re looking for, with your budget and must-haves, and I&apos;ll search eBay
+              and Amazon for the checked deals.
             </p>
             <div className="chat-suggestions">
               {SUGGESTIONS.map((s) => (

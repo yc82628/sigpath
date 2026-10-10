@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 import { agentCheck } from "@/lib/agents/check";
+import { withoutEtsy } from "@/lib/marketplace/etsy-terms";
 
 export const metadata = { title: "For AI agents — SigPath" };
 
@@ -12,7 +13,7 @@ const EXAMPLE_QUERY = "ThinkPad X1";
 const PRICE_USDC = "0.002";
 
 async function example(): Promise<string> {
-  const full = agentCheck(EXAMPLE_QUERY, await labelledSearch(EXAMPLE_QUERY, { limit: 20 }));
+  const full = agentCheck(EXAMPLE_QUERY, withoutEtsy(await labelledSearch(EXAMPLE_QUERY, { limit: 20 })));
   const trimmed = {
     query: full.query,
     bestChecked: full.bestChecked.slice(0, 1),

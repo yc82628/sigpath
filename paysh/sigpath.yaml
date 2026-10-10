@@ -19,7 +19,7 @@
 name: sigpath
 subdomain: sigpath
 title: 'SigPath deal check and seller verification'
-description: 'Search eBay, Amazon and Etsy at once with a verdict on every listing, and verify sellers, businesses and suppliers: verified-seller badges on Solana, EU VAT-registered businesses, upheld fake-product reports, and supplier checks against the VAT register and domain registries.'
+description: 'Search eBay and Amazon at once with a verdict on every listing, and verify sellers, businesses and suppliers: verified-seller badges on Solana, EU VAT-registered businesses, upheld fake-product reports, and supplier checks against the VAT register and domain registries.'
 category: shopping
 version: v1
 
@@ -55,7 +55,7 @@ endpoints:
 
   - method: GET
     path: 'api/v1/seller'
-    description: 'Is ?marketplace=ebay|etsy|amazon&handle=<seller> a verified seller (cross-checked on Solana)? Which verified business runs it? Upheld fake-product findings.'
+    description: 'Is ?marketplace=ebay|amazon&handle=<seller> a verified seller (cross-checked on Solana)? Which verified business runs it? Upheld fake-product findings.'
     metering:
       dimensions:
         - direction: usage

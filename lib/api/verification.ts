@@ -24,7 +24,8 @@ import type { PublicFinding } from "../reports/seller";
 import type { OnChainBadge } from "../chains/solana/sas-verified";
 import type { OnChainBusiness } from "../chains/solana/sas-business";
 
-export const API_MARKETPLACES = ["ebay", "etsy", "amazon"] as const;
+/** No Etsy: its API terms forbid reselling Etsy member data (lib/marketplace/etsy-terms.ts). */
+export const API_MARKETPLACES = ["ebay", "amazon"] as const;
 
 export const SELLER_MEANING =
   "A verified seller proved control of this marketplace account, holds a non-transferable badge on Solana, and passed a live check. A verified business is also registered in the EU VAT register. Both vouch for who runs the account, not for any item. Findings are fake-product reports upheld after review, with the seller's reply.";
@@ -164,7 +165,7 @@ export async function businessRecord(query: { id?: string; vatCountry?: string; 
       vat: v.vatMasked && v.vatCheckedAt ? { masked: v.vatMasked, checkedAt: iso(v.vatCheckedAt) } : null,
       website: v.domain && v.domainVerifiedAt ? { domain: v.domain, provedAt: iso(v.domainVerifiedAt) } : null,
       validUntil: v.status === "verified" && v.expiresAt ? iso(v.expiresAt) : null,
-      accounts: v.accounts.map((a) => ({ marketplace: a.source, handle: a.handle, verifiedSince: iso(a.verifiedAt), active: a.active, upheldReports: a.upheldReports, attestation: a.attestation })),
+      accounts: v.accounts.filter((a) => (API_MARKETPLACES as readonly string[]).includes(a.source)).map((a) => ({ marketplace: a.source, handle: a.handle, verifiedSince: iso(a.verifiedAt), active: a.active, upheldReports: a.upheldReports, attestation: a.attestation })),
       profile: `${deps.baseUrl}/business/${b.id}`,
       onChain: chain ? { status: chain.status, attestation: chain.status === "none" ? null : chain.attestation } : { status: "not_checked", attestation: null },
       checkedAt: iso(nowS),

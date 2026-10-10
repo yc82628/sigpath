@@ -6,6 +6,7 @@ import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
 import { amazonTag } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
+import { ETSY_NOTICE, etsyOn } from "@/lib/marketplace/etsy-terms";
 import VisitCounter from "./components/VisitCounter";
 import "./globals.css";
 
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               No account, no tracking cookies{visitCounterOn() ? "; visits are only counted" : ""}. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the
               item is genuine.
             </p>
+            {etsyOn() && <p className="hint">{ETSY_NOTICE}</p>}
             {amazonTag() && (
               <p className="hint">
                 As an Amazon Associate, SigPath earns from qualifying purchases. (Als Amazon-Partner verdient SigPath an

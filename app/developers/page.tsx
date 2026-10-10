@@ -14,7 +14,7 @@ const ENDPOINTS: [string, string, string, string][] = [
   ["GET", "/api/v1/seller?marketplace=ebay&handle=…", "Verified seller (cross-checked on Solana), the business behind it, upheld fake-product findings", "0.001"],
   ["GET", "/api/v1/business?vatCountry=DE&vatNumber=…", "A verified business by VAT number, website (?domain=) or id: status, evidence, linked accounts", "0.001"],
   ["POST", "/api/v1/supplier", "Supplier check: EU VAT register, name match, website age, SigPath records", "0.005"],
-  ["GET", "/api/check?q=…", "Deal check across eBay, Amazon and Etsy: every listing's verdict and the best checked deal", "0.002"],
+  ["GET", "/api/check?q=…", "Deal check across eBay and Amazon: every listing's verdict and the best checked deal", "0.002"],
 ];
 
 const EXAMPLE = `{

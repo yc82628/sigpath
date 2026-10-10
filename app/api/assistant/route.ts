@@ -4,6 +4,7 @@ import { ChatRequest, runAssistant, type AssistantEvent } from "@/lib/assistant/
 import { assistantConfig, assistantSetupGaps, ModelApiError, modelFromConfig } from "@/lib/assistant/models";
 import { RateLimiter } from "@/lib/assistant/rate-limit";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
+import { withoutEtsy } from "@/lib/marketplace/etsy-terms";
 
 // POST /api/assistant  { messages: [{ role, content }, ...] }
 //
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
       try {
         await runAssistant(parsed.data, emit, {
           model: modelFromConfig(config),
-          search: (q, currency) => labelledSearch(q, { limit: 20, currency }),
+          // No Etsy content reaches the AI model (lib/marketplace/etsy-terms.ts).
+          search: async (q, currency) => withoutEtsy(await labelledSearch(q, { limit: 20, currency })),
         });
       } catch (err) {
         // Status and code only: an error message could echo the conversation.

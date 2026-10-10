@@ -58,6 +58,10 @@ export function priceCheckFor(listing: Listing, analysis: Analysis): PriceCheck 
 }
 
 export function checkoutEligibility(listing: Listing, flags: Flag[], priceCheck: PriceCheck): Eligibility {
+  if (listing.source === "etsy") {
+    // Etsy's API terms forbid circumventing its checkout (lib/marketplace/etsy-terms.ts).
+    return { eligible: false, reason: "Etsy items are bought on Etsy, through Etsy's own checkout." };
+  }
   if (flags.length > 0) {
     return {
       eligible: false,

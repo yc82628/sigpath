@@ -24,7 +24,8 @@ import { agentListing, listingTotal, marketName, type AgentListing } from "../ag
 import { CHECKED_MEANS } from "../marketplace/label";
 import { listingKey } from "../marketplace/types";
 
-export const MARKETPLACES = ["ebay", "amazon", "etsy"] as const;
+/** No Etsy: its listings never reach the AI model (lib/marketplace/etsy-terms.ts). */
+export const MARKETPLACES = ["ebay", "amazon"] as const;
 
 export const SearchInput = z.object({
   query: z.string().trim().min(1).max(120),
@@ -32,7 +33,7 @@ export const SearchInput = z.object({
   min_price: z.number().nonnegative().optional(),
   max_price: z.number().positive().optional(),
   currency: z.string().regex(/^[A-Za-z]{3}$/).transform((c) => c.toUpperCase()).optional(),
-  marketplaces: z.array(z.enum(MARKETPLACES)).max(3).optional(),
+  marketplaces: z.array(z.enum(MARKETPLACES)).max(2).optional(),
   checked_only: z.boolean().default(false),
   verified_seller_only: z.boolean().default(false),
 });
@@ -42,7 +43,7 @@ export type SearchInput = z.infer<typeof SearchInput>;
 export const SEARCH_TOOL = {
   name: "search_deals",
   description:
-    "Search eBay, Amazon and Etsy at once through SigPath and get each listing's SigPath verdict: " +
+    "Search eBay and Amazon at once through SigPath and get each listing's SigPath verdict: " +
     '"checked" (price in line with the market, no warnings), "caution" (look closer, with reasons) or ' +
     '"unchecked" (nothing to compare it with). Put only the product in `query` and express preferences ' +
     "with the other fields. Prices are totals including shipping, in major units (e.g. 399.99).",

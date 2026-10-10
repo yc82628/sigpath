@@ -37,7 +37,11 @@ screen. Ai-chan answers there too, on Google Gemini.
 
 - **One search, every marketplace.** eBay, Amazon and Etsy through their
   official APIs, with prices compared including shipping. eBay is live; the
-  Etsy adapter is built and waits for its key. Amazon retired the Product
+  Etsy adapter is built and waits for its key (a "Personal App", which Etsy
+  reviews by hand). Etsy's API terms are kept in code
+  (`lib/marketplace/etsy-terms.ts`): its required notice in the footer, no Etsy
+  listings in the paid API or the AI assistant, and Etsy items bought on Etsy,
+  never through SigPath's checkout. Amazon retired the Product
   Advertising API that `sources/amazon.ts` uses (2026); its successor, the
   Creators API, needs an Associates account with 10 sales in 30 days. idealo and
   Kleinanzeigen have no API SigPath may use, so they get a one-click link

@@ -3,7 +3,7 @@
   "info": {
     "title": "SigPath verification API",
     "version": "1.0.0",
-    "description": "Deal checks across eBay, Amazon and Etsy, and verification of sellers, businesses and suppliers. Paid per request in USDC on Solana through a pay.sh gateway (HTTP 402); no account or API key. Answers are identical to the free website: paying never changes a result. Every answer says what it vouches for and what not."
+    "description": "Deal checks across eBay and Amazon, and verification of sellers, businesses and suppliers. Paid per request in USDC on Solana through a pay.sh gateway (HTTP 402); no account or API key. Answers are identical to the free website: paying never changes a result. Every answer says what it vouches for and what not."
   },
   "servers": [
     {
@@ -62,7 +62,6 @@
               "type": "string",
               "enum": [
                 "ebay",
-                "etsy",
                 "amazon"
               ]
             }
@@ -389,7 +388,6 @@
                     "type": "string",
                     "enum": [
                       "ebay",
-                      "etsy",
                       "amazon"
                     ]
                   },

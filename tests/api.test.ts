@@ -66,10 +66,12 @@ test("seller: upheld reports hide the badge and come back as findings, with the 
 });
 
 test("seller: unknown accounts are a plain 'no record', and bad input is refused", async () => {
-  const r = await sellerRecord({ marketplace: "etsy", handle: "someone_else" }, deps());
+  const r = await sellerRecord({ marketplace: "ebay", handle: "someone_else" }, deps());
   assert.ok(r.ok);
   assert.deepStrictEqual([r.value.verifiedSeller, r.value.verifiedBusiness, r.value.upheldReports, r.value.findings], [null, null, 0, []]);
   assert.deepStrictEqual((await sellerRecord({ marketplace: "aliexpress", handle: "x" }, deps())).ok, false);
+  // Etsy's API terms forbid reselling its member data, so the paid API doesn't answer for Etsy shops.
+  assert.deepStrictEqual((await sellerRecord({ marketplace: "etsy", handle: "acme_shop" }, deps())).ok, false);
   assert.deepStrictEqual((await sellerRecord({ marketplace: "ebay", handle: "" }, deps())).ok, false);
 });
 
@@ -82,7 +84,7 @@ test("business: found by VAT number, website or id, with its evidence and accoun
     assert.strictEqual(r.value.country, "Germany");
     assert.strictEqual(r.value.vat?.masked, "DE•••••6789", "the full number is never returned");
     assert.strictEqual(r.value.website?.domain, "acme-shop.de");
-    assert.strictEqual(r.value.accounts.length, 2);
+    assert.deepStrictEqual(r.value.accounts.map((a) => a.marketplace), ["ebay"], "its Etsy account is left out of the paid answer");
     assert.strictEqual(r.value.profile, "https://sigpath.example/business/b_acme");
   }
 });
