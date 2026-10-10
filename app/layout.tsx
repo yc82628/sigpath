@@ -5,6 +5,8 @@ import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
 import { amazonTag } from "@/lib/legal/site";
+import { visitCounterOn } from "@/lib/visits";
+import VisitCounter from "./components/VisitCounter";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -51,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/privacy">Privacy</Link>
             </p>
             <p className="hint">
-              No account, no tracking. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the
+              No account, no tracking cookies{visitCounterOn() ? "; visits are only counted" : ""}. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the
               item is genuine.
             </p>
             {amazonTag() && (
@@ -63,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </footer>
         <ShoppingAssistant />
+        {visitCounterOn() && <VisitCounter />}
       </body>
     </html>
   );

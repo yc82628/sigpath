@@ -15,6 +15,7 @@ import { PENDING_TTL_SECONDS, RETENTION_MAX_SECONDS } from "@/lib/checkout/addre
 import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
 import { PENDING_REPORT_MAX_SECS } from "@/lib/reports/reports";
 import { WATCH_TTL_SECS } from "@/lib/alerts/watches";
+import { visitCounterOn } from "@/lib/visits";
 import { BUSINESS_TTL_SECS } from "@/lib/sellers/business";
 
 /**
@@ -40,6 +41,7 @@ export default function PrivacyPage() {
   const alerts = hasPriceAlerts();
   const tag = amazonTag();
   const reports = hasReports();
+  const counter = visitCounterOn();
   const storage = hasDatabase() ? "in an encrypted record in SigPath's database (Upstash)" : "in an encrypted record on SigPath's server";
 
   return (
@@ -50,6 +52,7 @@ export default function PrivacyPage() {
       <h2>In short</h2>
       <ul>
         <li>No account, no sign-in, no advertising or tracking cookies.</li>
+        {counter && <li>Visits are counted without cookies, and SigPath only sees totals.</li>}
         <li>SigPath only keeps data for a feature you use, encrypted where it is personal, and deletes it on a schedule.</li>
         <li>What goes on the Solana blockchain is public and permanent; this page says exactly what that is.</li>
       </ul>
@@ -72,6 +75,21 @@ export default function PrivacyPage() {
         secure, working site). The site&apos;s fonts are served by SigPath itself, so your browser makes no request to Google
         Fonts.
       </p>
+
+      {counter && (
+        <>
+          <h2>Counting visits</h2>
+          <p>
+            To know how many people use SigPath and where they come from, the site counts page views with Vercel Web
+            Analytics (Vercel Inc., USA). It sets no cookies. Before a page view is sent, its address is cut down to the
+            page type: search words, order numbers, seller names and anything after &ldquo;?&rdquo; are removed. With
+            each page view Vercel records the time, that page type, the website you came from (only if it is another site), your approximate location
+            (country, region, city), and your browser, operating system and device type. Vercel tells visitors apart by
+            a hash of the request, which it discards after 24 hours, and SigPath only sees totals (legal basis: Art.
+            6(1)(f) GDPR, our interest in knowing which pages are used and how people find the site).
+          </p>
+        </>
+      )}
 
       <h2>Searching</h2>
       <p>
