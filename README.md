@@ -57,7 +57,8 @@ screen. Ai-chan answers there too, on Google Gemini.
   below the median. **Not price-checked**: neutral, for listings with nothing to
   compare against. "Checked" means checked, not guaranteed, and the page says so.
 - **The best checked deal**, for new and for used, with how far below the typical
-  price it is. A flagged bargain never wins.
+  price it is. A flagged bargain never wins, and neither does an invented demo
+  listing next to real ones.
 - **Price-drop alerts with no account.** A browser notification when a
   *checked* deal hits your price. Bait listings never trigger "price dropped!".
 - **Pay with USDC, protected by escrow.** The seller isn't paid until the order is
@@ -100,7 +101,8 @@ For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` or
 `ETSY_KEYSTRING`/`ETSY_SHARED_SECRET` to `.env.local`, and `AMAZON_PARTNER_TAG`
 to tag the Amazon search link (see `.env.local.example`). The demo feed can stay
 on next to them: its invented prices are only ever compared with each other,
-never with real listings. Set `STUB_FEED=false` to hide it.
+never with real listings, and a demo listing never takes a best-deal spot once a
+real marketplace answered. Set `STUB_FEED=false` to hide it.
 
 ```powershell
 npm test                                   # 499 tests, as of 2026-10-10
@@ -436,6 +438,13 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
   the price, so it appears as a point and nothing more.
 - **Best checked deal:** the cheapest *checked* listing for new and for used,
   each with its saving against its own median. A flagged bargain never wins.
+  Demo listings are left out whenever the search has real ones: a demo listing
+  can pass its own (demo) comparison, and a shopper must not be pointed at a
+  product that doesn't exist. Until 2026-10-11 one could: "Sealed iPhone 13
+  128GB · Demo" was the best new deal for "iPhone 13 128GB" on the live site.
+  With no real listing passing in a group, that group simply has no best deal.
+  With only the demo feed (no keys), demo listings still fill the box, so the
+  demo shows the feature (tested both ways).
 - **Checked only:** `?checked=1` hides the rest, and the filter survives a new search.
 - Checkout is still offered only on listings that pass the stricter checkout gate.
 - **Streamed, not waited for.** The search page goes out at once with a
