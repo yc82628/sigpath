@@ -38,6 +38,14 @@ test("identity: accessories, but not products that come with one", () => {
   assert.strictEqual(identify("ThinkPad X1 for students and work", Q).kind, "product");
   assert.strictEqual(identify("Leather laptop sleeve 14 inch", "laptop sleeve").kind, "product", "the shopper searched for a sleeve");
   assert.match(identify("Charger for ThinkPad X1", Q).kindReason!, /accessory \(charger\)/);
+  // Seen checking an AliExpress case: a German compound names its last part.
+  assert.strictEqual(
+    identify("Schutzhülle für Airpods Pro 2 Pro 3 USB C Kopfhörer-Hülle", "Schutzhülle für Airpods Pro 2 Pro").kind,
+    "product",
+    "the shopper searched for a Hülle",
+  );
+  assert.strictEqual(identify("Ladekabel USB-C 2m", "USB-C Kabel").kind, "accessory", "but a Kabel isn't a Ladekabel");
+  assert.strictEqual(identify("Hülle für AirPods Pro 2", "AirPods Pro 2").kind, "accessory");
 });
 
 test("identity: for-parts units, but not negated damage", () => {

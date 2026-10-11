@@ -162,7 +162,10 @@ export function identify(title: string, query: string): Identity {
     kind = "parts";
     kindReason = `The listing says "${partial}": only part of the product, so it isn't compared with complete ones.`;
   } else {
-    const accessory = ACCESSORY_WORDS.find((w) => !hasPhrase(q, w) && countsAs(t, w, INCLUDED_BEFORE, INCLUDED_AFTER));
+    // A German compound names its last part: searching "Schutzhülle" is searching for a "Hülle".
+    const qCompounds = q.split(/[^\p{L}\p{N}]+/u);
+    const searched = (w: string) => hasPhrase(q, w) || (!w.includes(" ") && qCompounds.some((qw) => qw.endsWith(w)));
+    const accessory = ACCESSORY_WORDS.find((w) => !searched(w) && countsAs(t, w, INCLUDED_BEFORE, INCLUDED_AFTER));
     const service = SERVICE_WORDS.find((w) => !hasPhrase(q, w) && hasPhrase(t, w));
     // "… for ThinkPad X1", "fits ThinkPad X1", "für PlayStation 5": the searched product comes right after.
     const at = q ? t.indexOf(q) : -1;
