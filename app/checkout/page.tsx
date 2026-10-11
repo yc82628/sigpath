@@ -134,8 +134,9 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             <h2>What happens to your money</h2>
             <ul>
               <li>
-                It is held by the SigPath escrow program on Solana — not by SigPath, and not by
-                anyone holding a key.
+                It is held by the SigPath escrow program on Solana, not in a SigPath account, and the
+                program&apos;s rules decide where it goes. While SigPath is on devnet it can still update the
+                program; it will be locked before real money is taken.
               </li>
               <li>
                 SigPath is paid only when it marks your order fulfilled, and only within{" "}
