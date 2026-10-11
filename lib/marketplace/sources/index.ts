@@ -17,6 +17,20 @@ import { AliExpressSource } from "./aliexpress";
 import { FeedSource } from "./feed";
 import { StubSource } from "./stub";
 
+/**
+ * The offline demo feed, with scams planted on purpose. On by default where
+ * there may be no credentials (local development, previews), so search is
+ * demonstrable with no keys at all. Off by default on the live site (Vercel
+ * production): real shoppers must not see invented products. STUB_FEED=true
+ * or =false overrides either default.
+ */
+export function demoFeedOn(env: Record<string, string | undefined> = process.env): boolean {
+  const set = env.STUB_FEED?.trim().replace(/^["']|["']$/g, "").toLowerCase();
+  if (set === "true") return true;
+  if (set === "false") return false;
+  return env.VERCEL_ENV !== "production";
+}
+
 export function defaultSources(env: Record<string, string | undefined> = process.env): MarketplaceSource[] {
   // The live marketplaces. idealo and Kleinanzeigen are covered as link-outs,
   // not sources — see registry.ts for why there is no API we may query.
@@ -27,9 +41,7 @@ export function defaultSources(env: Record<string, string | undefined> = process
     new AliExpressSource(env),
     new FeedSource(env),
   ];
-  // The offline feed stays on until turned off, so search is demonstrable with
-  // no credentials at all. Set STUB_FEED=false once real sources answer.
-  if (env.STUB_FEED !== "false") {
+  if (demoFeedOn(env)) {
     const delay = Number(env.STUB_DELAY_MS);
     list.push(new StubSource("EUR", Number.isFinite(delay) && delay > 0 ? Math.min(delay, 10_000) : 0));
   }

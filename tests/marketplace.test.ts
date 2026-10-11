@@ -1121,6 +1121,15 @@ test("the search page and the API route share one source list", () => {
   );
 });
 
+test("the demo feed is off on the live site unless asked for, and on elsewhere unless turned off", () => {
+  const ids = (env: Record<string, string>) => defaultSources(env).map((s) => s.id);
+  assert.ok(!ids({ VERCEL_ENV: "production" }).includes("stub"), "live site: no invented products by default");
+  assert.ok(ids({ VERCEL_ENV: "production", STUB_FEED: "true" }).includes("stub"), "unless explicitly turned on");
+  assert.ok(ids({ VERCEL_ENV: "preview" }).includes("stub"), "previews keep the demo");
+  assert.ok(!ids({ STUB_FEED: " FALSE " }).includes("stub"), "a stray space or capital still turns it off");
+  assert.ok(!ids({ STUB_FEED: '"false"' }).includes("stub"), "and so do pasted quotes");
+});
+
 // ---------------------------------------------------------------------------
 // Used items: compared with each other, never with new ones
 // ---------------------------------------------------------------------------

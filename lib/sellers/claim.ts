@@ -31,6 +31,7 @@
  * handle, 30 minutes to sign and take the photo).
  */
 
+import { demoFeedOn } from "../marketplace/sources";
 import { createHmac, timingSafeEqual } from "crypto";
 import nacl from "tweetnacl";
 import { PublicKey } from "@solana/web3.js";
@@ -56,7 +57,7 @@ export type ClaimableSource = (typeof CLAIMABLE_SOURCES)[number];
 export function claimMarketplaces(env: Record<string, string | undefined> = process.env): ClaimableSource[] {
   const has = (...keys: string[]) => keys.every((k) => !!env[k]?.trim());
   return CLAIMABLE_SOURCES.filter((s) =>
-    s === "ebay" ? has("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET") : s === "etsy" ? has("ETSY_KEYSTRING", "ETSY_SHARED_SECRET") : env.STUB_FEED !== "false",
+    s === "ebay" ? has("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET") : s === "etsy" ? has("ETSY_KEYSTRING", "ETSY_SHARED_SECRET") : demoFeedOn(env),
   );
 }
 
@@ -196,7 +197,7 @@ export async function proveHandle(
 
   const source = CLAIMABLE_SOURCES.find((s) => s === input.source);
   if (!source) return { ok: false, status: 400, error: "Verification isn't available for that marketplace yet." };
-  if (source === "stub" && env.STUB_FEED === "false") return { ok: false, status: 400, error: "The demo marketplace is turned off." };
+  if (source === "stub" && !demoFeedOn(env)) return { ok: false, status: 400, error: "The demo marketplace is turned off." };
   const listingId = String(input.listingId ?? "").trim();
   if (!listingId || listingId.length > 200) return { ok: false, status: 400, error: "Enter the listing's item number." };
 
