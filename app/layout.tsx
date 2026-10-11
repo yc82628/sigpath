@@ -4,9 +4,8 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
-import { AMAZON_PRICE_DISCLAIMER, amazonTag } from "@/lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
-import { ETSY_NOTICE, etsyOn } from "@/lib/marketplace/etsy-terms";
 import VisitCounter from "./components/VisitCounter";
 import SaleDayBanner from "./components/SaleDayBanner";
 import "./globals.css";
@@ -16,7 +15,7 @@ const sans = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: 
 
 export const metadata: Metadata = {
   title: `SigPath — ${SLOGAN}`,
-  description: "Compare eBay, Amazon and Etsy in one search. Every deal price-checked, every seller screened, and you only pay when it ships.",
+  description: "Live prices in one search. Every deal price-checked, every seller screened, and you only pay when it ships.",
 };
 
 /** Offered only where it can answer: a model must be configured (lib/assistant/models.ts). */
@@ -59,7 +58,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               No account, no tracking cookies{visitCounterOn() ? "; visits are only counted" : ""}. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the
               item is genuine.
             </p>
-            {etsyOn() && <p className="hint">{ETSY_NOTICE}</p>}
+            {aliexpressAffiliate() && (
+              <p className="hint">SigPath may earn a commission when you buy on AliExpress through its links.</p>
+            )}
             {amazonTag() && (
               <p className="hint">
                 As an Amazon Associate, SigPath earns from qualifying purchases. (Als Amazon-Partner verdient SigPath an

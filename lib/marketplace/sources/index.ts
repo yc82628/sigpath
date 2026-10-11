@@ -13,7 +13,7 @@
 import type { MarketplaceSource } from "./types";
 import { EbaySource } from "./ebay";
 import { AmazonSource } from "./amazon";
-import { EtsySource } from "./etsy";
+import { AliExpressSource } from "./aliexpress";
 import { FeedSource } from "./feed";
 import { StubSource } from "./stub";
 
@@ -23,7 +23,8 @@ export function defaultSources(env: Record<string, string | undefined> = process
   const list: MarketplaceSource[] = [
     new EbaySource(env),
     new AmazonSource(env),
-    new EtsySource(env),
+    // Etsy (sources/etsy.ts) is no longer searched: AliExpress replaced it.
+    new AliExpressSource(env),
     new FeedSource(env),
   ];
   // The offline feed stays on until turned off, so search is demonstrable with

@@ -101,6 +101,13 @@ export const hasReports = (env: Env = process.env) => !!clean(env.ADDRESS_KEY);
 export const AMAZON_PRICE_DISCLAIMER =
   "Prices shown may have risen since they were last updated. The seller's price at the time of purchase applies. Prices can't be updated in real time.";
 
+/** AliExpress is searched only with both keys set (sources/aliexpress.ts). */
+export const aliexpressOn = (env: Env = process.env) =>
+  !!(clean(env.ALIEXPRESS_APP_KEY) && clean(env.ALIEXPRESS_APP_SECRET));
+
+/** AliExpress links carry SigPath's affiliate tracking id: a commission to disclose. */
+export const aliexpressAffiliate = (env: Env = process.env) => aliexpressOn(env) && !!clean(env.ALIEXPRESS_TRACKING_ID);
+
 /** The Associates tracking id, when set and well formed (lib/marketplace/registry.ts uses the same rule). */
 export function amazonTag(env: Env = process.env): string | null {
   const tag = clean(env.AMAZON_PARTNER_TAG);

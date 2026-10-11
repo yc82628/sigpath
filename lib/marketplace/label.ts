@@ -97,7 +97,7 @@ function age(secondsSince: number, now: number): string {
   return `${days} day${days === 1 ? "" : "s"}`;
 }
 
-const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", feed: "the partner feed", stub: "the demo feed" };
+const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", aliexpress: "AliExpress", feed: "the partner feed", stub: "the demo feed" };
 
 /**
  * The seller and photo checks, each saying whether it ran. `good` lines are

@@ -42,7 +42,13 @@ export function priceCheckFor(listing: Listing, analysis: Analysis): PriceCheck 
   if (specific) return { checked: false, reason: specific };
 
   if (analysis.excludedFromComparison.includes(listing.source)) {
-    return { checked: false, reason: "Prices from this marketplace aren't compared with retail." };
+    return {
+      checked: false,
+      reason:
+        listing.source === "aliexpress"
+          ? "AliExpress prices aren't compared with eBay's: they're a different price level, shipped from abroad."
+          : "Prices from this marketplace aren't compared with retail.",
+    };
   }
   if (analysis.status === "incomplete_coverage") {
     return { checked: false, reason: "Prices can't be compared while a marketplace isn't responding." };
@@ -61,6 +67,10 @@ export function checkoutEligibility(listing: Listing, flags: Flag[], priceCheck:
   if (listing.source === "etsy") {
     // Etsy's API terms forbid circumventing its checkout (lib/marketplace/etsy-terms.ts).
     return { eligible: false, reason: "Etsy items are bought on Etsy, through Etsy's own checkout." };
+  }
+  if (listing.source === "aliexpress") {
+    // Link-out only: SigPath doesn't order on AliExpress for buyers (yet).
+    return { eligible: false, reason: "AliExpress items are bought on AliExpress, through its own checkout." };
   }
   if (flags.length > 0) {
     return {

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { ETSY_NOTICE, etsyOn, withoutEtsy } from "../lib/marketplace/etsy-terms";
+import { ETSY_NOTICE, etsyOn } from "../lib/marketplace/etsy-terms";
+import { withoutSiteOnly } from "../lib/marketplace/site-only";
 import { checkoutEligibility } from "../lib/checkout/eligibility";
 import { SearchInput } from "../lib/assistant/search-tool";
 import { API_MARKETPLACES } from "../lib/api/verification";
@@ -25,7 +26,7 @@ test("Etsy listings never reach the paid API or the AI assistant", () => {
     sources: [{ source: "ebay", status: "ok" }, { source: "etsy", status: "ok" }],
     bestCheckedDeals: [{ listing: "ebay:1" }, { listing: "etsy:2" }],
   } as unknown as LabelledSearch;
-  const out = withoutEtsy(result);
+  const out = withoutSiteOnly(result);
   assert.deepEqual(out.listings.map((l) => l.source), ["ebay"]);
   assert.deepEqual(out.sources.map((s) => s.source), ["ebay"]);
   assert.deepEqual(out.bestCheckedDeals.map((d) => d.listing), ["ebay:1"]);

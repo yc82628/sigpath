@@ -89,11 +89,10 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     access: "api",
   },
   {
-    // Open API v3 with an application key. Prices are shown but kept out of the
-    // median: handmade and vintage goods are not comparable with retail. See
-    // sources/etsy.ts.
-    id: "etsy",
-    label: "Etsy",
+    // Official Affiliate API. Live prices are shown but kept out of the median:
+    // a different price level from eBay Germany. See sources/aliexpress.ts.
+    id: "aliexpress",
+    label: "AliExpress",
     access: "api",
   },
   {

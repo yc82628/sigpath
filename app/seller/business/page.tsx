@@ -14,7 +14,7 @@ export default function BusinessPage() {
     <main className="container">
       <h1>Verify your business</h1>
       <p className="lede">
-        Already a verified seller? Show shoppers the registered business behind your accounts, on eBay, Etsy or both,
+        Already a verified seller? Show shoppers the registered business behind your accounts, on eBay,
         with a <span className="verified business">✓ Verified business</span> badge and a public profile.
       </p>
 

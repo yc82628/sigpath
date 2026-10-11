@@ -24,7 +24,7 @@ import { formatMoney, listingKey, type Money } from "../marketplace/types";
 /** The header the pay.sh gateway adds to every request it has been paid for. */
 export const GATEWAY_HEADER = "x-sigpath-gateway";
 
-const MARKET_NAME: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", feed: "Partner feeds", stub: "Demo" };
+const MARKET_NAME: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", aliexpress: "AliExpress", feed: "Partner feeds", stub: "Demo" };
 
 export interface AgentListing {
   title: string;

@@ -1113,11 +1113,11 @@ test("the search page and the API route share one source list", () => {
   // Two copies of a list are two lists. Pinned so they cannot drift again.
   assert.deepEqual(
     defaultSources({}).map((s) => s.id),
-    ["ebay", "amazon", "etsy", "feed", "stub"],
+    ["ebay", "amazon", "aliexpress", "feed", "stub"],
   );
   assert.deepEqual(
     defaultSources({ STUB_FEED: "false" }).map((s) => s.id),
-    ["ebay", "amazon", "etsy", "feed"],
+    ["ebay", "amazon", "aliexpress", "feed"],
   );
 });
 

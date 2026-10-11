@@ -16,8 +16,6 @@
  *   - Searches aren't stored (fetches are `no-store`, nothing is cached).
  */
 
-import type { LabelledSearch } from "./labelled-search";
-
 /** Etsy's wording, exactly as its API Terms require it. */
 export const ETSY_NOTICE =
   "The term 'Etsy' is a trademark of Etsy, Inc. This Application uses Etsy's API, but is not endorsed or certified by Etsy.";
@@ -26,12 +24,5 @@ export const ETSY_NOTICE =
 export const etsyOn = (env: Record<string, string | undefined> = process.env) =>
   !!(env.ETSY_KEYSTRING?.trim() && env.ETSY_SHARED_SECRET?.trim());
 
-/** A search with every Etsy listing and the Etsy source removed: for the paid API and the AI assistant. */
-export function withoutEtsy(result: LabelledSearch): LabelledSearch {
-  return {
-    ...result,
-    listings: result.listings.filter((l) => l.source !== "etsy"),
-    sources: result.sources.filter((s) => s.source !== "etsy"),
-    bestCheckedDeals: result.bestCheckedDeals.filter((d) => !d.listing.startsWith("etsy:")),
-  };
-}
+// The filter that keeps Etsy (and AliExpress) listings out of the paid API and
+// the AI assistant is withoutSiteOnly, in lib/marketplace/site-only.ts.

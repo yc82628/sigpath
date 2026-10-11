@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, SLOGAN } from "./components/Logo";
+import { aliexpressOn } from "@/lib/legal/site";
 
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
 
@@ -73,7 +74,7 @@ const CATEGORIES: { label: string; q: string; icon: React.ReactNode }[] = [
 ];
 
 const PROMISES = [
-  { title: "Best price", line: "eBay, Amazon and Etsy in one search", icon: <path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /> },
+  { title: "Best price", line: "Live prices in one search", icon: <path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /> },
   { title: "Every deal checked", line: "Too good to be true? We say so", icon: <path d="M5 12.5l4.2 4.2L19 7" />, ok: true },
   { title: "Pay when it ships", line: "Your money waits safely until then", icon: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></> },
 ];
@@ -87,6 +88,8 @@ function Icon({ children, size = 26 }: { children: React.ReactNode; size?: numbe
 }
 
 export default function Home() {
+  // Only the marketplaces actually searched: eBay, and AliExpress once its keys are set.
+  const markets = ["eBay", ...(aliexpressOn() ? ["AliExpress"] : [])];
   return (
     <main>
       <section className="hero">
@@ -115,9 +118,9 @@ export default function Home() {
             ))}
           </ul>
           <ul className="market-row" aria-label="Marketplaces searched">
-            <li className="m-ebay">eBay</li>
-            <li className="m-amazon">Amazon</li>
-            <li className="m-etsy">Etsy</li>
+            {markets.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
           </ul>
         </div>
       </section>

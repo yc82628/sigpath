@@ -397,7 +397,7 @@ export function analyse(
 
   // Scope the claim to what was actually searched. Saying "across marketplaces"
   // when one marketplace answered would overstate the evidence.
-  const NAMES: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", feed: "the partner feed", stub: "the demo feed" };
+  const NAMES: Record<string, string> = { ebay: "eBay", amazon: "Amazon", etsy: "Etsy", aliexpress: "AliExpress", feed: "the partner feed", stub: "the demo feed" };
   const realCoverage = coverage.filter((c) => c !== DEMO_SOURCE);
   const scopeOf = (demo: boolean) =>
     demo

@@ -35,6 +35,8 @@ export type MarketplaceId =
   | "ebay"
   | "amazon"
   | "etsy"
+  /** AliExpress, through its official Affiliate API. See sources/aliexpress.ts. */
+  | "aliexpress"
   | "idealo"
   | "kleinanzeigen"
   /**
@@ -112,6 +114,8 @@ export interface Listing {
    */
   category?: { id: string; name: string };
   seller: SellerRef;
+  /** The link pays SigPath a commission (an affiliate link): marked rel="sponsored". */
+  affiliate?: boolean;
   /** Unix seconds the listing went up, if published. */
   listedAt?: number;
 }

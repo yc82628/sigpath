@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 import { agentCheck, gatewayAuthorised, GATEWAY_HEADER } from "@/lib/agents/check";
-import { withoutEtsy } from "@/lib/marketplace/etsy-terms";
+import { withoutSiteOnly } from "@/lib/marketplace/site-only";
 
 // GET /api/check?q=thinkpad+x1
 //
@@ -11,8 +11,8 @@ import { withoutEtsy } from "@/lib/marketplace/etsy-terms";
 // USDC transfer on Solana, then forwards here with the gateway key.
 //
 // Like /api/search it reads nothing about the caller and logs no query.
-// Etsy listings are left out: Etsy's API terms forbid reselling its data
-// (lib/marketplace/etsy-terms.ts).
+// Etsy and AliExpress listings are left out: they stay on SigPath's own pages
+// (lib/marketplace/site-only.ts).
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   if (!q) return NextResponse.json({ error: "Pass ?q=<search terms>." }, { status: 400 });
   if (q.length > 120) return NextResponse.json({ error: "Query is too long." }, { status: 400 });
 
-  const result = withoutEtsy(await labelledSearch(q, { limit: 20, currency: req.nextUrl.searchParams.get("currency")?.toUpperCase() || undefined }));
+  const result = withoutSiteOnly(await labelledSearch(q, { limit: 20, currency: req.nextUrl.searchParams.get("currency")?.toUpperCase() || undefined }));
   const anyOk = result.sources.some((s) => s.status === "ok");
   return NextResponse.json(agentCheck(q, result), { status: anyOk ? 200 : 503 });
 }

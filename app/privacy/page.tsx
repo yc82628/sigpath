@@ -1,5 +1,7 @@
 import Link from "next/link";
 import {
+  aliexpressAffiliate,
+  aliexpressOn,
   amazonTag,
   assistantProvider,
   hasCheckout,
@@ -16,7 +18,6 @@ import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
 import { PENDING_REPORT_MAX_SECS } from "@/lib/reports/reports";
 import { WATCH_TTL_SECS } from "@/lib/alerts/watches";
 import { visitCounterOn } from "@/lib/visits";
-import { etsyOn } from "@/lib/marketplace/etsy-terms";
 import { BUSINESS_TTL_SECS } from "@/lib/sellers/business";
 
 /**
@@ -43,7 +44,7 @@ export default function PrivacyPage() {
   const tag = amazonTag();
   const reports = hasReports();
   const counter = visitCounterOn();
-  const etsy = etsyOn();
+  const ali = aliexpressOn();
   const storage = hasDatabase() ? "in an encrypted record in SigPath's database (Upstash)" : "in an encrypted record on SigPath's server";
 
   return (
@@ -95,8 +96,8 @@ export default function PrivacyPage() {
 
       <h2>Searching</h2>
       <p>
-        Your search words are sent to eBay&apos;s{etsy ? " and Etsy’s" : ""} official API{etsy ? "s" : ""} to fetch listings. No information about you is sent with them,
-        and SigPath stores neither the search nor the results. Photos of listings are loaded from eBay to compare them.
+        Your search words are sent to eBay&apos;s{ali ? " and AliExpress’s" : ""} official API{ali ? "s" : ""} to fetch listings. No information about you is sent with them,
+        and SigPath stores neither the search nor the results. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
       </p>
 
       {ai && (
@@ -159,7 +160,6 @@ export default function PrivacyPage() {
           Solana the VAT number and website are stored only as one-way hashes.
         </li>
         <li>If you delete your eBay account, eBay notifies SigPath and the matching records are deleted.</li>
-        {etsy && <li>An Etsy listing you use to prove your shop is read through Etsy&apos;s official API: SigPath keeps its shop number and looks for your code in its text.</li>}
       </ul>
       <p className="hint">Legal basis: Art. 6(1)(b) GDPR, the verification you ask for.</p>
 
@@ -188,6 +188,16 @@ export default function PrivacyPage() {
         or verify a business.
       </p>
 
+      {aliexpressAffiliate() && (
+        <>
+          <h2>AliExpress links</h2>
+          <p>
+            Links to AliExpress carry SigPath&apos;s affiliate tracking id, and SigPath may earn a commission on what you buy.
+            Once you are on AliExpress, AliExpress&apos;s own privacy policy applies, including its cookies.
+          </p>
+        </>
+      )}
+
       {tag && (
         <>
           <h2>Amazon links</h2>
@@ -200,7 +210,7 @@ export default function PrivacyPage() {
 
       <h2>Providers outside the EU</h2>
       <p>
-        Some providers named here are based in the USA, so data sent to them may be processed there.
+        Some providers named here are based in the USA{ali ? ", and AliExpress’s API is served from Singapore" : ""}, so data sent to them may be processed there.
       </p>
 
       <h2>Your rights</h2>

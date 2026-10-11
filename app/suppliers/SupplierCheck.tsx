@@ -75,7 +75,6 @@ export default function SupplierCheck() {
           <span className="form-row">
             <select value={f.marketplace} onChange={set("marketplace")} aria-label="Marketplace">
               <option value="ebay">eBay</option>
-              <option value="etsy">Etsy</option>
               <option value="amazon">Amazon</option>
             </select>
             <input value={f.handle} onChange={set("handle")} placeholder="seller name" aria-label="Seller name on the marketplace" />

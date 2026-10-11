@@ -93,7 +93,7 @@ function ListingRow({
         <h3>
           {/* noreferrer as well as noopener: the destination has no business
               knowing which search sent the buyer there. */}
-          <a href={listing.url} target="_blank" rel="noopener noreferrer">
+          <a href={listing.url} target="_blank" rel={listing.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}>
             {listing.title}
           </a>
         </h3>
