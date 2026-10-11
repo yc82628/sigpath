@@ -43,7 +43,12 @@ screen. Ai-chan answers there too, on Google Gemini.
   listings in the paid API or the AI assistant, and Etsy items bought on Etsy,
   never through SigPath's checkout. Amazon retired the Product
   Advertising API that `sources/amazon.ts` uses (2026); its successor, the
-  Creators API, needs an Associates account with 10 sales in 30 days. idealo and
+  Creators API, needs an Associates account with 10 sales in 30 days. Until
+  then Amazon is a search link carrying the Associates tag
+  (`AMAZON_PARTNER_TAG`): no Amazon prices are shown, and the link never
+  reaches the AI assistant, the paid API or price alerts. With the tag set,
+  the footer shows the Associates disclosure and the price disclaimer Amazon.de
+  requires of comparison sites (`lib/legal/site.ts`). idealo and
   Kleinanzeigen have no API SigPath may use, so they get a one-click link
   instead of scraping.
 - **One verdict per listing.** ✓ **SigPath-checked**: the price matches the market
@@ -91,11 +96,11 @@ npm run dev
 Open http://localhost:3000 and search for anything. A **demo feed** is on by
 default (`STUB_FEED=true`). It deliberately includes a bait listing, a recycled
 photo and a brand-new account, so every verdict is on screen without any keys.
-For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`,
-`ETSY_KEYSTRING`/`ETSY_SHARED_SECRET` or Amazon PA-API keys to `.env.local` (see
-`.env.local.example`). The demo feed can stay on next to them: its invented
-prices are only ever compared with each other, never with real listings. Set
-`STUB_FEED=false` to hide it.
+For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` or
+`ETSY_KEYSTRING`/`ETSY_SHARED_SECRET` to `.env.local`, and `AMAZON_PARTNER_TAG`
+to tag the Amazon search link (see `.env.local.example`). The demo feed can stay
+on next to them: its invented prices are only ever compared with each other,
+never with real listings. Set `STUB_FEED=false` to hide it.
 
 ```powershell
 npm test                                   # 499 tests, as of 2026-10-10
@@ -1074,7 +1079,9 @@ reversed on appeal, the seller can claim again.
   visibly different from "no track record", and it costs something a throwaway
   account doesn't have.
 - **Amazon isn't supported.** Its API doesn't show listing text, so control of the
-  account can't be proved.
+  account can't be proved that way. Amazon's seller API (SP-API, "Sign in with
+  Amazon") could prove it, but needs an app listed in Amazon's Selling Partner
+  Appstore and a security review; it isn't built.
 - It vouches for **the account, not any item**. The page says so.
 
 ```bash
@@ -1627,6 +1634,9 @@ third is the load-bearing one.
   still to be taken with a camera. Separately, the older `/api/attest` flow's
   `LIVENESS_PROVIDER` defaults to `mock`, which always passes and detects
   nothing: set it to `vision` to use the same backend.
+- **Amazon is a tagged search link only (as of 2026-10-11).** No Associates tag
+  is set yet. Amazon prices need the Creators API, open after 10 qualifying
+  sales in 30 days; Amazon seller verification needs SP-API registration.
 - **X and LinkedIn collectors are thin by necessity** — they contribute breadth
   and name agreement, not depth. See the comments in each file.
 - **The Base mirror has never been executed.** It needs a registered schema and a
