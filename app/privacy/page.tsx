@@ -97,7 +97,7 @@ export default function PrivacyPage() {
       <h2>Searching</h2>
       <p>
         Your search words are sent to eBay&apos;s{ali ? " and AliExpress’s" : ""} official API{ali ? "s" : ""} to fetch listings. No information about you is sent with them,
-        and SigPath stores neither the search nor the results. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
+        and SigPath stores neither the search nor the results. A price check (/check) sends the product name and price you bring, and the address of the page they came from, to SigPath to compare with eBay; none of it is stored. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
       </p>
 
       {ai && (

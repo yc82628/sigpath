@@ -130,3 +130,11 @@ test("demo feed end to end: the charger and the parts unit are 'Not price-checke
   const best = new Set(r.bestCheckedDeals.map((d) => d.listing));
   assert.ok(![...best].some((k) => k.endsWith("accessory") || k.endsWith("parts")));
 });
+
+test("identity: one earbud of a pair is a part, not a cheap pair", () => {
+  // Seen live on eBay.de as the "best checked deal" for AirPods Pro 2 at 60.80 EUR.
+  assert.strictEqual(identify("Apple AirPods Pro 2 Generation USB-C (A3048) – Links Original", "AirPods Pro 2").kind, "parts");
+  assert.strictEqual(identify("AirPods Pro 2 rechts Ersatz", "AirPods Pro 2").kind, "parts");
+  assert.strictEqual(identify("AirPods Pro 2nd gen right AirPod only", "AirPods Pro 2").kind, "parts");
+  assert.strictEqual(identify("Apple AirPods Pro 2 mit MagSafe Ladecase USB-C", "AirPods Pro 2").kind, "product");
+});

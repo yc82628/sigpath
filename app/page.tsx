@@ -122,6 +122,9 @@ export default function Home() {
               <li key={m}>{m}</li>
             ))}
           </ul>
+          <p className="hero-more">
+            Found it on Amazon or AliExpress? <Link href="/check">Check that price →</Link>
+          </p>
         </div>
       </section>
 

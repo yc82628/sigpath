@@ -77,7 +77,9 @@ const PARTS_PHRASES = [
 const PARTIAL_PHRASES = [
   "hauptgerät", "nur hauptgerät", "nur gerät", "ohne akku", "body only", "main unit only", "without battery",
   "nur tablet", "nur konsole", "nur ladecase", "nur case", "case only", "einzeln", "ersatz", "linker", "rechter",
-  "left earbud", "right earbud", "ohne ovp und zubehör",
+  // One earbud of a pair: "AirPods Pro 2 ... Links Original" is the left one alone.
+  "links", "rechts", "left earbud", "right earbud", "left airpod", "right airpod", "left only", "right only",
+  "ohne ovp und zubehör",
 ];
 
 /**
