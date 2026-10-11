@@ -4,56 +4,58 @@
    Every colour on the site comes from these variables. Three kinds:
 
    PALETTE (--brass, --sand, --stone, --sage, --sage-light, --ink)
-     Sage & Brass (chosen 2026-10-06): brass #b09763, sand #dfd7c6, stone
-     #7d7875, sage #668a84 and light sage #89b09f, with a warm charcoal ink.
-     Used as-is for the header, the hero and the buttons: brass and light
-     sage both read on the ink (5.3:1 and 6.2:1), and ink reads on both.
+     Solana (chosen 2026-10-11, replacing Sage & Brass): the purple -> blue ->
+     green of Solana's brand (#9945ff, #00c2ff, #14f195, --gradient) on a
+     night-blue ink. The old names are kept so the components don't change:
+     --brass is now light purple #b48cff and --sage-light Solana green, both
+     for use on the ink (7.5:1 and 12:1). The pitch deck uses the same colours.
 
-   BRAND (--brand*, --bg, --surface*, --fg, --muted, --border)
-     Sage and stone are too light to be text on sand (3.8:1 to 3.9:1), so text
-     uses deeper shades of them. Every text pair passes WCAG AA (lowest 5.1:1
-     in light, 6.4:1 in dark).
+   BRAND (--brand*, --cta*, --bg, --surface*, --fg, --muted, --border)
+     Purple carries the brand on light backgrounds (#6a2fe0, 6.2:1 on the
+     page); buttons are a deeper purple with white text (#8a3cf0, 5.3:1).
+     Every text pair passes WCAG AA.
 
    TRUST (--ok*, --warn*)
      What the checks MEAN: green for SigPath-checked, amber for "look closer".
-     They sit near the sage and the brass in hue, so they are kept deeper and
-     more saturated, used only for verdicts, and every verdict also carries an
-     icon and words: a shopper never tells them apart by colour alone.
+     Unchanged by the palette, used only for verdicts, and every verdict also
+     carries an icon and words: a shopper never tells them apart by colour
+     alone.
    ========================================================================== */
 
 :root {
-  --brass: #b09763;
-  --sand: #dfd7c6;
-  --stone: #7d7875;
-  --sage: #668a84;
-  --sage-light: #89b09f;
-  --ink: #2a2725;
+  --brass: #b48cff;
+  --sand: #e1ddef;
+  --stone: #7c7899;
+  --sage: #6a2fe0;
+  --sage-light: #14f195;
+  --ink: #0b0a1a;
+  /* Solana's purple -> blue -> green, as a strip under the header. */
+  --gradient: linear-gradient(90deg, #9945ff 0%, #00c2ff 50%, #14f195 100%);
   /* Light text and lines on the ink (header, chat, code). */
-  --on-ink: #ece8df;
-  --on-ink-muted: #c4bdb3;
-  --ink-line: #3d3936;
+  --on-ink: #f4f3fb;
+  --on-ink-muted: #c8c5e2;
+  --ink-line: #2a2550;
 
-  --bg: #f4f0e7;
-  --surface: #fcfaf5;
-  --surface-2: #ebe4d6;
-  --fg: #2a2725;
-  --muted: #625d5a;
+  --bg: #f5f4fb;
+  --surface: #ffffff;
+  --surface-2: #ebe8f5;
+  --fg: #16132b;
+  --muted: #5c587a;
   --border: var(--sand);
 
-  --brand: #46685f;
+  --brand: #6a2fe0;
   --brand-ink: #ffffff;   /* text on --brand */
-  --brand-soft: #e3ece8;  /* tinted backgrounds */
+  --brand-soft: #efe8fd;  /* tinted backgrounds */
   /* The identity pages and the camera component still say --accent. */
   --accent: var(--brand);
 
   /* The page itself: a gradient over the whole screen, rising from a pale
-     sage at the bottom to sand at the top. Every text colour stays AA on
-     its palest stop (lowest 4.6:1, the amber on the sage). */
-  --page-bg: linear-gradient(to top, #dce7df 0%, #e9eadf 45%, #f4f0e7 100%) fixed;
+     green at the bottom to lavender at the top. */
+  --page-bg: linear-gradient(to top, #e6f6ef 0%, #eeedfa 45%, #f5f4fb 100%) fixed;
 
-  /* Primary buttons are brass with ink text. */
-  --cta: var(--brass);
-  --cta-ink: var(--ink);
+  /* Primary buttons are purple with white text. */
+  --cta: #8a3cf0;
+  --cta-ink: #ffffff;
 
   /* The hero lets the page gradient show through. */
   --hero-bg: transparent;
@@ -66,29 +68,29 @@
 
   --radius: 14px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(42, 39, 37, 0.05), 0 6px 16px rgba(42, 39, 37, 0.07);
-  --shadow-lift: 0 2px 4px rgba(42, 39, 37, 0.08), 0 12px 28px rgba(42, 39, 37, 0.13);
+  --shadow: 0 1px 2px rgba(22, 19, 43, 0.05), 0 6px 16px rgba(22, 19, 43, 0.07);
+  --shadow-lift: 0 2px 4px rgba(22, 19, 43, 0.08), 0 12px 28px rgba(22, 19, 43, 0.13);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* By night: dark olive, lighter towards the bottom of the screen, with
-       light sage and brass doing the talking. */
-    --bg: #1f2318;
-    --page-bg: linear-gradient(to top, #343925 0%, #262a1c 45%, #1a1d14 100%) fixed;
-    --surface: #272b1f;
-    --surface-2: #30352a;
-    --fg: #ece8df;
-    --muted: #aaa49f;
-    --border: #3d4230;
+    /* By night: night blue, rising into purple towards the bottom of the
+       screen, as on the deck's dark slides. */
+    --bg: #0b0a1a;
+    --page-bg: linear-gradient(to top, #2b1d5e 0%, #151230 45%, #0b0a1a 100%) fixed;
+    --surface: #151230;
+    --surface-2: #1d1940;
+    --fg: #f4f3fb;
+    --muted: #aaa6c8;
+    --border: #2a2550;
 
-    --brand: var(--sage-light);
-    --brand-ink: #1a1d14;
-    --brand-soft: #2a3324;
+    --brand: var(--brass);
+    --brand-ink: #0b0a1a;
+    --brand-soft: #241c4a;
 
-    --cta: var(--brass);
-    --cta-ink: #1a1d14;
+    --cta: #8a3cf0;
+    --cta-ink: #ffffff;
 
     /* The hero lets the page gradient show through. */
     --hero-bg: transparent;
@@ -157,8 +159,9 @@ button { font-family: var(--font-sans); }
 .site-header {
   position: sticky; top: 0; z-index: 10;
   background: var(--ink);
-  border-bottom: 1px solid var(--ink-line);
 }
+/* Solana's gradient as a thin strip under the header, as on the deck. */
+.site-header::after { content: ""; display: block; height: 3px; background: var(--gradient); }
 .site-header-inner, .site-footer-inner {
   max-width: 1040px; margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -166,9 +169,9 @@ button { font-family: var(--font-sans); }
 .site-header-inner { height: 60px; }
 
 /* The sale-day warning under the header (lib/sale-days.ts). */
-.sale-day { background: var(--brass); color: var(--ink); }
+.sale-day { background: var(--cta); color: var(--cta-ink); }
 .sale-day p { max-width: 1040px; margin: 0 auto; padding: 10px 16px; font-size: 15px; line-height: 1.4; }
-.sale-day a { color: var(--ink); white-space: nowrap; }
+.sale-day a { color: var(--cta-ink); white-space: nowrap; }
 .brand { display: inline-flex; align-items: center; text-decoration: none; }
 .logo-wordmark { display: block; height: 24px; width: auto; }
 .site-nav { display: flex; gap: 4px; }
@@ -521,9 +524,9 @@ button { font-family: var(--font-sans); }
    Palette candidates — compared side by side on /palettes
    --------------------------------------------------------------------------
    Each class redefines the tokens for everything inside it, so the real
-   components render in that palette (light mode). Sage & Brass is the live
-   palette and matches :root; Logo Cyan is the one it replaced. Every text
-   pair here is checked to WCAG AA (4.5:1).
+   components render in that palette (light mode). Neither is live: Solana
+   (:root) replaced Sage & Brass on 2026-10-11, which had replaced Logo Cyan.
+   Every text pair here is checked to WCAG AA (4.5:1).
    ========================================================================== */
 
 .theme-cyan {

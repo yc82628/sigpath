@@ -1,5 +1,5 @@
 /**
- * app/palettes — the live palette and the previous one, side by side, on real components.
+ * app/palettes — the two palettes before the live (Solana) one, side by side, on real components.
  *
  * A design-review page, not linked from the site. Each panel sets a theme
  * class that redefines the colour tokens (see the end of globals.css), so what
@@ -160,12 +160,11 @@ export default function PalettesPage() {
     <main className="container palette-page" id="preview">
       <h1>Palette comparison</h1>
       <p className="lede">
-        The same components in the live palette and the one it replaced. Sage &amp; Brass uses its five colours as-is
-        for the hero, buttons and badges; text accents use a deeper sage so they stay readable.
+        The same components in the two palettes SigPath used before its current one, kept for comparison.
       </p>
       <p className="notice">
-        <strong>Sage &amp; Brass is live</strong> across the site (2026-10-06), with a matching dark mode. Logo Cyan,
-        the palette before it, is kept here for comparison.
+        <strong>The site now uses Solana&apos;s colours</strong> (2026-10-11): purple, blue and green on night blue, as on the
+        pitch deck. Sage &amp; Brass (2026-10-06) and Logo Cyan before it are shown here.
       </p>
       <div className="palette-compare">
         {THEMES.map((t) => (

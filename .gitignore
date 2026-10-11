@@ -33,4 +33,4 @@ test-images/*.png
 usdc-mint.json
 
 # Pitch deck exports (kept local)
-SigPath-Pitch.pptx
+SigPath-Pitch*.pptx
