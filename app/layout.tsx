@@ -8,6 +8,7 @@ import { AMAZON_PRICE_DISCLAIMER, amazonTag } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
 import { ETSY_NOTICE, etsyOn } from "@/lib/marketplace/etsy-terms";
 import VisitCounter from "./components/VisitCounter";
+import SaleDayBanner from "./components/SaleDayBanner";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </header>
+        <SaleDayBanner />
         {children}
         <footer className="site-footer">
           <div className="site-footer-inner">
