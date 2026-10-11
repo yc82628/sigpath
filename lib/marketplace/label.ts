@@ -198,6 +198,11 @@ export interface BestDeal {
  * The cheapest CHECKED listing in each condition group — the deal a shopper
  * came for, restricted to the ones that passed. New and used are kept apart:
  * a used item "beating" every new one is not the same deal.
+ *
+ * Demo listings are invented, so once a real marketplace answered they never
+ * take a best-deal spot, even when they pass their own comparison: a shopper
+ * must not be pointed at a product that doesn't exist. With only the demo feed
+ * (no keys), they still do, so the demo shows the feature.
  */
 export function bestCheckedDeals(
   listings: Listing[],
@@ -205,7 +210,9 @@ export function bestCheckedDeals(
   analysis: Analysis,
 ): BestDeal[] {
   const best = new Map<"new" | "used", BestDeal>();
+  const hasReal = listings.some((l) => l.source !== "stub");
   for (const l of listings) {
+    if (hasReal && l.source === "stub") continue;
     if (labelOf(l).verdict !== "checked") continue;
     const total = totalPrice(l);
     if (total.currency !== analysis.currency) continue;

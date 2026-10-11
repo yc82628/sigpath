@@ -134,6 +134,20 @@ test("new and used get a best deal each, each saving measured against its own me
   assert.equal(deals[1].belowMedian?.amount, 1000);
 });
 
+test("next to real listings, a demo listing never takes a best-deal spot, even when it passes", () => {
+  // A cheaper demo listing that passes its own (demo) comparison, beside real eBay listings.
+  const demoDeal = listing({ id: "demo", price: { amount: 7000, currency: "EUR" } });
+  const ebay = honest(8, 10000, "new", "e").map((l) => ({ ...l, source: "ebay" as const }));
+  const ebayDeal = listing({ id: "real", source: "ebay", price: { amount: 9000, currency: "EUR" } });
+  const { a, all, labelOf } = labelled([ok([...ebay, ebayDeal], "ebay"), ok([...honest(8), demoDeal])]);
+  assert.equal(labelOf(demoDeal).verdict, "checked", "it does pass its own comparison");
+  assert.deepEqual(bestCheckedDeals(all, labelOf, a).map((d) => d.listing.id), ["real"]);
+
+  // With only the demo feed (no keys), the demo still shows a best deal.
+  const demoOnly = labelled([ok([...honest(8), demoDeal])]);
+  assert.deepEqual(bestCheckedDeals(demoOnly.all, demoOnly.labelOf, demoOnly.a).map((d) => d.listing.id), ["demo"]);
+});
+
 test("no checked listings, no best deal", () => {
   const { a, all, labelOf } = labelled([ok(honest(3))]); // too few to compare
   assert.deepEqual(bestCheckedDeals(all, labelOf, a), []);
