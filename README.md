@@ -125,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 558 tests, as of 2026-10-12
+npm test                                   # 564 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -547,8 +547,10 @@ commission on orders through its links.
 - **The request:** `GET https://api-sg.aliexpress.com/sync`,
   `aliexpress.affiliate.product.query`, signed with HMAC-SHA256 over the
   sorted parameters (checked against both of the docs' worked examples).
-  Prices come back in the shopper's currency, with tax for the ship-to country
-  (`ALIEXPRESS_SHIP_TO`, default `DE`; `MY` for Malaysia).
+  Germany only, not configurable: every request asks for delivery to Germany
+  in euros (`ship_to_country=DE`, `target_currency=EUR`), so prices include
+  German VAT and only products that ship to Germany come back; anything priced
+  in another currency is dropped.
 - **Shown, not compared.** `priceComparable = false`: the same product costs far
   less on AliExpress than on eBay Germany, so in one median every AliExpress
   listing would be "well below the median", a false alarm on honest sellers.
@@ -627,6 +629,23 @@ commission on orders through its links.
 - **The footer** is one line: the copyright, How it works, Privacy, Impressum,
   API and the MIT licence, with one line of fine print under it (and the
   affiliate disclosures, only while those programmes are on).
+- **Selling fast on AliExpress** (`lib/hot/hot-deals.ts`), under the search
+  once the AliExpress keys are set: the products AliExpress reports selling
+  most, with its count of orders in the last 30 days
+  (`aliexpress.affiliate.hotproduct.query`). Each card opens the price check
+  filled in, so the product is compared with eBay before anyone buys. One
+  request an hour for the whole site, kept in the shared database. eBay never
+  feeds it: its API publishes no sales figures, and SigPath won't guess what's
+  "hot". Without the keys, the popular searches show there instead.
+- **Under the home page's search:** the three reasons to use SigPath (best
+  price, every deal checked, pay when it ships), and the marketplaces' logos
+  straight on the background, each as it really is: eBay searched, AliExpress "coming soon"
+  until its keys are set, Amazon tagged "price check" and linked to `/check`,
+  as its listings aren't searched. The logo shapes are Simple Icons (CC0,
+  `app/components/market-logos.ts`); the footer says the marks belong to their
+  owners.
+- **The checkout pages** read a size up: the invoice table, the totals and
+  the small print.
 - **The fonts** are Fredoka for headings and Nunito for text, rounded like
   the Flex Pop icons' outlines; next/font builds them into the site, so a
   shopper's browser never asks Google for them.

@@ -2,6 +2,12 @@
  * lib/marketplace/sources/aliexpress.ts — AliExpress, through its official
  * Affiliate API (AliExpress Open Platform, openservice.aliexpress.com).
  *
+ * GERMANY ONLY
+ * Every request asks for delivery to Germany (ship_to_country=DE) in euros
+ * (target_currency=EUR): the prices then include German VAT, which AliExpress
+ * collects on EU orders, and only products that ship to Germany come back. Not
+ * configurable, and a product priced in any other currency is dropped.
+ *
  * WHY ALIEXPRESS
  * It sells almost anything, ships to Europe and to Southeast Asia, and is where
  * buyers most need a second opinion. Its Affiliate API returns live prices in
@@ -24,6 +30,12 @@
  * HMAC-SHA256 with the App Secret, in upper-case hex. Checked against both of
  * the docs' worked examples (tests/aliexpress.test.ts).
  *
+ * HOT PRODUCTS
+ * aliexpress.affiliate.hotproduct.query, the same signing: the products
+ * selling most, sorted by `lastest_volume` (sic), AliExpress's count of orders
+ * in the last 30 days. The home page's "Selling fast" section shows them
+ * (lib/hot/hot-deals.ts).
+ *
  * THE RESPONSE
  * aliexpress_affiliate_product_query_response.resp_result: resp_code 200 means
  * success, and result.products.product holds the listings (field names as in
@@ -32,14 +44,16 @@
  */
 
 import { createHmac } from "crypto";
-import type { Listing, SearchOptions, SourceResult } from "../types";
+import type { Listing, Money, SearchOptions, SourceResult } from "../types";
 import type { MarketplaceSource } from "./types";
 
 const ENDPOINT = "https://api-sg.aliexpress.com/sync";
 const METHOD = "aliexpress.affiliate.product.query";
+const HOT_METHOD = "aliexpress.affiliate.hotproduct.query";
 
-/** target_currency values the API accepts (aliexpress.affiliate.product.query). */
-const CURRENCIES = new Set(["USD", "GBP", "CAD", "EUR", "UAH", "MXN", "TRY", "RUB", "BRL", "AUD", "INR", "JPY", "IDR", "SEK", "KRW", "ILS", "THB", "CLP", "VND"]);
+/** SigPath's shoppers are in Germany: delivery there, prices in euros with German VAT. */
+export const ALIEXPRESS_COUNTRY = "DE";
+export const ALIEXPRESS_CURRENCY = "EUR";
 
 /** The signature: sorted name+value pairs, HMAC-SHA256 with the App Secret, upper-case hex. */
 export function aliexpressSign(params: Record<string, string>, secret: string): string {
@@ -72,6 +86,20 @@ interface AliProduct {
   shop_name?: string;
   first_level_category_id?: number | string;
   first_level_category_name?: string;
+  /** Orders in the last 30 days (the API's spelling). */
+  lastest_volume?: number | string;
+}
+
+/** A product AliExpress says is selling fast. */
+export interface HotProduct {
+  id: string;
+  title: string;
+  /** The product page (not the affiliate link): where SigPath's price check says it came from. */
+  url: string;
+  imageUrl?: string;
+  price: Money;
+  /** Orders in the last 30 days. */
+  sold: number;
 }
 
 export class AliExpressSource implements MarketplaceSource {
@@ -85,27 +113,75 @@ export class AliExpressSource implements MarketplaceSource {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** The signed request URL for a search. */
-  requestUrl(query: string, opts: SearchOptions = {}): string | null {
+  /** A signed request URL for one API method, or null without the keys. */
+  private signedUrl(method: string, business: Record<string, string>): string | null {
     const appKey = this.env.ALIEXPRESS_APP_KEY?.trim();
     const secret = this.env.ALIEXPRESS_APP_SECRET?.trim();
     if (!appKey || !secret) return null;
-    const currency = (opts.currency ?? "EUR").toUpperCase();
     const params: Record<string, string> = {
-      method: METHOD,
+      method,
       app_key: appKey,
       timestamp: String(this.now()),
       sign_method: "sha256",
-      keywords: query,
-      page_size: String(Math.min(Math.max(opts.limit ?? 20, 1), 50)), // spec: 1..50
-      target_currency: CURRENCIES.has(currency) ? currency : "EUR",
+      ...business,
+      target_currency: ALIEXPRESS_CURRENCY,
       target_language: "EN",
-      ship_to_country: (this.env.ALIEXPRESS_SHIP_TO?.trim() || "DE").toUpperCase(),
+      ship_to_country: ALIEXPRESS_COUNTRY,
     };
     const tracking = this.env.ALIEXPRESS_TRACKING_ID?.trim();
     if (tracking) params.tracking_id = tracking;
     params.sign = aliexpressSign(params, secret);
     return `${ENDPOINT}?${new URLSearchParams(params).toString()}`;
+  }
+
+  /** The signed request URL for a search. */
+  requestUrl(query: string, opts: SearchOptions = {}): string | null {
+    const pageSize = String(Math.min(Math.max(opts.limit ?? 20, 1), 50)); // spec: 1..50
+    return this.signedUrl(METHOD, { keywords: query, page_size: pageSize });
+  }
+
+  /** The signed request URL for the products selling most. */
+  hotProductsUrl(limit = 20): string | null {
+    return this.signedUrl(HOT_METHOD, { sort: "LAST_VOLUME_DESC", page_size: String(Math.min(Math.max(limit, 1), 50)) });
+  }
+
+  /**
+   * The products selling most on AliExpress, most orders first. Empty without
+   * the keys or on any error: the home page then shows its popular searches.
+   */
+  async hotProducts(limit = 20, timeoutMs = 8000): Promise<HotProduct[]> {
+    const url = this.hotProductsUrl(limit);
+    if (!url) return [];
+    const res = await this.fetchImpl(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) throw new Error(`AliExpress returned ${res.status}`);
+    const body = (await res.json()) as {
+      error_response?: { code?: string; msg?: string };
+      aliexpress_affiliate_hotproduct_query_response?: {
+        resp_result?: { resp_code?: number; resp_msg?: string; result?: { products?: { product?: AliProduct[] } } };
+      };
+    };
+    if (body.error_response) throw new Error(`AliExpress refused the request: ${body.error_response.code ?? "error"}`);
+    const resp = body.aliexpress_affiliate_hotproduct_query_response?.resp_result;
+    if (!resp || resp.resp_code !== 200) throw new Error(`AliExpress answered ${resp?.resp_code ?? "without a result"}`);
+    const out: HotProduct[] = [];
+    for (const p of resp.result?.products?.product ?? []) {
+      const amount = aliexpressPriceToMinorUnits(p.target_sale_price ?? p.sale_price);
+      const currency = (p.target_sale_price_currency ?? p.sale_price_currency)?.toUpperCase();
+      const sold = Number(p.lastest_volume);
+      const url = p.product_detail_url;
+      // Only what can be shown truthfully: a price, a product page, and a real order count.
+      if (amount === null || currency !== ALIEXPRESS_CURRENCY || p.product_id === undefined || !url?.startsWith("https://") || !p.product_title) continue;
+      if (!Number.isFinite(sold) || sold <= 0) continue;
+      out.push({
+        id: String(p.product_id),
+        title: p.product_title,
+        url,
+        imageUrl: p.product_main_image_url?.startsWith("https://") ? p.product_main_image_url : undefined,
+        price: { amount, currency },
+        sold,
+      });
+    }
+    return out.sort((a, b) => b.sold - a.sold);
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<SourceResult> {
@@ -144,8 +220,8 @@ export class AliExpressSource implements MarketplaceSource {
         const amount = aliexpressPriceToMinorUnits(p.target_sale_price ?? p.sale_price);
         const currency = (p.target_sale_price_currency ?? p.sale_price_currency)?.toUpperCase();
         const link = p.promotion_link || p.product_detail_url;
-        // Unpriceable or unlinkable products are dropped, not guessed at.
-        if (amount === null || !currency || p.product_id === undefined || !link) continue;
+        // Unpriceable or unlinkable products are dropped, not guessed at; so is a price not in euros (not Germany's).
+        if (amount === null || currency !== ALIEXPRESS_CURRENCY || p.product_id === undefined || !link) continue;
         listings.push({
           id: String(p.product_id),
           source: this.id,

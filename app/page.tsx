@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import HotDeals, { PopularSearches } from "./components/HotDeals";
 import { Badge, SLOGAN } from "./components/Logo";
 import { aliexpressOn } from "@/lib/legal/site";
 import HeroDevices, { Smoke } from "./components/HeroDevices";
@@ -6,6 +8,7 @@ import PopIcon, { TONES } from "./components/PopIcon";
 import type { IconName } from "./components/icon-paths";
 import { getMessages } from "@/lib/i18n/server";
 import { CATEGORIES, categoryHref } from "./components/catalog";
+import { MARKET_LOGOS, type Market } from "./components/market-logos";
 
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
 
@@ -17,8 +20,13 @@ const PROMISES: { title: string; line: string; icon: IconName }[] = [
 
 export default function Home() {
   const m = getMessages();
-  // Only the marketplaces actually searched: eBay, and AliExpress once its keys are set.
-  const markets = ["eBay", ...(aliexpressOn() ? ["AliExpress"] : [])];
+  // Each marketplace as it really is: eBay searched; AliExpress searched once its keys are set, "coming soon" until
+  // then; Amazon not searched, only its prices checked on /check, and tagged so.
+  const markets: { name: Market; tag?: string; href?: string; title?: string }[] = [
+    { name: "eBay" },
+    { name: "AliExpress", tag: aliexpressOn() ? undefined : m.home.soonTag },
+    { name: "Amazon", tag: m.home.priceCheckTag, href: "/check", title: m.home.priceCheckTitle },
+  ];
   return (
     <main>
       <Smoke />
@@ -40,16 +48,60 @@ export default function Home() {
             <input type="search" name="q" placeholder={m.home.placeholder} aria-label={m.home.searchLabel} />
             <button type="submit">{m.home.searchButton}</button>
           </form>
-          <ul className="hero-chips" aria-label={m.home.popular}>
-            {POPULAR.map((p) => (
-              <li key={p}>
-                <Link href={`/search?q=${encodeURIComponent(p)}`}>{p}</Link>
-              </li>
-            ))}
-          </ul>
+          {/* What's selling fast on AliExpress, once its keys are set; the popular searches until it answers, and
+              without it. eBay publishes no sales figures, so it never feeds this. */}
+          {aliexpressOn() ? (
+            <Suspense fallback={<PopularSearches label={m.home.popular} queries={POPULAR} />}>
+              <HotDeals fallback={<PopularSearches label={m.home.popular} queries={POPULAR} />} />
+            </Suspense>
+          ) : (
+            <PopularSearches label={m.home.popular} queries={POPULAR} />
+          )}
           <ul className="market-row" aria-label={m.home.markets}>
-            {markets.map((m) => (
-              <li key={m}>{m}</li>
+            {markets.map((k) => {
+              const logo = MARKET_LOGOS[k.name];
+              const body = (
+                <>
+                  {/* A logo that is the name itself leaves the written name to screen readers. */}
+                  <span className="market-mark">
+                    <svg
+                      className={`market-logo market-${k.name.toLowerCase()}`}
+                      viewBox={logo.box}
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path d={logo.d} fill={logo.hex} />
+                    </svg>
+                    <span className={logo.wordmark ? "sr-only" : "market-name"}>{k.name}</span>
+                  </span>
+                  {k.tag && <span className="market-tag">{k.tag}</span>}
+                </>
+              );
+              return (
+                <li key={k.name}>
+                  {k.href ? (
+                    <Link href={k.href} className="market" title={k.title}>
+                      {body}
+                    </Link>
+                  ) : (
+                    <span className="market">{body}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {/* Why use SigPath, in the first screen: under the search and the marketplaces. */}
+          <ul className="promise-row hero-promises" aria-label={m.home.why}>
+            {PROMISES.map((p, i) => (
+              <li key={p.title} className="promise-item">
+                <span className="promise-icon">
+                  <PopIcon name={p.icon} tone={TONES[i % 3]} size={24} />
+                </span>
+                <span>
+                  <strong>{m.home.promises[i]?.title ?? p.title}</strong>
+                  <span className="promise-line">{m.home.promises[i]?.line ?? p.line}</span>
+                </span>
+              </li>
             ))}
           </ul>
           <p className="hero-more">
@@ -71,22 +123,6 @@ export default function Home() {
                 </span>
                 {m.home.categories[c.label] ?? c.label}
               </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="container wide home-section" aria-label={m.home.why}>
-        <ul className="promise-row">
-          {PROMISES.map((p, i) => (
-            <li key={p.title} className="promise-item">
-              <span className="promise-icon">
-                <PopIcon name={p.icon} tone={TONES[i % 3]} size={24} />
-              </span>
-              <span>
-                <strong>{m.home.promises[i]?.title ?? p.title}</strong>
-                <span className="promise-line">{m.home.promises[i]?.line ?? p.line}</span>
-              </span>
             </li>
           ))}
         </ul>

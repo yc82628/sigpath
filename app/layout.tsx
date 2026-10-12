@@ -100,7 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </p>
             </div>
             <p className="footer-note">
-              {m.footer.note(visitCounterOn())}
+              {m.footer.note(visitCounterOn())} {m.footer.marks}
               {aliexpressAffiliate() && <> {m.footer.aliexpress}</>}
               {amazonTag() && (
                 <>

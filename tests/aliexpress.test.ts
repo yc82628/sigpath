@@ -135,3 +135,30 @@ test("AliExpress listings stay on SigPath's own pages: not in the paid API or se
   assert.deepEqual(out.listings.map((l) => l.source), ["ebay"]);
   assert.deepEqual(out.sources.map((s) => s.source), ["ebay"]);
 });
+
+test("always Germany: delivery to DE in euros, whatever is set or asked, and nothing priced otherwise", async () => {
+  // An old ALIEXPRESS_SHIP_TO, and a search asking for dollars, change nothing.
+  const src = new AliExpressSource({ ...KEYS, ALIEXPRESS_SHIP_TO: "MY" }, fetch, () => 1);
+  for (const url of [src.requestUrl("earbuds", { currency: "USD" })!, src.hotProductsUrl()!]) {
+    const p = new URL(url).searchParams;
+    assert.equal(p.get("ship_to_country"), "DE");
+    assert.equal(p.get("target_currency"), "EUR");
+  }
+  const priced = (currency: string, id: number) => ({
+    product_id: id,
+    product_title: `P${id}`,
+    product_detail_url: `https://www.aliexpress.com/item/${id}.html`,
+    target_sale_price: "9.99",
+    target_sale_price_currency: currency,
+    lastest_volume: 10,
+  });
+  const reply = (key: string) =>
+    (async () =>
+      new Response(JSON.stringify({ [key]: { resp_result: { resp_code: 200, result: { products: { product: [priced("EUR", 1), priced("USD", 2)] } } } } }), {
+        status: 200,
+      })) as unknown as typeof fetch;
+  const search = await new AliExpressSource(KEYS, reply("aliexpress_affiliate_product_query_response")).search("x");
+  assert.deepEqual(search.listings.map((l) => l.id), ["1"]);
+  const hot = await new AliExpressSource(KEYS, reply("aliexpress_affiliate_hotproduct_query_response")).hotProducts();
+  assert.deepEqual(hot.map((h) => h.id), ["1"]);
+});

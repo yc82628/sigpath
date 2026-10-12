@@ -41,7 +41,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             ? "Dieser Kassenlink ist ungültig."
             : "This checkout link isn't valid.";
     return (
-      <main className="container">
+      <main className="container checkout-page">
         <h1>{m.checkout.title}</h1>
         <p className="notice withheld">{why}</p>
         <p>
@@ -55,7 +55,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
   const days = (secs: number) => m.checkout.days(Math.round(secs / 86400));
 
   return (
-    <main className="container">
+    <main className="container checkout-page">
       <h1>{m.listing.pay}</h1>
 
       {!invoice.ok ? (

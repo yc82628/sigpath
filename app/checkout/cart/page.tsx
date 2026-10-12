@@ -25,7 +25,7 @@ export default function CartCheckoutPage() {
   const on = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
   if (!on) {
     return (
-      <main className="container">
+      <main className="container checkout-page">
         <h1>{m.checkout.title}</h1>
         <p className="notice withheld">{m.checkout.off}</p>
         <p>
@@ -35,7 +35,7 @@ export default function CartCheckoutPage() {
     );
   }
   return (
-    <main className="container">
+    <main className="container checkout-page">
       <h1>{m.checkout.title}</h1>
       <p className="lede">{m.checkout.lede}</p>
       <CartCheckout max={MAX_CART_ORDERS} moonPay={moonPayAvailable() !== null} />

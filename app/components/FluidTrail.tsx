@@ -25,7 +25,10 @@ const VELOCITY_DISSIPATION = 0.9;
 const DYE_DISSIPATION = 1.4;
 const SPLAT_RADIUS = 0.0022;
 const SPLAT_FORCE = 5200;
-const DYE_STRENGTH = 0.14;
+const DYE_STRENGTH = 0.11;
+// How strongly the smoke shows: a soft haze, so white text over it stays easy to read.
+const SHOW = 0.45;
+const MAX_ALPHA = 0.32;
 const IDLE_MS = 4500;
 
 // Solana's purple, blue and green, cycled along the trail.
@@ -148,9 +151,11 @@ in vec2 vUv;
 out vec4 o;
 uniform sampler2D uTexture;
 void main () {
-  vec3 c = min(texture(uTexture, vUv).rgb, vec3(1.0));
+  vec3 c = min(texture(uTexture, vUv).rgb, vec3(1.0)) * ${SHOW.toFixed(2)};
   float a = max(c.r, max(c.g, c.b));
-  o = vec4(c, a); // premultiplied: smoke over the page
+  // Premultiplied: smoke over the page, never more than MAX_ALPHA covering it.
+  float k = a > ${MAX_ALPHA.toFixed(2)} ? ${MAX_ALPHA.toFixed(2)} / a : 1.0;
+  o = vec4(c, a) * k;
 }`,
 };
 
