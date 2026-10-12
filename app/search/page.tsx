@@ -16,6 +16,9 @@ import { BusinessLog, businessIndex, verifiedPhotoFlags } from "@/lib/sellers/bu
 import { listingKey, sellerKey } from "@/lib/marketplace/types";
 import { CHECKED_MEANS, describeSaving, labelSearch, type BusinessBadge, type CheckLabel } from "@/lib/marketplace/label";
 import AlertButton from "../components/AlertButton";
+import AddToCart from "../components/AddToCart";
+import PopIcon from "../components/PopIcon";
+import { QUOTE_TTL_SECONDS } from "@/lib/checkout/quote";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 
 const marketLabel = (id: string) =>
@@ -171,6 +174,29 @@ function ListingRow({
             {label.verdict === "checked" ? checkout.reason : "SigPath checkout is only offered on SigPath-checked listings."}
           </p>
         )}
+        {/* The cart keeps a snapshot in this browser and asks for the price again when opened (lib/cart/cart.ts). */}
+        <AddToCart
+          item={{
+            key: listingKey(listing),
+            source: listing.source,
+            id: listing.id,
+            title: listing.title,
+            url: listing.url,
+            imageUrl: listing.imageUrl,
+            condition: listing.condition,
+            seller: seller.displayName ?? seller.handle,
+            price: listing.price,
+            shipping: listing.shipping,
+            verdict: label.verdict,
+            headline: label.headline,
+            quote:
+              checkout && "token" in checkout
+                ? { token: checkout.token, usdc: checkout.usdc, expiresAt: Date.now() + QUOTE_TTL_SECONDS * 1000 }
+                : undefined,
+          }}
+        >
+          <PopIcon name="shopping-cart-simple" tone="blue" size={18} />
+        </AddToCart>
         {flags.some((f) => f.kind === "upheld_reports") && (
           // Every finding is shown with the seller's own reply beside it — a
           // buyer judging this seller should see both sides, not just ours.

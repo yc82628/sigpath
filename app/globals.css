@@ -199,6 +199,8 @@ button { font-family: var(--font-sans); }
 .footer-links { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline; }
 .footer-links a { color: var(--muted); text-decoration: none; font-weight: 600; }
 .footer-links a:hover { color: var(--fg); }
+.copyright { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.82rem; }
+.copyright a { color: inherit; }
 
 @media (max-width: 520px) {
   .site-nav { gap: 2px; }
@@ -542,6 +544,40 @@ h2.with-icon > .pop-icon { margin-top: 0; }
 }
 .pay:hover { box-shadow: var(--shadow-lift); }
 .pay-blocked { margin: 8px 0 0; font-size: 0.8rem; color: var(--muted); }
+
+/* --- The cart (lib/cart/cart.ts) ----------------------------------------------- */
+.add-to-cart {
+  display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 0 8px; padding: 7px 14px;
+  font: 700 0.85rem var(--font-sans); color: var(--fg); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+}
+.add-to-cart:hover { border-color: var(--brand); }
+.add-to-cart:disabled { opacity: 0.6; cursor: wait; }
+.listing .body > .add-to-cart:first-of-type { margin-left: 0; }
+.pay + .add-to-cart { margin-left: 8px; }
+.cart-added { margin: 10px 0 0; font-size: 0.85rem; font-weight: 600; color: var(--ok); }
+.cart-count {
+  position: absolute; top: 3px; right: 2px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: #14f195; color: #0b0a1a; font-size: 0.68rem; font-weight: 800;
+  display: grid; place-items: center; line-height: 1;
+}
+.cart-title { gap: 12px; }
+.cart-list { list-style: none; margin: 16px 0 0; padding: 0; }
+.cart-item.gone { opacity: 0.7; }
+.cart-verdict { margin: 6px 0 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.cart-verdict.checked { color: var(--ok); }
+.cart-verdict.caution { color: var(--warn); }
+.cart-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.cart-actions .pay { margin-top: 0; }
+.cart-actions .button { padding: 7px 14px; font-size: 0.85rem; }
+.cart-remove {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; background: none; border: 0;
+  color: var(--muted); font: 600 0.85rem var(--font-sans); cursor: pointer;
+}
+.cart-remove:hover { color: var(--fg); }
+.cart-summary { margin-top: 20px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.cart-summary p { margin: 0 0 10px; }
+.cart-empty { margin-top: 24px; }
 
 .checkout-item h2 { font-size: 1.1rem; margin: 0 0 4px; }
 .checkout-item h2 a { color: inherit; }

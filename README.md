@@ -69,6 +69,9 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
 - **The best checked deal**, for new and for used, with how far below the typical
   price it is. A flagged bargain never wins, and neither does an invented demo
   listing next to real ones.
+- **A cart with no account** (`/cart`). Kept in the browser; every time it opens,
+  SigPath asks eBay for today's price and says if it changed, ended or sold out
+  (see [The cart](#the-cart--no-account-prices-checked-again)).
 - **Price-drop alerts with no account.** A browser notification when a
   *checked* deal hits your price. Bait listings never trigger "price dropped!".
 - **Pay with USDC, protected by escrow.** The seller isn't paid until the order is
@@ -122,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 541 tests, as of 2026-10-12
+npm test                                   # 547 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -131,14 +134,14 @@ npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned b
 The devnet scripts need an operator key in `.env.local`, and they create a test
 wallet to fund from faucet.circle.com.
 
-**Pages:** `/search` · `/check` · `/alerts` · `/suppliers` · `/developers` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
+**Pages:** `/search` · `/cart` · `/check` · `/alerts` · `/suppliers` · `/developers` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
 (a seller's public record) · `/checkout` · `/order/<address>` · `/report/<order>`
 
 ## Contents
 
 The rest of this README is the engineering detail:
 
-- [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [The cart](#the-cart--no-account-prices-checked-again) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
 - [Check a price: Amazon, AliExpress or any shop](#check-a-price--amazon-aliexpress-or-any-shop) · [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)
 - [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
@@ -567,6 +570,32 @@ commission on orders through its links.
   comes back as AliExpress's own error code in the source's status line.
 
 ---
+
+## The cart — no account, prices checked again
+
+`lib/cart/cart.ts`, `/cart`, `POST /api/cart/prices`.
+
+- **In the browser only** (localStorage), like everything else about a
+  shopper: SigPath has no accounts and stores nothing about what's in a cart.
+  Up to 30 items, each dropped after 30 days; what's read back from storage
+  is validated (https links only, well-formed prices), never trusted.
+- **An item is a snapshot** of the search result: title, link, photo, seller,
+  price, and the verdict, labelled "when you added it": a new verdict needs a
+  new comparison, which is a new search.
+- **Today's price every time the cart opens:** `EbaySource.currentPrice`
+  (Browse `getItem`) for each eBay item. A changed price, an ended listing or
+  a sold-out one is said plainly; demo listings and marketplaces SigPath
+  can't price live say so instead of guessing. Each eBay item counts against
+  its own limit (150 per 10 minutes per client) because each is a call
+  against the site's daily quota.
+- **Paying, item by item:** each seller ships separately and the escrow
+  protects each order on its own. "Pay with USDC" is offered only while the
+  search's signed quote is valid and the price hasn't moved; otherwise
+  "Check it again" (a fresh search and quote) or "Buy on eBay".
+- The header's cart icon shows the count, and it's read out ("Cart, 2 items").
+  Measured end to end on a production build with live eBay: a real listing
+  and a demo listing added, the eBay price checked again on opening, the demo
+  one offered USDC checkout on its still-valid quote.
 
 ## Price-drop alerts — no account, checked deals only
 

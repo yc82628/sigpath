@@ -31,7 +31,7 @@
  */
 
 import type { Condition, Listing, Money, SearchOptions, SourceResult } from "../types";
-import type { ListingProof, MarketplaceSource } from "./types";
+import type { CurrentPrice, ListingProof, MarketplaceSource } from "./types";
 import { groupHashes, photoHash } from "../photo";
 
 /**
@@ -253,6 +253,39 @@ export class EbaySource implements MarketplaceSource {
       return { ok: true, handle: it.seller.username, text: [it.title, it.shortDescription, it.description].filter(Boolean).join("\n") };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : "eBay couldn't be reached." };
+    }
+  }
+
+  /**
+   * For the cart: one listing's price now, by the id search returned
+   * ("v1|123456789012|0"). `gone` when eBay no longer has it, `soldOut` when
+   * it's listed but none are available.
+   */
+  async currentPrice(itemId: string, timeoutMs = 8000): Promise<CurrentPrice> {
+    const creds = this.credentials();
+    if (!creds) return { status: "not_configured" };
+    if (!/^v1\|\d{9,15}\|\d{1,15}$/.test(itemId)) return { status: "error", detail: "Not an eBay item id." };
+    try {
+      const token = await this.accessToken(creds.id, creds.secret, creds.env);
+      const res = await this.fetchImpl(`${HOSTS[creds.env]}/buy/browse/v1/item/${encodeURIComponent(itemId)}`, {
+        headers: { authorization: `Bearer ${token}`, "X-EBAY-C-MARKETPLACE-ID": creds.marketplace },
+        cache: "no-store",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status === 404) return { status: "gone" };
+      if (res.status === 429) return { status: "error", detail: "eBay is busy." };
+      if (!res.ok) return { status: "error", detail: `eBay returned ${res.status}.` };
+      const it = (await res.json()) as {
+        price?: { value?: string; currency?: string };
+        shippingOptions?: { shippingCost?: { value?: string; currency?: string } }[];
+        estimatedAvailabilities?: { estimatedAvailabilityStatus?: string }[];
+      };
+      const price = money(it.price);
+      if (!price) return { status: "error", detail: "eBay gave no price." };
+      const soldOut = (it.estimatedAvailabilities ?? []).some((a) => a.estimatedAvailabilityStatus === "OUT_OF_STOCK");
+      return { status: soldOut ? "sold_out" : "ok", price, shipping: money(it.shippingOptions?.[0]?.shippingCost) };
+    } catch (err) {
+      return { status: "error", detail: err instanceof Error ? err.message.slice(0, 200) : "eBay couldn't be reached." };
     }
   }
 

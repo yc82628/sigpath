@@ -108,6 +108,15 @@ export default function PrivacyPage() {
         and SigPath stores neither the search nor the results. A price check (/check) sends the product name and price you bring, and the address of the page they came from, to SigPath to compare with eBay; none of it is stored. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
       </p>
 
+      <h2>Your cart</h2>
+      <p>
+        The cart is kept only in your browser (its local storage), not on SigPath&apos;s servers, and there is no account
+        behind it. It holds what the search showed for each item you added: title, link, photo address, seller name,
+        price and SigPath&apos;s verdict. When you open the cart, your browser sends the items&apos; listing numbers to
+        SigPath, which asks eBay for today&apos;s price; nothing about this is stored. Items are removed after 30 days, and
+        &ldquo;Empty the cart&rdquo; or clearing this site&apos;s data removes them at once.
+      </p>
+
       {ai && (
         <>
           <h2>Ai-chan, the shopping assistant</h2>

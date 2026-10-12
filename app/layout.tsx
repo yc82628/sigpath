@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
-import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag } from "@/lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag, operator } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
 import VisitCounter from "./components/VisitCounter";
 import SaleDayBanner from "./components/SaleDayBanner";
 import PopIcon, { type Tone } from "./components/PopIcon";
+import CartLink from "./components/CartLink";
 import type { IconName } from "./components/icon-paths";
 
-/** The header menu: only what SigPath has. No cart, profile or settings: there are no accounts. */
+/** The header menu: only what SigPath has. The cart sits after Search; no profile or settings, as there are no accounts. */
 const NAV: { href: string; label: string; icon: IconName; tone: Tone }[] = [
   { href: "/search", label: "Search", icon: "magnifying-glass", tone: "purple" },
   { href: "/alerts", label: "Price alerts", icon: "bell-ringing", tone: "blue" },
@@ -45,10 +47,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             {/* Icons only: each link's name is its aria-label (read out) and its data-label (shown on hover and focus). */}
             <nav className="site-nav" aria-label="Main">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="nav-icon" aria-label={n.label} data-label={n.label}>
-                  <PopIcon name={n.icon} tone={n.tone} size={22} onDark />
-                </Link>
+              {NAV.map((n, i) => (
+                <Fragment key={n.href}>
+                  <Link href={n.href} className="nav-icon" aria-label={n.label} data-label={n.label}>
+                    <PopIcon name={n.icon} tone={n.tone} size={22} onDark />
+                  </Link>
+                  {i === 0 && (
+                    <CartLink>
+                      <PopIcon name="shopping-cart-simple" tone="green" size={22} onDark />
+                    </CartLink>
+                  )}
+                </Fragment>
               ))}
             </nav>
           </div>
@@ -81,6 +90,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 qualifizierten Verkäufen.) {AMAZON_PRICE_DISCLAIMER}
               </p>
             )}
+            {/* The holder is the Impressum's name once it's set (an env var, never the repo), else SigPath. The code
+                itself is MIT-licensed (LICENSE), so the line says so rather than "all rights reserved". */}
+            <p className="copyright">
+              &copy; {new Date().getFullYear()} {operator()?.name ?? "SigPath"}. The SigPath name and logo: all rights
+              reserved. The code is open source under the{" "}
+              <a href="https://github.com/yc82628/sigpath/blob/main/LICENSE" rel="noopener">
+                MIT licence
+              </a>
+              .
+            </p>
           </div>
         </footer>
         <ShoppingAssistant />

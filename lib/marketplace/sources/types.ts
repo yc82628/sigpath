@@ -27,6 +27,12 @@ import type { SearchOptions, SourceResult, MarketplaceId } from "../types";
  */
 export type ListingProof = { ok: true; handle: string; text: string } | { ok: false; error: string };
 
+/** A listing's price now, for the cart. */
+export type CurrentPrice =
+  | { status: "ok" | "sold_out"; price: import("../types").Money; shipping?: import("../types").Money }
+  | { status: "gone" | "not_configured" }
+  | { status: "error"; detail: string };
+
 export interface MarketplaceSource {
   readonly id: MarketplaceId;
   /**
