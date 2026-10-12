@@ -1,19 +1,21 @@
 import Link from "next/link";
+import { getMessages } from "@/lib/i18n/server";
 import AlertsManager from "./AlertsManager";
 
 export const dynamic = "force-dynamic";
 
 export default function AlertsPage() {
+  const m = getMessages();
   return (
     <main className="container">
-      <h1>Price alerts</h1>
+      <h1>{m.alerts.title}</h1>
       <p className="lede">
-        Alerts in <strong>this browser</strong>, for SigPath-checked deals only.
+        {m.alerts.lede}
       </p>
       <AlertsManager />
       <p className="hint" style={{ marginTop: 24 }}>
-        Each alert is deleted after 30 days.{" "}
-        <Link href="/search">Back to search</Link>
+        {m.alerts.deleted}{" "}
+        <Link href="/search">{m.alerts.back}</Link>
       </p>
     </main>
   );

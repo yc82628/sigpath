@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { subscribe, toMinorUnits } from "./push";
+import { useLang, useMessages } from "./I18n";
 
 /**
  * "Alert me" for one search and condition. Only SigPath-checked deals fire —
@@ -18,6 +19,9 @@ export default function AlertButton({
   current: { amount: number; currency: string };
   vapidKey: string;
 }) {
+  const m = useMessages();
+  const lang = useLang();
+  const groupWord = group === "used" ? m.search.usedWord : m.search.newWord;
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState(((current.amount - 1) / 100).toFixed(2));
   const [state, setState] = useState<"idle" | "busy" | "set" | "error">("idle");
@@ -27,7 +31,7 @@ export default function AlertButton({
     const amount = toMinorUnits(target);
     if (!amount) {
       setState("error");
-      setMessage("Enter a price, like 349.99.");
+      setMessage(m.alerts.enterPrice);
       return;
     }
     try {
@@ -39,7 +43,7 @@ export default function AlertButton({
         body: JSON.stringify({ subscription: sub.toJSON(), query, group, target: { amount, currency: current.currency } }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "The alert couldn't be saved.");
+      if (!res.ok) throw new Error(body.error ?? m.alerts.saveFailed);
       setState("set");
     } catch (err) {
       setState("error");
@@ -50,32 +54,29 @@ export default function AlertButton({
   if (state === "set") {
     return (
       <p className="alert-set">
-        &#128276; Alert set. This browser gets a notification when a SigPath-checked {group} deal is at or under {target}{" "}
-        {current.currency}, for 30 days. <a href="/alerts">Manage alerts</a>
+        {m.alerts.set(lang === "de" ? group : groupWord, `${target} ${current.currency}`)} <a href="/alerts">{m.alerts.manage}</a>
       </p>
     );
   }
   if (!open) {
     return (
       <button type="button" className="alert-open" onClick={() => setOpen(true)}>
-        &#128276; Alert me if it drops
+        {m.alerts.open}
       </button>
     );
   }
   return (
     <div className="alert-form">
       <label>
-        Notify me when a <strong>SigPath-checked</strong> {group} deal is at or under{" "}
-        <input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} size={9} aria-label="Target price" />{" "}
+        {m.alerts.notify(lang === "de" ? group : groupWord)}{" "}
+        <input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} size={9} aria-label={m.alerts.target} />{" "}
         {current.currency}
       </label>{" "}
       <button type="button" className="primary" disabled={state === "busy"} onClick={create}>
-        Turn on alert
+        {m.alerts.turnOn}
       </button>
       <p className="hint">
-        No account or email: your browser asks permission to show notifications. SigPath keeps the search, the price and an
-        anonymous browser address for 30 days, and you can delete them any time. Flagged or unchecked listings never trigger
-        an alert.
+        {m.alerts.explain}
       </p>
       {state === "error" && <p className="notice withheld">{message}</p>}
     </div>

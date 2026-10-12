@@ -24,6 +24,14 @@ export interface SaleDay {
   message: string;
 }
 
+/** The same lines in German, for the Deutsch version of the site. */
+export const MESSAGES_DE: Record<SaleDayId, string> = {
+  "singles-day": "11.11: Große Rabatttage ziehen auch Betrüger an. Prüfe jedes Angebot, bevor du zahlst.",
+  "black-week": "Black Week: Verbraucherzentralen warnen rund um die großen Sales vor Fake-Shops. Prüfe jedes Angebot, bevor du zahlst.",
+  "black-friday": "Black Friday: Mit jeder Bestellung steigt das Risiko von Fake-Shops. Prüfe jedes Angebot, bevor du zahlst.",
+  "cyber-monday": "Cyber Monday: Auch der letzte große Rabatttag zieht Betrüger an. Prüfe jedes Angebot, bevor du zahlst.",
+};
+
 const MESSAGES: Record<SaleDayId, string> = {
   "singles-day": "11.11: big sale days draw scammers too. Check every deal before you pay.",
   "black-week": "Black Week: consumer centres warn of fake shops around the big sales. Check every deal before you pay.",

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import WalletButton from "../components/WalletButton";
 import { DEVNET, waitForOrder, walletErrorMessage, type ConnectedWallet } from "../components/wallet";
+import { useMessages } from "../components/I18n";
 
 /**
  * The delivery form and the wallet step.
@@ -14,13 +15,13 @@ import { DEVNET, waitForOrder, walletErrorMessage, type ConnectedWallet } from "
  * cookie. Closing the tab is enough to forget it on this side.
  */
 
-const FIELDS: { key: string; label: string; required: boolean; autoComplete: string }[] = [
-  { key: "name", label: "Full name", required: true, autoComplete: "name" },
-  { key: "line1", label: "Street and number", required: true, autoComplete: "address-line1" },
-  { key: "line2", label: "Address line 2 (optional)", required: false, autoComplete: "address-line2" },
-  { key: "postcode", label: "Postcode", required: true, autoComplete: "postal-code" },
-  { key: "city", label: "City", required: true, autoComplete: "address-level2" },
-  { key: "country", label: "Country code (e.g. DE)", required: true, autoComplete: "country" },
+const FIELDS: { key: string; required: boolean; autoComplete: string }[] = [
+  { key: "name", required: true, autoComplete: "name" },
+  { key: "line1", required: true, autoComplete: "address-line1" },
+  { key: "line2", required: false, autoComplete: "address-line2" },
+  { key: "postcode", required: true, autoComplete: "postal-code" },
+  { key: "city", required: true, autoComplete: "address-level2" },
+  { key: "country", required: true, autoComplete: "country" },
 ];
 
 type Phase = "idle" | "building" | "signing" | "confirming" | "error";
@@ -38,7 +39,7 @@ export default function CheckoutForm({
   /** …or several from the cart: one transaction, one escrow order each. */
   quotes?: string[];
   /** For the cart: called with the orders once the payment is confirmed (or sent, if confirmation is slow). */
-  onPaid?: (orders: { order: string; source: string; id: string }[], confirmed: boolean) => void;
+  onPaid?: (orders: { order: string; source: string; id: string }[], confirmed: boolean, wallet?: string) => void;
   usdcDisplay: string;
   /** The same total in the listing's currency, for reference (e.g. "145,82 €"). */
   localDisplay?: string;
@@ -46,6 +47,7 @@ export default function CheckoutForm({
   moonPay?: boolean;
 }) {
   const router = useRouter();
+  const m = useMessages();
   const [address, setAddress] = useState<Record<string, string>>({ country: "DE" });
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -93,7 +95,7 @@ export default function CheckoutForm({
     if (!wallet) return;
 
     setPhase("building");
-    setMessage("Preparing your order…");
+    setMessage(m.checkout.preparingOrder);
     setShortfall(null);
     setTopUpNote("");
     let order: string;
@@ -119,21 +121,21 @@ export default function CheckoutForm({
     }
 
     setPhase("signing");
-    setMessage(`Approve the payment in ${wallet.name}. Check the amount it shows before you approve.`);
+    setMessage(m.checkout.approve(wallet.name));
     try {
       await wallet.signAndSend(transaction);
     } catch (err) {
       // Nothing was paid. The stored address is deleted by the sweep once the
       // order has failed to appear for fifteen minutes.
       setPhase("error");
-      setMessage(`Payment not sent: ${walletErrorMessage(err)}`);
+      setMessage(m.checkout.notSent(walletErrorMessage(err)));
       return;
     }
 
     setPhase("confirming");
-    setMessage("Payment sent. Waiting for the network to confirm…");
+    setMessage(m.checkout.sent);
     const seen = await waitForOrder(order, (s) => s.found === true);
-    if (onPaid) return onPaid(cartOrders, seen);
+    if (onPaid) return onPaid(cartOrders, seen, wallet.address);
     // Go to the order page either way: it reads the chain directly, and is the
     // right place to watch a slow confirmation too.
     router.push(`/order/${order}${seen ? "" : "?pending=1"}`);
@@ -144,10 +146,10 @@ export default function CheckoutForm({
   return (
     <form className="checkout-form" onSubmit={pay}>
       <fieldset disabled={busy}>
-        <legend>Delivery address</legend>
+        <legend>{m.checkout.address}</legend>
         {FIELDS.map((f) => (
           <label key={f.key}>
-            <span>{f.label}</span>
+            <span>{m.checkout.fields[f.key]}</span>
             <input
               name={f.key}
               required={f.required}
@@ -161,14 +163,14 @@ export default function CheckoutForm({
       </fieldset>
 
       {!wallet ? (
-        <WalletButton label="Connect wallet" onConnect={connected} onError={walletError} />
+        <WalletButton label={m.checkout.connect} onConnect={connected} onError={walletError} />
       ) : (
         <>
           <p className="hint">
-            Paying from {wallet.name} <code>{wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}</code>
+            {m.checkout.payingFrom} {wallet.name} <code>{wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}</code>
           </p>
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Working…" : `Pay ${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`}
+            {busy ? m.checkout.working : m.checkout.payButton(`${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`)}
           </button>
         </>
       )}
@@ -177,29 +179,27 @@ export default function CheckoutForm({
 
       {shortfall !== null && wallet && (
         <section className="top-up">
-          <h3>Top up your wallet</h3>
+          <h3>{m.checkout.topUp}</h3>
           {moonPay ? (
             <>
               <p className="hint">
-                Buy USDC with a card or a SEPA transfer through MoonPay. It goes straight to this wallet
-                ({wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}); SigPath never sees your payment details.
+                {m.checkout.moonpay}
               </p>
               <button type="button" className="primary" onClick={buyWithMoonPay}>
-                Buy USDC with MoonPay
+                {m.checkout.moonpayButton}
               </button>
             </>
           ) : (
             <p className="hint">
-              Add USDC to this wallet ({wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}), then press Pay again.
+              {m.checkout.addUsdc}
             </p>
           )}
           {DEVNET && (
             <p className="hint">
-              This shop runs on Solana devnet: free test USDC comes from{" "}
+              {m.checkout.faucet}{" "}
               <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer">
                 faucet.circle.com
-              </a>{" "}
-              (choose USDC, Solana Devnet).{moonPay && " MoonPay opens in its test mode here."}
+              </a>
             </p>
           )}
           {topUpNote && <p className="hint">{topUpNote}</p>}

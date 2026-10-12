@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { addItem, type CartItem } from "@/lib/cart/cart";
+import { addItem, CART_MAX_ITEMS, type CartItem } from "@/lib/cart/cart";
 import { readCart, useCart, writeCart } from "./cart-store";
+import { useMessages } from "./I18n";
 
 /**
  * "Add to cart" on a search result. The item is a snapshot of the listing as
@@ -12,13 +13,14 @@ import { readCart, useCart, writeCart } from "./cart-store";
  */
 export default function AddToCart({ item, children }: { item: Omit<CartItem, "addedAt">; children?: React.ReactNode }) {
   const cart = useCart();
+  const m = useMessages();
   const [error, setError] = useState<string | null>(null);
   const inCart = !!cart?.some((c) => c.key === item.key);
 
   if (inCart) {
     return (
       <p className="cart-added">
-        In your cart. <Link href="/cart">View cart &rarr;</Link>
+        {m.listing.inCart} <Link href="/cart">{m.listing.viewCart}</Link>
       </p>
     );
   }
@@ -30,12 +32,12 @@ export default function AddToCart({ item, children }: { item: Omit<CartItem, "ad
         disabled={cart === null}
         onClick={() => {
           const r = addItem(readCart(), { ...item, addedAt: Date.now() });
-          if (!r.ok) return setError(r.reason);
-          if (!writeCart(r.cart)) setError("This browser won't let SigPath keep a cart (storage is blocked).");
+          if (!r.ok) return setError(m.listing.cartFull(CART_MAX_ITEMS));
+          if (!writeCart(r.cart)) setError(m.listing.storageBlocked);
         }}
       >
         {children}
-        Add to cart
+        {m.listing.addToCart}
       </button>
       {error && <p className="pay-blocked">{error}</p>}
     </>

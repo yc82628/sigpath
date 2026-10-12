@@ -4,6 +4,9 @@ import { checkPrice, parsePrice, SHOPS } from "@/lib/marketplace/price-check";
 import { formatMoney } from "@/lib/marketplace/types";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
 import PopIcon from "../components/PopIcon";
+import { getLang } from "@/lib/i18n/server";
+import { MESSAGES } from "@/lib/i18n/messages";
+import { translateCheck } from "@/lib/i18n/checks";
 
 /**
  * app/check — check a price from any shop (Amazon, AliExpress, anywhere)
@@ -25,6 +28,9 @@ const pct = (a: number, b: number) => Math.round((Math.abs(a - b) / b) * 100);
 
 export default async function CheckPage({ searchParams }: { searchParams: { title?: string; price?: string; from?: string; url?: string } }) {
   const h = headers();
+  const lang = getLang();
+  const m = MESSAGES[lang];
+  const tc = (t: string) => translateCheck(t, lang);
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
   const title = (searchParams.title ?? "").trim().slice(0, 300);
   const priceText = (searchParams.price ?? "").trim().slice(0, 40);
@@ -33,109 +39,108 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   const price = priceText ? parsePrice(priceText) : null;
   const asked = !!(title || priceText);
   // A check is an eBay search too, against the same daily quota.
-  const tooMany = title && price ? await limitedMessage(h, RULES.search) : null;
+  const tooMany = title && price && (await limitedMessage(h, RULES.search)) ? m.search.tooMany : null;
   const result = title && price && !tooMany ? await checkPrice({ title, price, from, url }) : null;
 
   return (
     <main className="container">
-      <h1>Check a price</h1>
-      <p className="lede">Found it on Amazon, AliExpress or anywhere else? Compare the price with live eBay listings.</p>
+      <h1>{m.check.title}</h1>
+      <p className="lede">{m.check.lede}</p>
 
       {asked && !result && (
         <p className="notice withheld">
-          {tooMany ?? (!title ? "Add the product's name." : `"${priceText}" isn't a price SigPath can read. Type it like 249,00 € or 249.00.`)}
+          {tooMany ?? (!title ? m.check.addName : m.check.badPrice(priceText))}
         </p>
       )}
 
       {result && (
         <section className="price-check" aria-live="polite">
           <h2>
-            {result.shop}: {result.product.title}
+            {m.check.shopNames[result.shop] ?? result.shop}: {result.product.title}
           </h2>
           <p className="deal-price">{formatMoney(result.product.price)}</p>
           <div className={`check-label ${result.product.check.verdict}`}>
             <span className="check-head">
               {result.product.check.verdict === "checked" ? "✓ " : result.product.check.verdict === "caution" ? "! " : ""}
-              {result.product.check.headline}
+              {tc(result.product.check.headline)}
             </span>
             <ul>
               {result.product.check.points.map((p, i) => (
                 <li key={i} className={p.tone}>
-                  {p.text}
+                  {tc(p.text)}
                 </li>
               ))}
             </ul>
           </div>
           {result.comparison && (
             <p>
-              The median price of the {result.comparison.sampleSize} identical listings is{" "}
-              <strong>{formatMoney({ amount: result.comparison.median, currency: result.product.price.currency })}</strong>: this price
-              is{" "}
+              {m.check.median(result.comparison.sampleSize)}{" "}
+              <strong>{formatMoney({ amount: result.comparison.median, currency: result.product.price.currency })}</strong>
               {result.product.price.amount === result.comparison.median
-                ? "exactly that."
-                : `${pct(result.product.price.amount, result.comparison.median)}% ${result.product.price.amount < result.comparison.median ? "lower" : "higher"}.`}
+                ? m.check.exactly
+                : m.check.diff(pct(result.product.price.amount, result.comparison.median), result.product.price.amount < result.comparison.median)}
             </p>
           )}
-          {result.ebay.status !== "ok" && <p className="notice withheld">eBay didn&apos;t answer just now, so there was nothing live to compare with. Try again in a moment.</p>}
+          {result.ebay.status !== "ok" && <p className="notice withheld">{m.check.ebayDown}</p>}
           {result.bestEbay.length > 0 && (
             <>
-              <h3>Best SigPath-checked deal{result.bestEbay.length > 1 ? "s" : ""} on eBay</h3>
+              <h3>{m.check.best(result.bestEbay.length)}</h3>
               <ul>
                 {result.bestEbay.map((d) => (
                   <li key={d.listing.id}>
                     <a href={d.listing.url} target="_blank" rel="noopener noreferrer">
                       {d.listing.title}
                     </a>{" "}
-                    — {formatMoney(d.total)} ({d.group})
+                    — {formatMoney(d.total)} ({d.group === "used" ? m.search.usedWord : m.search.newWord})
                   </li>
                 ))}
               </ul>
             </>
           )}
           <p className="hint">
-            Searched eBay for &ldquo;{result.query}&rdquo; ({result.ebay.count} listings). Wrong product? Edit the name below.{" "}
-            <Link href={`/search?q=${encodeURIComponent(result.query)}`}>See all eBay results</Link>
+            {m.check.searched(result.query, result.ebay.count)}{" "}
+            <Link href={`/search?q=${encodeURIComponent(result.query)}`}>{m.check.seeAll}</Link>
           </p>
         </section>
       )}
 
       <form className="supplier-form" action="/check" method="get">
         <label>
-          Product name
+          {m.check.name}
           <input name="title" defaultValue={title} placeholder="Apple AirPods Pro 2" required />
         </label>
         <label>
-          Price
+          {m.check.price}
           <input name="price" defaultValue={priceText} placeholder="249,00 €" required />
         </label>
         <label>
-          Shop
+          {m.check.shop}
           <select name="from" defaultValue={from}>
             <option value="amazon">Amazon</option>
             <option value="aliexpress">AliExpress</option>
-            <option value="other">Another shop</option>
+            <option value="other">{m.check.another}</option>
           </select>
         </label>
         {url && <input type="hidden" name="url" value={url} />}
         <button type="submit" className="primary">
-          Check this price
+          {m.check.button}
         </button>
       </form>
 
       <section className="guarantees">
         <h2 className="with-icon">
           <PopIcon name="bookmark-simple" tone="green" size={24} />
-          One click from the product page
+          {m.check.oneClick}
         </h2>
         <p>
-          Drag this button to your browser&apos;s bookmarks bar:{" "}
+          {m.check.drag}{" "}
           <span
             dangerouslySetInnerHTML={{
-              __html: `<a class="button" href="${bookmarklet(origin).replace(/"/g, "&quot;")}" title="Drag me to your bookmarks bar">SigPath check</a>`,
+              __html: `<a class="button" href="${bookmarklet(origin).replace(/"/g, "&quot;")}" title="${m.check.dragTitle}">SigPath check</a>`,
             }}
           />
         </p>
-        <p>Then click it on any product page. It reads the name and price, in your own browser, and opens this check.</p>
+        <p>{m.check.thenClick}</p>
       </section>
     </main>
   );

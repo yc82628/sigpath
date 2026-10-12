@@ -211,23 +211,11 @@ export async function prepareCartCheckout(
   return prepareOrders({ quotes: input.quotes, buyer: input.buyer, address: input.address }, deps);
 }
 
-async function prepareOrders(
-  input: { quotes: unknown[]; buyer: unknown; address: unknown },
-  deps: CheckoutDeps,
-): Promise<PreparedCartCheckout | CheckoutError> {
-  const env = deps.env ?? process.env;
-  const store = deps.store === undefined ? AddressStore.fromEnv(env) : deps.store;
-  const metaStore = deps.metaStore === undefined ? OrderMetaStore.fromEnv(env) : deps.metaStore;
-  if (!store) {
-    // Without a key there is nowhere safe to put an address. Refuse to take
-    // money for an order that could not be shipped.
-    return { ok: false, status: 503, error: "Checkout is not configured (ADDRESS_KEY)." };
-  }
-  const many = input.quotes.length > 1;
-
-  // 1. quotes
+/** Step 1, shared by the payment and its invoice: every quote verified, no item twice, no penalised seller. */
+function verifyQuotes(quotes: unknown[], env: Record<string, string | undefined>, deps: CheckoutDeps): { ok: true; listings: QuotedListing[] } | CheckoutError {
+  const many = quotes.length > 1;
   const listings: QuotedListing[] = [];
-  for (const quote of input.quotes) {
+  for (const quote of quotes) {
     if (typeof quote !== "string") return { ok: false, status: 400, error: "Missing quote." };
     const q = verifyQuote(quote, env, deps.now);
     if (!q.ok) {
@@ -254,20 +242,22 @@ async function prepareOrders(
     }
     listings.push(q.listing);
   }
+  return { ok: true, listings };
+}
 
-  // 2. buyer and address
-  let buyer: PublicKey;
-  try {
-    buyer = new PublicKey(String(input.buyer));
-  } catch {
-    return { ok: false, status: 400, error: "Invalid wallet address." };
-  }
-  const addr = validateAddress(input.address);
-  if (!addr.ok) return { ok: false, status: 400, error: addr.error };
-
-  // 3. prices in USDC, at one rate for the whole payment
-  const rate = listings.every((l) => l.currency.toUpperCase() === "USD") ? null : await eurUsdRate(env, deps.fetchImpl);
-  const priced: { listing: QuotedListing; usdc: bigint; fee: bigint }[] = [];
+/**
+ * Step 3, shared by the payment and its invoice: each item in USDC at one
+ * rate, plus the service fee signed into its quote. The invoice can't show a
+ * number the payment wouldn't charge.
+ */
+async function priceListings(
+  listings: QuotedListing[],
+  env: Record<string, string | undefined>,
+  fetchImpl?: typeof fetch,
+): Promise<{ ok: true; rate: FxRate | null; priced: { listing: QuotedListing; item: bigint; usdc: bigint; fee: bigint }[]; total: bigint } | CheckoutError> {
+  const many = listings.length > 1;
+  const rate = listings.every((l) => l.currency.toUpperCase() === "USD") ? null : await eurUsdRate(env, fetchImpl);
+  const priced: { listing: QuotedListing; item: bigint; usdc: bigint; fee: bigint }[] = [];
   for (const listing of listings) {
     const usd = listing.currency.toUpperCase() === "USD";
     const itemUsdc = toUsdcBaseUnits(listing.amount, listing.currency, usd ? null : rate);
@@ -291,9 +281,103 @@ async function prepareOrders(
         error: `${many ? `"${listing.title}" costs` : "This costs"} ${orders.formatUsdc(total)}, over the ${orders.formatUsdc(orders.MAX_AMOUNT)} per-order limit.`,
       };
     }
-    priced.push({ listing, usdc: total, fee });
+    priced.push({ listing, item: itemUsdc, usdc: total, fee });
   }
-  const total = priced.reduce((t, p) => t + p.usdc, 0n);
+  return { ok: true, rate, priced, total: priced.reduce((t, x) => t + x.usdc, 0n) };
+}
+
+/** One line of the invoice shown before (and after) paying. */
+export interface InvoiceLine {
+  source: string;
+  id: string;
+  title: string;
+  url: string;
+  /** The listing's price including shipping, in its own currency (minor units). */
+  amount: number;
+  currency: string;
+  /** In USDC base units: the item, the service fee, and the two together. */
+  itemUsdc: string;
+  feeUsdc: string;
+  totalUsdc: string;
+  feeBps: number;
+}
+
+export interface Invoice {
+  ok: true;
+  lines: InvoiceLine[];
+  totalUsdc: string;
+  totalDisplay: string;
+  /** Per currency, in minor units: what the items cost before conversion. */
+  localTotals: { amount: number; currency: string }[];
+  rate: { display: string; source: string } | null;
+}
+
+/** The invoice for these quotes: what's being bought, and every conversion to USDC. Charges nothing. */
+export async function invoiceFor(quotes: unknown, deps: CheckoutDeps = {}): Promise<Invoice | CheckoutError> {
+  const env = deps.env ?? process.env;
+  if (!Array.isArray(quotes) || quotes.length === 0 || quotes.length > MAX_CART_ORDERS) {
+    return { ok: false, status: 400, error: "Nothing to show." };
+  }
+  const v = verifyQuotes(quotes, env, deps);
+  if (!v.ok) return v;
+  const p = await priceListings(v.listings, env, deps.fetchImpl);
+  if (!p.ok) return p;
+  const local = new Map<string, number>();
+  for (const l of v.listings) local.set(l.currency, (local.get(l.currency) ?? 0) + l.amount);
+  return {
+    ok: true,
+    lines: p.priced.map((x) => ({
+      source: x.listing.source,
+      id: x.listing.id,
+      title: x.listing.title,
+      url: x.listing.url,
+      amount: x.listing.amount,
+      currency: x.listing.currency,
+      itemUsdc: x.item.toString(),
+      feeUsdc: x.fee.toString(),
+      totalUsdc: x.usdc.toString(),
+      feeBps: x.listing.feeBps ?? 0,
+    })),
+    totalUsdc: p.total.toString(),
+    totalDisplay: orders.formatUsdc(p.total),
+    localTotals: [...local].map(([currency, amount]) => ({ currency, amount })),
+    rate: p.rate ? { display: p.rate.display, source: p.rate.source } : null,
+  };
+}
+
+async function prepareOrders(
+  input: { quotes: unknown[]; buyer: unknown; address: unknown },
+  deps: CheckoutDeps,
+): Promise<PreparedCartCheckout | CheckoutError> {
+  const env = deps.env ?? process.env;
+  const store = deps.store === undefined ? AddressStore.fromEnv(env) : deps.store;
+  const metaStore = deps.metaStore === undefined ? OrderMetaStore.fromEnv(env) : deps.metaStore;
+  if (!store) {
+    // Without a key there is nowhere safe to put an address. Refuse to take
+    // money for an order that could not be shipped.
+    return { ok: false, status: 503, error: "Checkout is not configured (ADDRESS_KEY)." };
+  }
+  const many = input.quotes.length > 1;
+
+  // 1. quotes
+  const verified = verifyQuotes(input.quotes, env, deps);
+  if (!verified.ok) return verified;
+  const listings = verified.listings;
+
+  // 2. buyer and address
+  let buyer: PublicKey;
+  try {
+    buyer = new PublicKey(String(input.buyer));
+  } catch {
+    return { ok: false, status: 400, error: "Invalid wallet address." };
+  }
+  const addr = validateAddress(input.address);
+  if (!addr.ok) return { ok: false, status: 400, error: addr.error };
+
+  // 3. prices in USDC, at one rate for the whole payment
+  const p = await priceListings(listings, env, deps.fetchImpl);
+  if (!p.ok) return p;
+  const { rate, priced, total } = p;
 
   // 4. can this wallet pay for all of it?
   const conn = deps.conn ?? new Connection(ordersRpcUrl(env), "confirmed");

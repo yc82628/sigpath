@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { existingSubscription, pushSupported } from "../components/push";
+import { useMessages } from "../components/I18n";
 
 type Money = { amount: number; currency: string };
 type W = { id: string; query: string; group: "new" | "used"; target: Money; expiresAt: number; lastAlerted?: Money };
@@ -10,6 +11,7 @@ const money = (m: Money) => `${(m.amount / 100).toFixed(2)} ${m.currency}`;
 
 /** This browser's alerts, found by its own push endpoint — there is nothing else to log in with. */
 export default function AlertsManager() {
+  const m = useMessages();
   const [supported, setSupported] = useState(true);
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [watches, setWatches] = useState<W[] | null>(null);
@@ -47,13 +49,13 @@ export default function AlertsManager() {
     }
   }
 
-  if (!supported) return <p className="notice withheld">This browser can&apos;t receive notifications from websites.</p>;
+  if (!supported) return <p className="notice withheld">{m.alerts.unsupported}</p>;
   if (error) return <p className="notice withheld">{error}</p>;
-  if (watches === null) return <p className="hint">Loading&hellip;</p>;
+  if (watches === null) return <p className="hint">{m.alerts.loading}</p>;
   if (!watches.length) {
     return (
       <p className="notice">
-        No alerts in this browser. Search for something and use &ldquo;Alert me if it drops&rdquo; under the best checked deal.
+        {m.alerts.none}
       </p>
     );
   }
@@ -67,21 +69,21 @@ export default function AlertsManager() {
               <a href={`/search?q=${encodeURIComponent(w.query)}&checked=1`}>{w.query}</a>
             </h3>
             <p className="meta">
-              {w.group} &middot; at or under {money(w.target)} &middot; until{" "}
-              {new Date(w.expiresAt * 1000).toISOString().slice(0, 10)}
-              {w.lastAlerted && <> &middot; last alerted at {money(w.lastAlerted)}</>}
+              {w.group === "used" ? m.search.usedWord : m.search.newWord} &middot; {m.alerts.atOrUnder(money(w.target))} &middot;{" "}
+              {m.alerts.until(new Date(w.expiresAt * 1000).toISOString().slice(0, 10))}
+              {w.lastAlerted && <> &middot; {m.alerts.lastAlerted(money(w.lastAlerted))}</>}
             </p>
           </div>
           <div className="price">
             <button type="button" onClick={() => remove(w.id)}>
-              Delete
+              {m.alerts.delete}
             </button>
           </div>
         </article>
       ))}
       <p className="hint" style={{ marginTop: 16 }}>
         <button type="button" onClick={() => remove()}>
-          Delete all and turn off notifications
+          {m.alerts.deleteAll}
         </button>
       </p>
     </div>

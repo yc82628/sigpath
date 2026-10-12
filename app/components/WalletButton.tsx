@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMessages } from "./I18n";
 import { NO_WALLET_MESSAGE, walletErrorMessage, walletOptions, walletRegistry, type ConnectedWallet, type WalletOption } from "./wallet";
 
 /**
@@ -30,6 +31,7 @@ export default function WalletButton({
 }) {
   const [choices, setChoices] = useState<WalletOption[]>([]);
   const [choosing, setChoosing] = useState(false);
+  const m = useMessages();
   const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
@@ -86,7 +88,7 @@ export default function WalletButton({
 
   return (
     <button type="button" className={className} disabled={disabled || connecting} onClick={start}>
-      {connecting ? "Connecting…" : label}
+      {connecting ? m.checkout.connecting : label}
     </button>
   );
 }

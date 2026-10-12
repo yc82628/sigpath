@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { berlinDate, saleDayOn, saleDayPreview, type SaleDay } from "@/lib/sale-days";
+import { berlinDate, MESSAGES_DE, saleDayOn, saleDayPreview, type SaleDay } from "@/lib/sale-days";
+import { useLang, useMessages } from "./I18n";
 
 /**
  * On the big sale days, a line at the top of every page (lib/sale-days.ts).
@@ -11,6 +12,8 @@ import { berlinDate, saleDayOn, saleDayPreview, type SaleDay } from "@/lib/sale-
  */
 export default function SaleDayBanner() {
   const [sale, setSale] = useState<SaleDay | null>(null);
+  const lang = useLang();
+  const m = useMessages();
 
   useEffect(() => {
     const preview = saleDayPreview(new URLSearchParams(window.location.search).get("saleday"));
@@ -22,7 +25,7 @@ export default function SaleDayBanner() {
   return (
     <div className="sale-day" role="note">
       <p>
-        <strong>{sale.message}</strong> <Link href="/how">How SigPath checks →</Link>
+        <strong>{lang === "de" ? MESSAGES_DE[sale.id] : sale.message}</strong> <Link href="/how">{m.saleDay.how}</Link>
       </p>
     </div>
   );

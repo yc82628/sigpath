@@ -57,6 +57,8 @@ export const ChatRequest = z.object({
     .refine((m) => m.every((x, i) => x.role === (i % 2 === 0 ? "user" : "assistant")), "Turns must alternate, starting with the shopper.")
     // zod runs refinements even after .min(1) fails, so an empty list must not crash here.
     .refine((m) => m.length > 0 && m[m.length - 1].role === "user", "The last turn must be the shopper's."),
+  /** The page's language: on SigPath's German pages, Ai-chan answers in German. */
+  lang: z.enum(["en", "de"]).optional(),
 });
 export type ChatRequest = z.infer<typeof ChatRequest>;
 
@@ -78,7 +80,7 @@ export async function runAssistant(req: ChatRequest, emit: (e: AssistantEvent) =
   for (let round = 0; round <= MAX_SEARCH_ROUNDS; round++) {
     const lastRound = round === MAX_SEARCH_ROUNDS;
     const reply = await deps.model.turn({
-      system: SYSTEM,
+      system: req.lang === "de" ? `${SYSTEM}\n\nThe shopper is using SigPath in German: always reply in German, using the informal "du".` : SYSTEM,
       messages,
       tools: [SEARCH_TOOL],
       // The last round may not search again, so the reply always ends in words.

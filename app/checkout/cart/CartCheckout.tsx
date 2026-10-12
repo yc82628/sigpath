@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { checkoutCandidates, quoteFresh, removeItem, setQuote, type CartItem } from "@/lib/cart/cart";
-import { formatMoney } from "@/lib/marketplace/types";
 import { readCart, writeCart } from "../../components/cart-store";
+import { useCheckText, useMessages } from "../../components/I18n";
 import CheckoutForm from "../CheckoutForm";
+import Invoice, { usdc, type InvoiceData } from "../Invoice";
 
 type Ready = { item: CartItem; token: string; usdc?: string };
 type NotReady = { item: CartItem; reason: string };
 
-/** "87.82 USDC" -> 87.82. The previews are rounded up, so their sum is never below what's charged. */
-const usdcValue = (s?: string) => (s ? Number(s.replace(/[^0-9.]/g, "")) : NaN);
-
 export default function CartCheckout({ max, moonPay }: { max: number; moonPay: boolean }) {
+  const m = useMessages();
+  const tc = useCheckText();
   const [state, setState] = useState<{ ready: Ready[]; notReady: NotReady[]; later: number } | null>(null);
-  const [paid, setPaid] = useState<{ orders: { order: string; title: string }[]; confirmed: boolean } | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceData | null>(null);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [paid, setPaid] = useState<{ orders: Record<string, string>; list: { order: string; title: string }[]; confirmed: boolean; wallet?: string; at: number } | null>(null);
   const started = useRef(false);
 
   // Gather the cart's SigPath-checked items; check again any whose quote ran out.
@@ -36,9 +38,9 @@ export default function CartCheckout({ max, moonPay }: { max: number; moonPay: b
           });
           const body = await res.json().catch(() => ({}));
           if (res.ok) fresh = Object.fromEntries((body.quotes ?? []).map((q: { key: string }) => [q.key, q]));
-          else for (const c of stale) fresh[c.key] = { ok: false, reason: body.error ?? "The prices couldn't be checked again just now." };
+          else for (const c of stale) fresh[c.key] = { ok: false, reason: body.error ?? m.cart.checkFailed };
         } catch {
-          for (const c of stale) fresh[c.key] = { ok: false, reason: "The prices couldn't be checked again just now." };
+          for (const c of stale) fresh[c.key] = { ok: false, reason: m.cart.checkFailed };
         }
       }
       let cart = readCart();
@@ -54,101 +56,107 @@ export default function CartCheckout({ max, moonPay }: { max: number; moonPay: b
           cart = setQuote(cart, c.key, { token: q.token, usdc: q.usdc, expiresAt: q.expiresAt });
           ready.push({ item: c, token: q.token, usdc: q.usdc });
         } else {
-          notReady.push({ item: c, reason: q?.reason ?? "It couldn't be checked again." });
+          notReady.push({ item: c, reason: q?.reason ?? m.cart.checkFailed });
         }
       }
       writeCart(cart);
       setState({ ready, notReady, later: Math.max(0, all.length - batch.length) });
+
+      // The invoice: every price and conversion, from the same code as the payment.
+      if (ready.length) {
+        try {
+          const res = await fetch("/api/checkout/invoice", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ quotes: ready.map((r) => r.token) }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) setInvoice(body);
+          else setInvoiceError(body.error ?? m.cart.checkFailed);
+        } catch {
+          setInvoiceError(m.cart.checkFailed);
+        }
+      }
     })();
-  }, [max]);
+  }, [max, m]);
 
   if (paid) {
     return (
-      <section className="notice">
-        <p>
-          <strong>{paid.confirmed ? "Paid." : "Payment sent; the network is still confirming."}</strong> One order per item:
-        </p>
-        <ul>
-          {paid.orders.map((o) => (
-            <li key={o.order}>
-              <Link href={`/order/${o.order}${paid.confirmed ? "" : "?pending=1"}`}>{o.title}</Link>
-            </li>
-          ))}
-        </ul>
-        <p>
-          <Link href="/cart">Back to your cart</Link>
-        </p>
-      </section>
+      <>
+        <section className="notice">
+          <p>
+            <strong>{paid.confirmed ? m.checkout.paid : m.checkout.pending}</strong> {m.checkout.onePerItem}
+          </p>
+          <ul>
+            {paid.list.map((o) => (
+              <li key={o.order}>
+                <Link href={`/order/${o.order}${paid.confirmed ? "" : "?pending=1"}`}>{o.title}</Link>
+              </li>
+            ))}
+          </ul>
+          <p>
+            <Link href="/cart">{m.checkout.backToCart}</Link>
+          </p>
+        </section>
+        {invoice && <Invoice data={invoice} paid={{ orders: paid.orders, wallet: paid.wallet, at: paid.at }} />}
+      </>
     );
   }
-  if (!state) return <p className="hint">Checking your items&hellip;</p>;
+  if (!state) return <p className="hint">{m.checkout.preparing}</p>;
   if (!state.ready.length) {
     return (
       <>
-        {state.notReady.length ? <NotReadyList items={state.notReady} /> : <p className="notice withheld">There are no SigPath-checked items in your cart to pay for here.</p>}
+        {state.notReady.length ? <NotReadyList items={state.notReady} /> : <p className="notice withheld">{m.checkout.none}</p>}
         <p>
-          <Link href="/cart">Back to your cart</Link> to buy them on eBay instead.
+          <Link href="/cart">{m.checkout.backToCart}</Link> {m.checkout.buyInstead}
         </p>
       </>
     );
   }
 
-  const sum = state.ready.reduce((t, r) => t + usdcValue(r.usdc), 0);
-  const display = Number.isFinite(sum) ? `${sum.toFixed(2)} USDC` : "the total";
   return (
     <>
-      <ul className="cart-list">
-        {state.ready.map((r) => (
-          <li key={r.item.key} className="listing cart-item">
-            <div className="body">
-              <h3>{r.item.title}</h3>
-              <p className="meta">
-                {r.item.condition} &middot; {r.item.seller}
-              </p>
-            </div>
-            <div className="price">
-              {r.usdc ?? formatMoney(r.item.price)}
-              <span className="ship">incl. shipping and fee</span>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {invoice ? <Invoice data={invoice} /> : invoiceError ? <p className="notice withheld">{tc(invoiceError)}</p> : <p className="hint">{m.invoice.loading}</p>}
       {state.notReady.length > 0 && <NotReadyList items={state.notReady} />}
-      {state.later > 0 && (
-        <p className="hint">
-          {state.later} more checked item{state.later === 1 ? "" : "s"} can be paid in a second payment (up to {max} at a time).
-        </p>
+      {state.later > 0 && <p className="hint">{m.checkout.later(state.later, max)}</p>}
+      {invoice && (
+        <CheckoutForm
+          quotes={state.ready.map((r) => r.token)}
+          usdcDisplay={usdc(invoice.totalUsdc)}
+          moonPay={moonPay}
+          onPaid={(orders, confirmed, wallet) => {
+            // Paid items leave the cart; their order pages, and this invoice, are the record now.
+            let cart = readCart();
+            for (const o of orders) cart = removeItem(cart, `${o.source}:${o.id}`);
+            writeCart(cart);
+            const title = (o: { source: string; id: string }) => state.ready.find((r) => r.item.key === `${o.source}:${o.id}`)?.item.title ?? m.invoice.order;
+            setPaid({
+              orders: Object.fromEntries(orders.map((o) => [`${o.source}:${o.id}`, o.order])),
+              list: orders.map((o) => ({ order: o.order, title: title(o) })),
+              confirmed,
+              wallet,
+              at: Date.now(),
+            });
+          }}
+        />
       )}
-      <CheckoutForm
-        quotes={state.ready.map((r) => r.token)}
-        usdcDisplay={display}
-        moonPay={moonPay}
-        onPaid={(orders, confirmed) => {
-          // Paid items leave the cart; their order pages are the record now.
-          let cart = readCart();
-          for (const o of orders) cart = removeItem(cart, `${o.source}:${o.id}`);
-          writeCart(cart);
-          const title = (o: { source: string; id: string }) => state.ready.find((r) => r.item.key === `${o.source}:${o.id}`)?.item.title ?? "Order";
-          setPaid({ orders: orders.map((o) => ({ order: o.order, title: title(o) })), confirmed });
-        }}
-      />
     </>
   );
-}
 
-function NotReadyList({ items }: { items: NotReady[] }) {
-  return (
-    <section className="notice withheld">
-      <p>
-        <strong>Not included</strong> (buy {items.length === 1 ? "it" : "these"} on eBay from your cart):
-      </p>
-      <ul>
-        {items.map((n) => (
-          <li key={n.item.key}>
-            {n.item.title}: {n.reason}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
+  function NotReadyList({ items }: { items: NotReady[] }) {
+    return (
+      <section className="notice withheld">
+        <p>
+          <strong>{m.checkout.notIncluded(items.length)}</strong>
+        </p>
+        <ul>
+          {items.map((n) => (
+            <li key={n.item.key}>
+              {n.item.title}: {tc(n.reason)}
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 }

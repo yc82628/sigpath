@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useCheckText, useLang, useMessages } from "./I18n";
 import type { AssistantEvent } from "@/lib/assistant/assistant";
 import type { AssistantCard, AssistantResults } from "@/lib/assistant/search-tool";
 
@@ -20,13 +21,7 @@ interface Turn {
   results?: AssistantResults[];
 }
 
-const SUGGESTIONS = ["A used ThinkPad X1 under €400", "AirPods Pro, checked deals only", "A handmade gift under €50"];
 
-const VERDICT_LABEL: Record<AssistantCard["verdict"], string> = {
-  checked: "✓ Checked",
-  caution: "! Look closer",
-  unchecked: "Not price-checked",
-};
 
 /**
  * Ai-chan's face, drawn for SigPath in the Flex Pop style (an outline over an
@@ -58,11 +53,13 @@ function Avatar({ happy = false }: { happy?: boolean }) {
 }
 
 function Card({ c }: { c: AssistantCard }) {
+  const m = useMessages();
+  const tc = useCheckText();
   // Listing URLs come from marketplaces: link only to http(s).
   const href = /^https?:\/\//i.test(c.url) ? c.url : undefined;
   return (
     <li className={`chat-card ${c.verdict}`}>
-      <span className={`chat-verdict ${c.verdict}`}>{VERDICT_LABEL[c.verdict]}</span>
+      <span className={`chat-verdict ${c.verdict}`}>{c.verdict === "checked" ? "✓ " : c.verdict === "caution" ? "! " : ""}{m.verdict[c.verdict]}</span>
       {href ? (
         <a href={href} target="_blank" rel="noopener noreferrer" className="chat-card-title">
           {c.title}
@@ -72,32 +69,35 @@ function Card({ c }: { c: AssistantCard }) {
       )}
       <span className="chat-card-meta">
         <strong>{c.total}</strong> · {c.marketplace} · {c.condition}
-        {c.verifiedBusiness ? " · verified business" : c.verifiedSeller ? " · verified seller" : ""}
+        {c.verifiedBusiness ? m.ai.verifiedBusiness : c.verifiedSeller ? m.ai.verifiedSeller : ""}
       </span>
-      {c.verdict === "caution" && c.reasons[0] && <span className="chat-card-why">{c.reasons[0]}</span>}
+      {c.verdict === "caution" && c.reasons[0] && <span className="chat-card-why">{tc(c.reasons[0])}</span>}
     </li>
   );
 }
 
 function Results({ r }: { r: AssistantResults }) {
+  const m = useMessages();
   const cards = r.shown.length > 0 ? r.shown : r.closest;
-  if (cards.length === 0) return <p className="chat-note">No listings matched every preference.</p>;
+  if (cards.length === 0) return <p className="chat-note">{m.ai.noMatch}</p>;
   return (
     <div className="chat-results">
-      {r.shown.length === 0 && <p className="chat-note">Nothing matched every preference. Closest options:</p>}
+      {r.shown.length === 0 && <p className="chat-note">{m.ai.closest}</p>}
       <ul>
         {cards.map((c) => (
           <Card key={c.id} c={c} />
         ))}
       </ul>
       <a className="chat-see-all" href={r.seeAll}>
-        See all {r.found} results &rarr;
+        {m.ai.seeAll(r.found)}
       </a>
     </div>
   );
 }
 
 export default function Assistant({ poweredBy }: { poweredBy: string }) {
+  const m = useMessages();
+  const lang = useLang();
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -141,10 +141,10 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
+        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), lang }),
       });
       if (!res.ok || !res.body) {
-        failure = ((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "Something went wrong. Please try again.";
+        failure = ((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? m.ai.error;
       } else {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -183,24 +183,24 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
 
   if (!open) {
     return (
-      <button type="button" className="chat-launcher" onClick={() => setOpen(true)} aria-label="Chat with Ai-chan, the shopping assistant">
+      <button type="button" className="chat-launcher" onClick={() => setOpen(true)} aria-label={m.ai.launcher}>
         <Avatar />
-        <span className="chat-label">Ask Ai-chan</span>
+        <span className="chat-label">{m.ai.ask}</span>
       </button>
     );
   }
 
   return (
-    <section className="chat-panel" role="dialog" aria-label="Ai-chan, shopping assistant" onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
+    <section className="chat-panel" role="dialog" aria-label={m.ai.dialog} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <header className="chat-head">
         <div className="chat-who">
           <Avatar happy />
           <div>
             <strong>Ai-chan</strong>
-            <span>Your SigPath shopping helper</span>
+            <span>{m.ai.helper}</span>
           </div>
         </div>
-        <button type="button" className="chat-close" onClick={() => setOpen(false)} aria-label="Close Ai-chan">
+        <button type="button" className="chat-close" onClick={() => setOpen(false)} aria-label={m.ai.close}>
           &times;
         </button>
       </header>
@@ -209,11 +209,10 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
         {turns.length === 0 && (
           <div className="chat-welcome">
             <p>
-              Hi, I&apos;m Ai-chan! Tell me what you&apos;re looking for, with your budget and must-haves, and I&apos;ll search eBay
-              and Amazon for the checked deals.
+              {m.ai.hello}
             </p>
             <div className="chat-suggestions">
-              {SUGGESTIONS.map((s) => (
+              {m.ai.suggestions.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)}>
                   {s}
                 </button>
@@ -224,10 +223,10 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
         {turns.map((t, i) => (
           <div key={i} className={`chat-turn ${t.role}`}>
             {t.content && <p className="chat-bubble">{t.content}</p>}
-            {t.searching && <p className="chat-note">Searching for &ldquo;{t.searching}&rdquo;&hellip;</p>}
+            {t.searching && <p className="chat-note">{m.ai.searchingFor(t.searching)}</p>}
             {t.results?.map((r, j) => <Results key={j} r={r} />)}
             {t.role === "assistant" && busy && i === turns.length - 1 && !t.content && !t.searching && !t.results && (
-              <p className="chat-typing" aria-label="Thinking">
+              <p className="chat-typing" aria-label={m.ai.thinking}>
                 <span />
                 <span />
                 <span />
@@ -254,16 +253,16 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="e.g. used camera under €500"
-          aria-label="Message Ai-chan"
+          placeholder={m.ai.placeholder}
+          aria-label={m.ai.message}
           maxLength={2000}
           disabled={busy}
         />
         <button type="submit" disabled={busy || !input.trim()}>
-          Send
+          {m.ai.send}
         </button>
       </form>
-      <p className="chat-foot">Answers by {poweredBy}. Chats aren&apos;t saved. Please don&apos;t share personal details.</p>
+      <p className="chat-foot">{m.ai.foot(poweredBy)}</p>
     </section>
   );
 }

@@ -79,6 +79,11 @@ export default function PrivacyPage() {
         Fonts.
       </p>
       <p>
+        If you switch the site to German (or back), one cookie, <code>sigpath-lang</code>, remembers the choice for a year. It
+        holds only &ldquo;de&rdquo; or &ldquo;en&rdquo;, is sent only to SigPath, and is set only when you press the switch
+        (legal basis: § 25(2) no. 2 TDDDG, storage you asked for).
+      </p>
+      <p>
         So that one script can&apos;t use up the site&apos;s searches or its checks for everyone, SigPath counts how many
         searches and requests come from each connection in a short window (ten minutes; one hour or one day for a few
         checks). It doesn&apos;t store your IP address for this: only a keyed hash of it, which can&apos;t be turned back into

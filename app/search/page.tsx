@@ -19,6 +19,9 @@ import AlertButton from "../components/AlertButton";
 import AddToCart from "../components/AddToCart";
 import PopIcon from "../components/PopIcon";
 import { QUOTE_TTL_SECONDS } from "@/lib/checkout/quote";
+import { getLang } from "@/lib/i18n/server";
+import { MESSAGES } from "@/lib/i18n/messages";
+import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 
 const marketLabel = (id: string) =>
@@ -47,13 +50,11 @@ const marketLabel = (id: string) =>
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, string> = {
-  ok: "searched",
-  not_configured: "not connected yet",
-  rate_limited: "rate limited",
-  timeout: "timed out",
-  error: "failed",
-};
+/** The page's strings, and check sentences, in the shopper's language (lib/i18n). */
+function i18n() {
+  const lang = getLang();
+  return { m: MESSAGES[lang], tc: (t: string) => translateCheck(t, lang), lang };
+}
 
 /** Checkout offer for one listing: a signed quote, a reason there is none, or null when checkout is off. */
 type CheckoutOffer = { token: string; usdc?: string } | { reason: string } | null;
@@ -84,6 +85,7 @@ function ListingRow({
   const warns = label.points.filter((p) => p.tone === "warn");
   const keyPoints = warns.length ? warns : label.points.slice(0, 1);
   const otherPoints = label.points.filter((p) => !keyPoints.includes(p));
+  const { m, tc } = i18n();
 
   return (
     <article className="listing" id={`l-${listingKey(listing)}`}>
@@ -106,7 +108,7 @@ function ListingRow({
           </a>
         </h3>
         <p className="meta">
-          <span className="chip">{marketLabel(listing.source)}</span> {listing.condition} &middot;{" "}
+          <span className="chip">{marketLabel(listing.source)}</span> {m.listing.conditions[listing.condition] ?? listing.condition} &middot;{" "}
           {seller.displayName ?? seller.handle}
           {business ? (
             // The business tier: a VAT number checked against the EU register,
@@ -114,8 +116,8 @@ function ListingRow({
             // vouches for who runs the account, not the item.
             <>
               {" "}
-              <a className="verified business" href={`/business/${encodeURIComponent(business.id)}`} title="A registered business, checked against the EU VAT register. It vouches for who runs the account, not this item.">
-                &#10003; Verified business
+              <a className="verified business" href={`/business/${encodeURIComponent(business.id)}`} title={m.listing.verifiedBusinessTitle}>
+                {m.listing.verifiedBusiness}
               </a>
             </>
           ) : badge && (
@@ -128,9 +130,9 @@ function ListingRow({
               <a
                 className="verified"
                 href={`/seller/${encodeURIComponent(listing.source)}/${encodeURIComponent(seller.handle)}`}
-                title="This seller proved control of the account and passed a live check. It vouches for the account, not this item."
+                title={m.listing.verifiedSellerTitle}
               >
-                &#10003; Verified seller
+                {m.listing.verifiedSeller}
               </a>
             </>
           )}
@@ -143,8 +145,8 @@ function ListingRow({
                   checkable — which is exactly the gap the verification half of
                   this product closes. Presenting it as trust would overstate
                   it. */}
-              <span className="unverified" title="Reported by the marketplace itself; not independently verified">
-                {seller.feedbackScore} ratings, unverified
+              <span className="unverified" title={m.listing.ratingsTitle}>
+                {m.listing.ratingsUnverified(seller.feedbackScore)}
               </span>
             </>
           )}
@@ -153,23 +155,23 @@ function ListingRow({
         <div className={`check-label ${label.verdict}`}>
           <span className="check-head">
             {label.verdict === "checked" ? "✓ " : label.verdict === "caution" ? "! " : ""}
-            {label.headline}
+            {tc(label.headline)}
           </span>
           {/* The verdict, then only what matters: every red flag, or else the main reason. The rest folds away. */}
           <ul>
             {keyPoints.map((p, i) => (
               <li key={i} className={p.tone}>
-                {p.text}
+                {tc(p.text)}
               </li>
             ))}
           </ul>
           {otherPoints.length > 0 && (
             <details className="check-more">
-              <summary>How it was checked</summary>
+              <summary>{m.listing.howChecked}</summary>
               <ul>
                 {otherPoints.map((p, i) => (
                   <li key={i} className={p.tone}>
-                    {p.text}
+                    {tc(p.text)}
                   </li>
                 ))}
               </ul>
@@ -180,12 +182,12 @@ function ListingRow({
           // The price travels inside a server signature, so this link cannot
           // be edited into a cheaper order. See lib/checkout/quote.ts.
           <a className="pay" href={`/checkout?quote=${encodeURIComponent(checkout.token)}`}>
-            Pay with USDC{checkout.usdc && <span className="pay-amount"> · {checkout.usdc}</span>} &rarr;
+            {m.listing.pay}{checkout.usdc && <span className="pay-amount"> · {checkout.usdc}</span>} &rarr;
           </a>
         )}
         {checkout && "reason" in checkout && label.verdict === "checked" && (
           // Unchecked or flagged: the verdict above already says why there's no pay button.
-          <p className="pay-blocked">{checkout.reason}</p>
+          <p className="pay-blocked">{tc(checkout.reason)}</p>
         )}
         {/* The cart keeps a snapshot in this browser and asks for the price again when opened (lib/cart/cart.ts). */}
         <AddToCart
@@ -215,14 +217,14 @@ function ListingRow({
           // buyer judging this seller should see both sides, not just ours.
           <p className="pay-blocked">
             <a href={`/seller/${encodeURIComponent(listing.source)}/${encodeURIComponent(seller.handle)}`}>
-              See the findings and the seller&apos;s response &rarr;
+              {m.listing.findings}
             </a>
           </p>
         )}
       </div>
       <div className="price">
         {formatMoney(total)}
-        <span className="ship">{shipping > 0 ? `incl. shipping` : "free shipping"}</span>
+        <span className="ship">{shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
       </div>
     </article>
   );
@@ -235,6 +237,7 @@ export default async function SearchPage({
 }) {
   const q = (searchParams.q ?? "").trim().slice(0, 120);
   const checkedOnly = searchParams.checked === "1";
+  const { m } = i18n();
   // Public by design: browsers need it to subscribe. Alerts are offered only when it's set.
   const vapidKey = process.env.VAPID_PUBLIC_KEY?.trim() || null;
 
@@ -245,28 +248,28 @@ export default async function SearchPage({
   // against half the marketplaces is exactly the biased comparison this design
   // refuses — so nothing streamed early carries a verdict or a pay button.
   // Every search is an eBay call against the site's daily quota: a script gets a pause, not the quota.
-  const tooMany = q ? await limitedMessage(headers(), RULES.search) : null;
+  const tooMany = q && (await limitedMessage(headers(), RULES.search)) ? m.search.tooMany : null;
   const sources = q && !tooMany ? defaultSources() : [];
   const pending = q && !tooMany ? startSearch(q, sources, { limit: 20 }) : [];
 
   return (
     <main className="container wide">
-      <h1>Compare every marketplace</h1>
-      <p className="lede">One search, every deal checked.</p>
+      <h1>{m.search.title}</h1>
+      <p className="lede">{m.search.lede}</p>
 
       <form className="searchbar" method="GET" action="/search">
         <input
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="What are you looking for?"
-          aria-label="Search all marketplaces"
+          placeholder={m.search.placeholder}
+          aria-label={m.home.searchLabel}
           autoFocus
         />
         {checkedOnly && <input type="hidden" name="checked" value="1" />}
-        <button type="submit">Search</button>
+        <button type="submit">{m.home.searchButton}</button>
       </form>
-      <p className="hint">Nothing about your search is stored.</p>
+      <p className="hint">{m.search.nothingStored}</p>
 
       {tooMany && <p className="notice withheld">{tooMany}</p>}
       {q && !tooMany && (
@@ -280,17 +283,18 @@ export default async function SearchPage({
 
 /** While marketplaces are still answering: what has arrived so far, with no verdicts yet. */
 function SearchProgress({ ids, pending }: { ids: string[]; pending: Promise<SourceResult>[] }) {
+  const { m } = i18n();
   return (
     <section className="progress" aria-live="polite" aria-busy="true">
       <p className="notice">
-        <span className="spinner" aria-hidden="true" /> Searching and checking&hellip;
+        <span className="spinner" aria-hidden="true" /> {m.search.searching}
       </p>
       {ids.map((id, i) => (
         <Suspense
           key={id}
           fallback={
             <p className="progress-source">
-              <span className="chip">{marketLabel(id)}</span> <span className="hint">searching&hellip;</span>
+              <span className="chip">{marketLabel(id)}</span> <span className="hint">{m.search.searchingSource}</span>
             </p>
           }
         >
@@ -304,10 +308,11 @@ function SearchProgress({ ids, pending }: { ids: string[]; pending: Promise<Sour
 async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
   const r = await result;
   if (r.status === "not_configured") return null;
+  const { m } = i18n();
   if (r.status !== "ok") {
     return (
       <p className="progress-source">
-        <span className="chip">{marketLabel(r.source)}</span> <span className="hint">{STATUS_LABEL[r.status] ?? r.status}</span>
+        <span className="chip">{marketLabel(r.source)}</span> <span className="hint">{m.search.status[r.status] ?? r.status}</span>
       </p>
     );
   }
@@ -316,7 +321,7 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
       <p>
         <span className="chip">{marketLabel(r.source)}</span>{" "}
         <span className="hint">
-          {r.listings.length} listing{r.listings.length === 1 ? "" : "s"} &middot; checking&hellip;
+          {m.search.listingsChecking(r.listings.length)}
         </span>
       </p>
       {[...r.listings]
@@ -335,7 +340,7 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
             <div className="body">
               <h3>{l.title}</h3>
               <div className="check-label pending">
-                <span className="check-head">Checking&hellip;</span>
+                <span className="check-head">{m.search.searching}</span>
               </div>
             </div>
             <div className="price">{formatMoney(totalPrice(l))}</div>
@@ -412,6 +417,7 @@ async function SearchResults({
     return token ? { token, usdc: usdcFor(total.amount, total.currency) } : null;
   };
 
+  const { m, tc, lang } = i18n();
   return (
     <>
       {/* Which marketplaces this answer actually rests on. */}
@@ -425,7 +431,7 @@ async function SearchResults({
             }
             title={s.detail ?? ""}
           >
-            {marketLabel(s.source)}: {STATUS_LABEL[s.status] ?? s.status}
+            {marketLabel(s.source)}: {m.search.status[s.status] ?? s.status}
             {s.status === "ok" && ` (${s.count})`}
           </li>
         ))}
@@ -435,51 +441,47 @@ async function SearchResults({
         <p className="notice">
           {/* New and used are compared separately, each against its own
               median — so both are shown when both could be computed. */}
-          {a.median !== undefined && (
-            <>
-              Median price new {formatMoney({ amount: a.median, currency: a.currency! })} across{" "}
-              {a.sampleSize} listings
-            </>
-          )}
-          {a.median !== undefined && a.used && "; "}
-          {a.used && (
-            <>
-              {a.median === undefined ? "Median price used " : "used "}
-              {formatMoney({ amount: a.used.median, currency: a.currency! })} across {a.used.sampleSize} listings
-            </>
+          {m.search.median(
+            [
+              a.median !== undefined ? m.search.newAcross(formatMoney({ amount: a.median, currency: a.currency! }), a.sampleSize ?? 0) : null,
+              a.used ? m.search.usedAcross(formatMoney({ amount: a.used.median, currency: a.currency! }), a.used.sampleSize) : null,
+            ]
+              .filter(Boolean)
+              .join("; "),
           )}
           {/* Real marketplaces and the demo feed are never pooled: say which one the median is from. */}
+          {" "}
           {a.medianScope
-            ? ` ${a.medianScope}`
+            ? translateWhere(a.medianScope.trim(), lang)
             : a.coverage.length > 1
-              ? ` on ${a.coverage.length} marketplaces`
-              : ` on ${a.coverage[0] === "stub" ? "the demo feed" : marketLabel(a.coverage[0])}`}
+              ? m.search.onMarketplaces(a.coverage.length)
+              : m.search.on(a.coverage[0] === "stub" ? m.search.demoFeed : marketLabel(a.coverage[0]))}
           .
           {a.excludedFromComparison.length > 0 && (
             // Says why a cheap listing from these carries no price flag.
-            <> Not price-compared: {a.excludedFromComparison.map(marketLabel).join(", ")}.</>
+            <> {m.search.notCompared(a.excludedFromComparison.map(marketLabel).join(", "))}</>
           )}
         </p>
       ) : (
         // Saying WHY there is no price comparison matters more than hiding
         // its absence. A buyer who thinks a check ran when it did not is
         // worse off than one who knows it did not.
-        <p className="notice withheld">{a?.reason}</p>
+        <p className="notice withheld">{a?.reason && tc(a.reason)}</p>
       )}
 
       {deals.length > 0 && (
         // The deal the shopper came for — restricted to listings that passed.
         <section className="best-deals">
-          <h2>Best checked deal{deals.length > 1 ? "s" : ""}</h2>
+          <h2>{m.search.bestDeals(deals.length)}</h2>
           <ul>
             {deals.map((d) => (
               <li key={d.group}>
                 <span className="deal-price">{formatMoney(d.total)}</span>{" "}
                 <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
-                <span className="hint">{d.group === "used" ? "used" : "new"}</span>
+                <span className="hint">{d.group === "used" ? m.search.usedWord : m.search.newWord}</span>
                 <br />
                 <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
-                {describeSaving(d) && <span className="saving"> &mdash; {describeSaving(d)}</span>}
+                {describeSaving(d) && <span className="saving"> &mdash; {tc(describeSaving(d)!)}</span>}
                 {vapidKey && <AlertButton query={q} group={d.group} current={d.total} vapidKey={vapidKey} />}
               </li>
             ))}
@@ -490,24 +492,24 @@ async function SearchResults({
       {result.listings.length > 0 && (
         <p className="hint label-explainer">
           {/* The full definition is in the API (CHECKED_MEANS); one line here. */}
-          ✓ Checked: priced against identical listings, no red flags. Not a guarantee.{" "}
+          {m.search.checkedLine}{" "}
           {checkedOnly ? (
-            <a href={`/search?q=${encodeURIComponent(q)}`}>Show all {result.listings.length} listings</a>
+            <a href={`/search?q=${encodeURIComponent(q)}`}>{m.search.showAll(result.listings.length)}</a>
           ) : (
             checkedCount > 0 && (
-              <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>Show only the {checkedCount} checked</a>
+              <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>{m.search.showChecked(checkedCount)}</a>
             )
           )}
         </p>
       )}
       {checkoutReady && rate && result.listings.length > 0 && (
         <p className="hint">
-          USDC at {rate.display} USD/EUR ({rate.source}), incl. {formatFeeRate(feeBps)} fee.
+          {m.search.usdcRate(rate.display, rate.source, formatFeeRate(feeBps))}
         </p>
       )}
 
       {result.listings.length === 0 ? (
-        <p className="hint">No listings found for &ldquo;{q}&rdquo;.</p>
+        <p className="hint">{m.search.noListings(q)}</p>
       ) : (
         <>
           {shown.map((l) => (
@@ -523,7 +525,7 @@ async function SearchResults({
           ))}
           {checkedOnly && hiddenCount > 0 && (
             <p className="hint">
-              {hiddenCount} listing{hiddenCount === 1 ? "" : "s"} hidden because {hiddenCount === 1 ? "it isn't" : "they aren't"} SigPath-checked.
+              {m.search.hidden(hiddenCount)}
             </p>
           )}
         </>
@@ -535,8 +537,8 @@ async function SearchResults({
           implying otherwise would overstate the comparison. */}
       {result.linkOut.length > 0 && (
         <section className="linkout">
-          <h2>Also search directly</h2>
-          <p className="hint">Not part of the comparison.</p>
+          <h2>{m.search.alsoSearch}</h2>
+          <p className="hint">{m.search.notInComparison}</p>
           <ul>
             {result.linkOut.map((t) => (
               <li key={t.id}>
@@ -550,8 +552,7 @@ async function SearchResults({
           {result.linkOut.some((t) => t.affiliate) && (
             // Amazon requires this disclosure wherever an Associates link appears.
             <p className="hint affiliate-note">
-              As an Amazon Associate, SigPath earns from qualifying purchases (Als Amazon-Partner verdient SigPath an
-              qualifizierten Verkäufen).
+              {m.search.amazonNote}
             </p>
           )}
         </section>

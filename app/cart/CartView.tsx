@@ -5,16 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { canPayNow, checkoutCandidates, itemTotal, priceMoved, removeItem, setBought, totals, type CartItem, type Freshness } from "@/lib/cart/cart";
 import { formatMoney } from "@/lib/marketplace/types";
 import { readCart, useCart, writeCart } from "../components/cart-store";
+import { useCheckText, useMessages } from "../components/I18n";
 
 const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", aliexpress: "AliExpress", stub: "Demo", feed: "Partner feed" };
-const VERDICT: Record<CartItem["verdict"], string> = {
-  checked: "✓ SigPath-checked when you added it",
-  caution: "! Look closer: flagged when you added it",
-  unchecked: "Not price-checked when you added it",
-};
-
-const shipLabel = (s?: { amount: number }) => (!s ? "shipping not included" : s.amount > 0 ? "incl. shipping" : "free shipping");
-
 export default function CartView({
   removeIcon,
   checkoutOn = false,
@@ -26,6 +19,9 @@ export default function CartView({
   maxPerPayment?: number;
 }) {
   const cart = useCart();
+  const m = useMessages();
+  const tc = useCheckText();
+  const shipLabel = (s?: { amount: number }) => (!s ? m.cart.shippingNotIncluded : s.amount > 0 ? m.listing.inclShipping : m.listing.freeShipping);
   const [fresh, setFresh] = useState<Record<string, Freshness>>({});
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
@@ -47,10 +43,10 @@ export default function CartView({
       .then(async (r) => {
         const body = await r.json().catch(() => ({}));
         if (!live) return;
-        if (!r.ok) return setCheckError(body.error ?? "The prices couldn't be checked just now.");
+        if (!r.ok) return setCheckError(body.error ?? m.cart.checkFailed);
         setFresh((f) => ({ ...f, ...(body.prices ?? {}) }));
       })
-      .catch(() => live && setCheckError("The prices couldn't be checked just now."))
+      .catch(() => live && setCheckError(m.cart.checkFailed))
       .finally(() => live && setChecking(false));
     return () => {
       live = false;
@@ -58,14 +54,14 @@ export default function CartView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keys]);
 
-  if (cart === null) return <p className="hint">Opening your cart&hellip;</p>;
+  if (cart === null) return <p className="hint">{m.cart.opening}</p>;
   if (!cart.length) {
     return (
       <section className="cart-empty">
-        <p>Your cart is empty.</p>
+        <p>{m.cart.empty}</p>
         <p>
           <Link className="button" href="/search">
-            Find a deal
+            {m.cart.findDeal}
           </Link>
         </p>
       </section>
@@ -80,7 +76,7 @@ export default function CartView({
   const bought = cart.filter((c) => c.bought);
   return (
     <>
-      {checking && <p className="hint">Checking today&apos;s prices&hellip;</p>}
+      {checking && <p className="hint">{m.cart.checking}</p>}
       {checkError && <p className="notice withheld">{checkError}</p>}
       <ul className="cart-list">
         {cart.map((c) => {
@@ -105,38 +101,38 @@ export default function CartView({
                   </a>
                 </h3>
                 <p className="meta">
-                  <span className="chip">{MARKET[c.source] ?? c.source}</span> {c.condition} &middot; {c.seller}
+                  <span className="chip">{MARKET[c.source] ?? c.source}</span> {m.listing.conditions[c.condition] ?? c.condition} &middot; {c.seller}
                 </p>
-                <p className={`cart-verdict ${c.verdict}`}>{VERDICT[c.verdict]}</p>
-                {f?.status === "gone" && <p className="notice withheld">This listing has ended on {MARKET[c.source] ?? c.source}.</p>}
-                {f?.status === "sold_out" && <p className="notice withheld">Sold out right now.</p>}
+                <p className={`cart-verdict ${c.verdict}`}>{m.cart.verdictWhenAdded[c.verdict]}</p>
+                {f?.status === "gone" && <p className="notice withheld">{m.cart.ended(MARKET[c.source] ?? c.source)}</p>}
+                {f?.status === "sold_out" && <p className="notice withheld">{m.cart.soldOut}</p>}
                 {moved && now && (
                   <p className="notice withheld">
-                    The price changed: {formatMoney(was)} when you added it, {formatMoney(now)} now. Check it again before you buy.
+                    {m.cart.priceChanged(formatMoney(was), formatMoney(now))}
                   </p>
                 )}
-                {f?.status === "unchecked" && <p className="hint">{f.reason}</p>}
+                {f?.status === "unchecked" && <p className="hint">{tc(f.reason)}</p>}
                 <div className="cart-actions">
                   {canPayNow(c, f) && c.quote ? (
                     <a className="pay" href={`/checkout?quote=${encodeURIComponent(c.quote.token)}`}>
-                      Pay with USDC{c.quote.usdc && <span className="pay-amount"> · {c.quote.usdc}</span>} &rarr;
+                      {m.listing.pay}{c.quote.usdc && <span className="pay-amount"> · {c.quote.usdc}</span>} &rarr;
                     </a>
                   ) : (
                     c.verdict === "checked" &&
                     f?.status !== "gone" && (
                       <Link className="button ghost" href={`/search?q=${encodeURIComponent(c.title.slice(0, 120))}#l-${encodeURIComponent(c.key)}`}>
-                        Check it again
+                        {m.cart.checkAgain}
                       </Link>
                     )
                   )}
                   {f?.status !== "gone" && c.source !== "stub" && (
                     <a className="button ghost" href={c.url} target="_blank" rel="noopener noreferrer">
-                      Buy on {MARKET[c.source] ?? c.source} &rarr;
+                      {m.cart.buyOn(MARKET[c.source] ?? c.source)}
                     </a>
                   )}
                   <button type="button" className="cart-remove" onClick={() => writeCart(removeItem(readCart(), c.key))}>
                     {removeIcon}
-                    Remove
+                    {m.cart.remove}
                   </button>
                 </div>
               </div>
@@ -148,32 +144,32 @@ export default function CartView({
           );
         })}
       </ul>
-      <section className="cart-summary" aria-label="Cart total">
+      <section className="cart-summary" aria-label={m.cart.title}>
         <p>
           <strong>
-            {cart.length} item{cart.length === 1 ? "" : "s"}:
+            {m.cart.items(cart.length)}
           </strong>{" "}
-          {sums.length ? sums.map(formatMoney).join(" + ") : "nothing still for sale"}
+          {sums.length ? sums.map(formatMoney).join(" + ") : m.cart.nothingForSale}
         </p>
         {viaSigPath.length > 0 && (
           <p>
             <Link className="button checkout-cta" href="/checkout/cart">
-              Proceed to checkout &middot; {Math.min(viaSigPath.length, maxPerPayment)} item{Math.min(viaSigPath.length, maxPerPayment) === 1 ? "" : "s"} in USDC &rarr;
+              {m.cart.proceed(Math.min(viaSigPath.length, maxPerPayment))}
             </Link>
           </p>
         )}
         {viaSigPath.length > maxPerPayment && (
-          <p className="hint">Up to {maxPerPayment} items per payment; the rest go in a second one.</p>
+          <p className="hint">{m.cart.perPayment(maxPerPayment)}</p>
         )}
         <button type="button" className="button ghost" onClick={() => writeCart([])}>
-          Empty the cart
+          {m.cart.emptyCart}
         </button>
       </section>
 
       {onEbay.length > 0 && (
         // eBay doesn't let other sites fill a buyer's eBay basket, so: one listing at a time, ticked off here.
-        <section className="cart-summary ebay-checklist" aria-label="Buy on eBay">
-          <h2>{viaSigPath.length ? "Buy the rest on eBay" : "Buy on eBay"}</h2>
+        <section className="cart-summary ebay-checklist" aria-label={m.cart.buyOnEbay}>
+          <h2>{viaSigPath.length ? m.cart.buyRest : m.cart.buyOnEbay}</h2>
           <ol>
             {onEbay.map((c) => (
               <li key={c.key} className={c.bought ? "done" : ""}>
@@ -182,7 +178,7 @@ export default function CartView({
                   <span>{c.title}</span>
                 </label>
                 <a className="button ghost" href={c.url} target="_blank" rel="noopener noreferrer">
-                  Open on eBay &rarr;
+                  {m.cart.openOnEbay}
                 </a>
               </li>
             ))}
@@ -194,7 +190,7 @@ export default function CartView({
               onClick={() => writeCart(readCart().filter((c) => !c.bought))}
             >
               {removeIcon}
-              Remove the {bought.length} bought
+              {m.cart.removeBought(bought.length)}
             </button>
           )}
         </section>

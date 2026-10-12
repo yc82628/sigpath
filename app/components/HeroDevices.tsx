@@ -11,9 +11,9 @@ import FluidTrail from "./FluidTrail";
  * in a picture.
  */
 
-export default function HeroDevices() {
+export default function HeroDevices({ label, caption }: { label: string; caption: string }) {
   return (
-    <figure className="devices" aria-label="SigPath on a laptop and a phone: every listing gets one verdict, with the reasons">
+    <figure className="devices" aria-label={label}>
       <div className="laptop">
         <div className="laptop-lid">
           <div className="laptop-screen">
@@ -29,7 +29,7 @@ export default function HeroDevices() {
           <img className="phone-scroll" src="/home/phone.webp" width={480} height={3200} alt="" decoding="async" />
         </div>
       </div>
-      <figcaption className="devices-caption">Demo listings shown.</figcaption>
+      <figcaption className="devices-caption">{caption}</figcaption>
     </figure>
   );
 }

@@ -2,7 +2,7 @@
 
 # SigPath
 
-**Deal Go – Scam Towed.** Every deal compared. Every deal checked.
+**Deal Go – Scam Towed.** Every deal compared and checked.
 
 SigPath searches live marketplaces at once and shows the best price, with
 shipping included, and checks a price from any other shop (Amazon, AliExpress,
@@ -125,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 552 tests, as of 2026-10-12
+npm test                                   # 556 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -141,7 +141,7 @@ wallet to fund from faucet.circle.com.
 
 The rest of this README is the engineering detail:
 
-- [The cart](#the-cart--no-account-prices-checked-again) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [The cart](#the-cart--no-account-prices-checked-again) · [Deutsch / English](#deutsch--english) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
 - [Check a price: Amazon, AliExpress or any shop](#check-a-price--amazon-aliexpress-or-any-shop) · [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)
 - [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
@@ -599,6 +599,13 @@ commission on orders through its links.
   has run out isn't re-signed: the item is searched and checked again exactly
   as the search page does (`lib/cart/requote.ts`), and only if it still passes
   does it get a new quote.
+- **The invoice** (both checkouts): every item with its price including
+  shipping, its USDC amount, SigPath's fee and the total, the conversion rate
+  and its source, the date, and after paying each item's order number and a
+  print/PDF button. Computed on the server by the same code that builds the
+  payment (`invoiceFor`, sharing `verifyQuotes` and `priceListings` with it),
+  so it can't show a number the payment wouldn't charge. Labelled as a payment
+  summary, not a VAT invoice. On a phone it stacks into one block per item.
 - **Everything else, on eBay:** eBay doesn't let other sites fill a buyer's
   eBay basket, so the rest of the cart is a "Buy on eBay" checklist: open each
   listing, tick it off, remove what's bought.
@@ -606,6 +613,24 @@ commission on orders through its links.
   Measured end to end on a production build with live eBay: a real listing
   and a demo listing added, the eBay price checked again on opening, the demo
   one offered USDC checkout on its still-valid quote.
+
+## Deutsch / English
+
+A **DE / EN** switch in the header (`lib/i18n`). Translated: the header and
+footer, home, search (every verdict and every check reason), cart, both
+checkouts and the invoice, price check, How it works, alerts and Ai-chan, who
+is told to answer in German on German pages. Seller, business, supplier,
+developer and legal pages stay English for now.
+
+- **One cookie,** `sigpath-lang`, set only when the switch is pressed, holding
+  only `de` or `en` (the privacy page says so). Pages render in the chosen
+  language from the first byte; English otherwise.
+- **The strings** are in `lib/i18n/messages.ts`, with the German typed as the
+  English's shape: a missing German string is a build error, not a blank.
+- **The check reasons** are English sentences built by the checks;
+  `lib/i18n/checks.ts` matches each sentence shape and writes it in German, and
+  never guesses at one it doesn't know. `tests/i18n.test.ts` runs real
+  searches through the real checks and fails on any sentence without German.
 
 ## Price-drop alerts — no account, checked deals only
 
