@@ -1108,3 +1108,84 @@ a.chat-card-title:hover { text-decoration: underline; }
 .legal h2 { font-size: 1.15rem; margin: 28px 0 8px; }
 .legal p, .legal li { line-height: 1.6; }
 .legal ul { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+
+/* The privacy policy: a picture summary, then each topic folded. */
+.legal ul.privacy-glance {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  margin: 20px 0 8px; padding: 0; list-style: none;
+}
+.privacy-glance li {
+  display: flex; flex-direction: column; gap: 4px; padding: 16px; line-height: 1.35;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.privacy-glance li .pop-icon { margin-bottom: 4px; }
+.privacy-glance strong { font-size: 1rem; }
+.privacy-glance span { color: var(--muted); font-size: 0.88rem; }
+.legal h2.legal-full { margin-top: 36px; font-size: 1rem; color: var(--muted); }
+.legal-part { border-bottom: 1px solid var(--border); }
+.legal-part summary {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 14px 2px; font-weight: 700; cursor: pointer; list-style: none;
+}
+.legal-part summary::-webkit-details-marker { display: none; }
+.legal-part summary::after { content: "+"; color: var(--brand); font-size: 1.3rem; line-height: 1; }
+.legal-part[open] summary::after { content: "–"; }
+.legal-part > div { padding: 0 2px 14px; font-size: 0.95rem; }
+.legal-part > div > :first-child { margin-top: 0; }
+
+/* The extension's quick start: three steps, a drawing of it at work, three facts. */
+.quick-start .lede { margin-bottom: 22px; }
+.qs-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 22px; padding: 0; list-style: none; }
+.qs-steps li {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px 16px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.qs-steps strong { font-size: 1.05rem; }
+.qs-steps span:last-child { color: var(--muted); font-size: 0.88rem; line-height: 1.35; }
+.qs-num {
+  position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand); font-size: 0.8rem; font-weight: 800;
+}
+.qs-browser { margin: 0 0 22px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); box-shadow: var(--shadow-lift); }
+.qs-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.qs-dots { display: flex; gap: 5px; }
+.qs-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+.qs-url { flex: 1; padding: 3px 10px; border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 0.78rem; }
+.qs-ext { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--ok); color: #fff; font-size: 0.75rem; font-weight: 800; }
+.qs-page { position: relative; min-height: 250px; padding: 18px; }
+.qs-product { display: flex; gap: 16px; max-width: 60%; }
+.qs-photo { flex: none; display: grid; place-items: center; width: 110px; height: 110px; border-radius: 10px; background: var(--surface-2); }
+.qs-lines { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.qs-lines b { font-size: 0.95rem; }
+.qs-price { font-size: 1.2rem; font-weight: 800; }
+.qs-line { display: block; height: 8px; width: 160px; max-width: 100%; border-radius: 4px; background: var(--surface-2); }
+.qs-line.short { width: 100px; }
+.qs-buy { align-self: flex-start; padding: 5px 12px; border-radius: 999px; background: #ffd814; color: #0f1111; font-size: 0.78rem; font-weight: 700; }
+.qs-panel {
+  position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; width: 230px; padding: 12px 14px;
+  border-radius: 14px; background: var(--ink); color: #f4f3fb; font-size: 0.82rem; line-height: 1.35;
+  box-shadow: 0 12px 28px rgba(22, 19, 43, 0.3); border: 1px solid var(--ink-line);
+  animation: qs-pop 0.5s ease-out 0.3s both;
+}
+.qs-brand { font-weight: 800; background: var(--gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.qs-pill { align-self: flex-start; padding: 1px 9px; border-radius: 999px; background: #e2f4e8; color: #22703d; font-weight: 700; font-size: 0.75rem; }
+.qs-muted { color: #b9b5d6; font-size: 0.76rem; }
+@keyframes qs-pop { from { opacity: 0; transform: translateY(12px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .qs-panel { animation: none; } }
+.qs-browser figcaption { padding: 10px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+.qs-facts { display: flex; flex-direction: column; gap: 10px; margin: 0 0 26px; padding: 0; list-style: none; }
+.qs-facts li { display: flex; align-items: flex-start; gap: 12px; line-height: 1.45; }
+.qs-facts .pop-icon { flex: none; margin-top: 1px; }
+.qs-chip { display: inline-block; padding: 1px 10px; border-radius: 999px; background: #6a2fe0; color: #fff; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+.qs-install { padding: 18px 20px; border-radius: var(--radius); background: var(--surface-2); }
+.qs-install h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.qs-install ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 640px) {
+  .qs-steps { grid-template-columns: 1fr; }
+  .qs-steps li { flex-direction: row; align-items: center; flex-wrap: wrap; column-gap: 12px; }
+  .qs-steps span:last-child { flex-basis: 100%; }
+  .qs-product { max-width: none; }
+  .qs-photo { width: 76px; height: 76px; }
+  .qs-page { min-height: 0; padding-bottom: 14px; }
+  .qs-panel { position: static; width: auto; margin-top: 14px; }
+}

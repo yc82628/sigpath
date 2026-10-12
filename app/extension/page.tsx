@@ -1,75 +1,123 @@
 import Link from "next/link";
+import PopIcon from "../components/PopIcon";
+import type { IconName } from "../components/icon-paths";
 
 /**
- * app/extension — the SigPath browser extension (extension/): what it does,
- * what it shares, and how to install it. The extension opens this page when
- * it is first installed.
+ * app/extension — a quick start for the SigPath browser extension (extension/):
+ * three steps and a picture of it at work, rather than paragraphs. The details
+ * are in the privacy notice. The extension opens this page when installed.
  */
 
 export const metadata = { title: "The SigPath extension — SigPath" };
 
+const STEPS: { icon: IconName; tone: "purple" | "blue" | "green"; title: string; line: string }[] = [
+  { icon: "plus", tone: "purple", title: "Add it", line: "To Chrome or Edge, once." },
+  { icon: "shopping-cart-simple", tone: "blue", title: "Shop as usual", line: "Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
+  { icon: "seal-check", tone: "green", title: "See the check", line: "Price vs eBay, red flags, the best deal." },
+];
+
+/** The extension at work on a product page: a drawing, not a screenshot of any real listing. */
+function BrowserPicture() {
+  return (
+    <figure className="qs-browser" aria-label="The SigPath panel on an Amazon product page">
+      <div className="qs-bar" aria-hidden="true">
+        <span className="qs-dots">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span className="qs-url">amazon.de/…/dp/B0…</span>
+        <span className="qs-ext" title="The extension's icon shows the verdict">
+          ✓
+        </span>
+      </div>
+      <div className="qs-page" aria-hidden="true">
+        <div className="qs-product">
+          <div className="qs-photo">
+            <PopIcon name="headphones" tone="blue" size={56} />
+          </div>
+          <div className="qs-lines">
+            <b>Wireless earbuds, 2nd gen</b>
+            <span className="qs-price">229,00 €</span>
+            <span className="qs-line" />
+            <span className="qs-line short" />
+            <span className="qs-buy">Add to basket</span>
+          </div>
+        </div>
+        <div className="qs-panel">
+          <span className="qs-brand">SigPath</span>
+          <span className="qs-pill">✓ Checked</span>
+          <span>
+            <b>4 % below</b> eBay&apos;s typical price
+          </span>
+          <span className="qs-muted">Best checked eBay deal: 205 €</span>
+          <span className="qs-muted">Sold by: Amazon</span>
+        </div>
+      </div>
+      <figcaption>On every product page: the check appears at the bottom right.</figcaption>
+    </figure>
+  );
+}
+
 export default function ExtensionPage() {
   return (
-    <main className="container">
+    <main className="container quick-start">
       <h1>The SigPath extension</h1>
-      <p className="lede">
-        SigPath&apos;s check on the product page you&apos;re looking at: Amazon, AliExpress, OTTO, MediaMarkt and Saturn by
-        itself, any other shop from the extension&apos;s menu.
-      </p>
+      <p className="lede">SigPath&apos;s check, right on the shop&apos;s page.</p>
 
-      <section className="guarantees">
-        <h2>What it does</h2>
-        <ul>
-          <li>
-            <strong>On a product page,</strong> a small SigPath panel at the bottom right: the price against eBay&apos;s
-            typical price for the same item, SigPath&apos;s warnings, the best checked eBay deal, and on Amazon who sells
-            it.
+      <ol className="qs-steps">
+        {STEPS.map((s, i) => (
+          <li key={s.title}>
+            <span className="qs-num">{i + 1}</span>
+            <PopIcon name={s.icon} tone={s.tone} size={30} />
+            <strong>{s.title}</strong>
+            <span>{s.line}</span>
           </li>
-          <li>
-            <strong>On Amazon&apos;s search results,</strong> a &ldquo;Check with SigPath&rdquo; button under every result&apos;s
-            price, opening SigPath&apos;s check for it.
-          </li>
-          <li>
-            <strong>On any other shop,</strong> click the extension&apos;s icon and &ldquo;Check this page&rdquo;. The icon
-            shows the verdict: ✓ checked, ! caution, ? not checked.
-          </li>
-          <li>
-            <strong>On Amazon.de,</strong> if you turn on &ldquo;Share Amazon.de prices I see&rdquo;, the products and
-            prices you see go into SigPath&apos;s search as &ldquo;seen on Amazon&rdquo;, so other shoppers can compare them. The
-            product and its price only, never anything about you.
-          </li>
-        </ul>
-      </section>
+        ))}
+      </ol>
 
-      <section className="guarantees">
-        <h2>What it shares, and the switch</h2>
-        <p>
-          The switch is in the extension&apos;s menu (its icon in the toolbar), and it&apos;s off until you turn it on.
-          Off, nothing is shared, and the check still works. The extension reads only the shop page you opened, and
-          nothing about you is sent with it. The full detail is in the <Link href="/privacy#extension">privacy notice</Link>.
-        </p>
-      </section>
+      <BrowserPicture />
 
-      <section className="guarantees">
-        <h2>Install it (Chrome or Edge)</h2>
+      <ul className="qs-facts">
+        <li>
+          <PopIcon name="magnifying-glass" tone="purple" size={22} />
+          <span>
+            <strong>On Amazon&apos;s results:</strong> <span className="qs-chip">Check with SigPath →</span> under every price.
+          </span>
+        </li>
+        <li>
+          <PopIcon name="storefront" tone="blue" size={22} />
+          <span>
+            <strong>Any other shop:</strong> click the icon, then &ldquo;Check this page&rdquo;.
+          </span>
+        </li>
+        <li>
+          <PopIcon name="lock-key" tone="green" size={22} />
+          <span>
+            <strong>Your choice:</strong> sharing Amazon prices is off until you turn it on.{" "}
+            <Link href="/privacy#extension">What&apos;s shared</Link>
+          </span>
+        </li>
+      </ul>
+
+      <section className="qs-install" id="install">
+        <h2>Install it</h2>
+        <p className="hint">In the Chrome Web Store soon. Until then:</p>
         <ol>
           <li>
-            Download SigPath&apos;s code from{" "}
+            Download SigPath from{" "}
             <a href="https://github.com/yc82628/sigpath" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>{" "}
-            (Code → Download ZIP) and unzip it.
+            (Code → Download ZIP), unzip it.
           </li>
           <li>
-            Open <code>chrome://extensions</code> (Edge: <code>edge://extensions</code>) and switch on Developer mode.
+            Open <code>chrome://extensions</code>, turn on Developer mode.
           </li>
           <li>
-            Click &ldquo;Load unpacked&rdquo; and choose the <code>extension</code> folder.
+            &ldquo;Load unpacked&rdquo; → the <code>extension</code> folder.
           </li>
-          <li>Open any product on Amazon: the SigPath panel appears at the bottom right. Already had it installed? Click
-            its reload arrow in the extensions page, then reload the Amazon page.</li>
         </ol>
-        <p className="hint">It will be in the Chrome Web Store and Edge Add-ons once it&apos;s been reviewed there.</p>
       </section>
     </main>
   );
