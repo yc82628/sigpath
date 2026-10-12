@@ -13,7 +13,7 @@ export default function SuppliersPage() {
     <main className="container">
       <h1>Check a supplier</h1>
       <p className="lede">
-        Buying stock from a supplier or reseller? Check they are who they say they are before you pay. No account needed.
+        Buying stock? Check a supplier is who they say they are before you pay.
       </p>
 
       <section className="guarantees">

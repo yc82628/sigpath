@@ -78,8 +78,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/privacy">Privacy</Link>
             </p>
             <p className="hint">
-              No account, no tracking cookies{visitCounterOn() ? "; visits are only counted" : ""}. &ldquo;Checked&rdquo; means our price and seller checks passed, not a guarantee the
-              item is genuine.
+              No account, no tracking cookies{visitCounterOn() ? "; visits are counted" : ""}. &ldquo;Checked&rdquo; is not a
+              guarantee an item is genuine.
             </p>
             {aliexpressAffiliate() && (
               <p className="hint">SigPath may earn a commission when you buy on AliExpress through its links.</p>

@@ -21,13 +21,12 @@ export default function VerifyPage() {
     <main className="container">
       <h1>Become a verified seller</h1>
       <p className="lede">
-        {real.length ? `Sell on ${real.join(" or ")}? ` : ""}Prove the account is yours and that a real person runs it, and your
-        listings show a <strong>Verified seller</strong> badge on every SigPath search.
+        {real.length ? `Sell on ${real.join(" or ")}? ` : ""}Prove the account is yours and earn a <strong>Verified seller</strong>{" "}
+        badge on every SigPath search.
       </p>
 
       <p className="hint">
-        Run a registered business? After verifying, <Link href="/seller/business">verify your business</Link> too:
-        your VAT number, your website, and all your accounts under one profile.
+        A registered business? <Link href="/seller/business">Verify your business</Link> too.
       </p>
 
       <section className="guarantees">

@@ -101,7 +101,7 @@ export default function CartView({ removeIcon }: { removeIcon?: React.ReactNode 
                     The price changed: {formatMoney(was)} when you added it, {formatMoney(now)} now. Check it again before you buy.
                   </p>
                 )}
-                {f?.status === "unchecked" && <p className="hint">{f.reason} The price shown is from when you added it.</p>}
+                {f?.status === "unchecked" && <p className="hint">{f.reason}</p>}
                 <div className="cart-actions">
                   {canPayNow(c, f) && c.quote ? (
                     <a className="pay" href={`/checkout?quote=${encodeURIComponent(c.quote.token)}`}>
@@ -141,10 +141,7 @@ export default function CartView({ removeIcon }: { removeIcon?: React.ReactNode 
           </strong>{" "}
           {sums.length ? sums.map(formatMoney).join(" + ") : "nothing still for sale"}
         </p>
-        <p className="hint">
-          Each item is bought from its own seller, so each is paid on its own: on the marketplace, or with USDC through
-          SigPath&apos;s escrow where the item was SigPath-checked. Prices are checked again every time you open the cart.
-        </p>
+        <p className="hint">Each item is paid for separately, as each seller ships on their own.</p>
         <button type="button" className="button ghost" onClick={() => writeCart([])}>
           Empty the cart
         </button>

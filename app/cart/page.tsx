@@ -10,10 +10,7 @@ export default function CartPage() {
         <PopIcon name="shopping-cart-simple" tone="purple" size={32} />
         Your cart
       </h1>
-      <p className="lede">
-        Kept in this browser only: no account, and SigPath doesn&apos;t store what&apos;s in it. Each time you open it,
-        SigPath asks the marketplace for today&apos;s price.
-      </p>
+      <p className="lede">Saved in this browser only. Prices are checked again each time you open it.</p>
       <CartView removeIcon={<PopIcon name="trash" tone="purple" size={18} />} />
     </main>
   );

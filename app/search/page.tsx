@@ -14,7 +14,7 @@ import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
 import { BusinessLog, businessIndex, verifiedPhotoFlags } from "@/lib/sellers/business";
 import { listingKey, sellerKey } from "@/lib/marketplace/types";
-import { CHECKED_MEANS, describeSaving, labelSearch, type BusinessBadge, type CheckLabel } from "@/lib/marketplace/label";
+import { describeSaving, labelSearch, type BusinessBadge, type CheckLabel } from "@/lib/marketplace/label";
 import AlertButton from "../components/AlertButton";
 import AddToCart from "../components/AddToCart";
 import PopIcon from "../components/PopIcon";
@@ -81,6 +81,9 @@ function ListingRow({
   const total = totalPrice(listing);
   const shipping = listing.shipping?.amount ?? 0;
   const seller = listing.seller;
+  const warns = label.points.filter((p) => p.tone === "warn");
+  const keyPoints = warns.length ? warns : label.points.slice(0, 1);
+  const otherPoints = label.points.filter((p) => !keyPoints.includes(p));
 
   return (
     <article className="listing" id={`l-${listingKey(listing)}`}>
@@ -152,13 +155,26 @@ function ListingRow({
             {label.verdict === "checked" ? "✓ " : label.verdict === "caution" ? "! " : ""}
             {label.headline}
           </span>
+          {/* The verdict, then only what matters: every red flag, or else the main reason. The rest folds away. */}
           <ul>
-            {label.points.map((p, i) => (
+            {keyPoints.map((p, i) => (
               <li key={i} className={p.tone}>
                 {p.text}
               </li>
             ))}
           </ul>
+          {otherPoints.length > 0 && (
+            <details className="check-more">
+              <summary>How it was checked</summary>
+              <ul>
+                {otherPoints.map((p, i) => (
+                  <li key={i} className={p.tone}>
+                    {p.text}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
         {checkout && "token" in checkout && (
           // The price travels inside a server signature, so this link cannot
@@ -167,12 +183,9 @@ function ListingRow({
             Pay with USDC{checkout.usdc && <span className="pay-amount"> · {checkout.usdc}</span>} &rarr;
           </a>
         )}
-        {checkout && "reason" in checkout && (
-          // The label above already says why a listing isn't checked or what
-          // was flagged; repeating it here would say the same thing twice.
-          <p className="pay-blocked">
-            {label.verdict === "checked" ? checkout.reason : "SigPath checkout is only offered on SigPath-checked listings."}
-          </p>
+        {checkout && "reason" in checkout && label.verdict === "checked" && (
+          // Unchecked or flagged: the verdict above already says why there's no pay button.
+          <p className="pay-blocked">{checkout.reason}</p>
         )}
         {/* The cart keeps a snapshot in this browser and asks for the price again when opened (lib/cart/cart.ts). */}
         <AddToCart
@@ -239,10 +252,7 @@ export default async function SearchPage({
   return (
     <main className="container wide">
       <h1>Compare every marketplace</h1>
-      <p className="lede">
-        One search across several marketplaces &mdash; and the checks no single
-        marketplace can run on itself.
-      </p>
+      <p className="lede">One search, every deal checked.</p>
 
       <form className="searchbar" method="GET" action="/search">
         <input
@@ -256,9 +266,7 @@ export default async function SearchPage({
         {checkedOnly && <input type="hidden" name="checked" value="1" />}
         <button type="submit">Search</button>
       </form>
-      <p className="hint">
-        No account, no sign-in, nothing stored about this search{vapidKey ? " — unless you turn on a price alert" : ""}.
-      </p>
+      <p className="hint">Nothing about your search is stored.</p>
 
       {tooMany && <p className="notice withheld">{tooMany}</p>}
       {q && !tooMany && (
@@ -275,8 +283,7 @@ function SearchProgress({ ids, pending }: { ids: string[]; pending: Promise<Sour
   return (
     <section className="progress" aria-live="polite" aria-busy="true">
       <p className="notice">
-        <span className="spinner" aria-hidden="true" /> Searching {ids.length} marketplaces. Listings appear as each one
-        answers; SigPath checks them once they&apos;re all in.
+        <span className="spinner" aria-hidden="true" /> Searching and checking&hellip;
       </p>
       {ids.map((id, i) => (
         <Suspense
@@ -296,6 +303,7 @@ function SearchProgress({ ids, pending }: { ids: string[]; pending: Promise<Sour
 
 async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
   const r = await result;
+  if (r.status === "not_configured") return null;
   if (r.status !== "ok") {
     return (
       <p className="progress-source">
@@ -408,7 +416,8 @@ async function SearchResults({
     <>
       {/* Which marketplaces this answer actually rests on. */}
       <ul className="coverage">
-        {result.sources.map((s) => (
+        {/* Only marketplaces that were searched: a list of what isn't connected yet is noise. */}
+        {result.sources.filter((s) => s.status !== "not_configured").map((s) => (
           <li
             key={s.source}
             className={
@@ -446,12 +455,9 @@ async function SearchResults({
               ? ` on ${a.coverage.length} marketplaces`
               : ` on ${a.coverage[0] === "stub" ? "the demo feed" : marketLabel(a.coverage[0])}`}
           .
-          {a.notConfigured.length > 0 && (
-            <> Not searched yet: {a.notConfigured.map(marketLabel).join(", ")}.</>
-          )}
           {a.excludedFromComparison.length > 0 && (
             // Says why a cheap listing from these carries no price flag.
-            <> Shown but not price-compared: {a.excludedFromComparison.map(marketLabel).join(", ")} (handmade and vintage goods are not comparable with retail).</>
+            <> Not price-compared: {a.excludedFromComparison.map(marketLabel).join(", ")}.</>
           )}
         </p>
       ) : (
@@ -483,7 +489,8 @@ async function SearchResults({
 
       {result.listings.length > 0 && (
         <p className="hint label-explainer">
-          {CHECKED_MEANS}{" "}
+          {/* The full definition is in the API (CHECKED_MEANS); one line here. */}
+          ✓ Checked: priced against identical listings, no red flags. Not a guarantee.{" "}
           {checkedOnly ? (
             <a href={`/search?q=${encodeURIComponent(q)}`}>Show all {result.listings.length} listings</a>
           ) : (
@@ -495,8 +502,7 @@ async function SearchResults({
       )}
       {checkoutReady && rate && result.listings.length > 0 && (
         <p className="hint">
-          Pay buttons show the total in USDC at {rate.display} USD per EUR ({rate.source}), including SigPath&apos;s{" "}
-          {formatFeeRate(feeBps)} service fee.
+          USDC at {rate.display} USD/EUR ({rate.source}), incl. {formatFeeRate(feeBps)} fee.
         </p>
       )}
 
@@ -530,10 +536,7 @@ async function SearchResults({
       {result.linkOut.length > 0 && (
         <section className="linkout">
           <h2>Also search directly</h2>
-          <p className="hint">
-            SigPath can't query these, so their prices are not part of the
-            comparison above.
-          </p>
+          <p className="hint">Not part of the comparison.</p>
           <ul>
             {result.linkOut.map((t) => (
               <li key={t.id}>
@@ -548,7 +551,7 @@ async function SearchResults({
             // Amazon requires this disclosure wherever an Associates link appears.
             <p className="hint affiliate-note">
               As an Amazon Associate, SigPath earns from qualifying purchases (Als Amazon-Partner verdient SigPath an
-              qualifizierten Verkäufen). It never changes a verdict or the order of results.
+              qualifizierten Verkäufen).
             </p>
           )}
         </section>

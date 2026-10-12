@@ -29,7 +29,7 @@ export default function HeroDevices() {
           <img className="phone-scroll" src="/home/phone.webp" width={480} height={3200} alt="" decoding="async" />
         </div>
       </div>
-      <figcaption className="devices-caption">Demo listings shown. Every result gets one verdict, with the reasons.</figcaption>
+      <figcaption className="devices-caption">Demo listings shown.</figcaption>
     </figure>
   );
 }

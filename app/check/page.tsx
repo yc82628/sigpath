@@ -39,10 +39,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   return (
     <main className="container">
       <h1>Check a price</h1>
-      <p className="lede">
-        Shopping on Amazon, AliExpress or anywhere else? SigPath compares the price with live eBay listings of the same
-        product, and gives it the same verdict as a listing in its own search.
-      </p>
+      <p className="lede">Found it on Amazon, AliExpress or anywhere else? Compare the price with live eBay listings.</p>
 
       {asked && !result && (
         <p className="notice withheld">
@@ -96,8 +93,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
             </>
           )}
           <p className="hint">
-            Searched eBay for &ldquo;{result.query}&rdquo; ({result.ebay.count} listings). Not the right product? Edit the name
-            below. The {result.shop} price is the one you brought: SigPath doesn&apos;t contact {result.shop}.{" "}
+            Searched eBay for &ldquo;{result.query}&rdquo; ({result.ebay.count} listings). Wrong product? Edit the name below.{" "}
             <Link href={`/search?q=${encodeURIComponent(result.query)}`}>See all eBay results</Link>
           </p>
         </section>
@@ -139,11 +135,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
             }}
           />
         </p>
-        <p>
-          Then, on a product page on Amazon, AliExpress or most other shops, click it. It reads the product&apos;s name and
-          price from the page you&apos;re looking at, in your own browser, and opens this check. Nothing else on the page is
-          read, and nothing is sent to the shop.
-        </p>
+        <p>Then click it on any product page. It reads the name and price, in your own browser, and opens this check.</p>
       </section>
     </main>
   );

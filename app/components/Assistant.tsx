@@ -28,12 +28,32 @@ const VERDICT_LABEL: Record<AssistantCard["verdict"], string> = {
   unchecked: "Not price-checked",
 };
 
-/** Ai-chan's face: 愛 ("ai", love) in the logo's light sage on ink. */
-function Avatar() {
+/**
+ * Ai-chan's face, drawn for SigPath in the Flex Pop style (an outline over an
+ * off-register Solana-purple fill), with a curl of hair. Every feature is its
+ * own shape so it can change: over the chat button (hover or keyboard focus)
+ * her eyes close into happy arcs, the smile widens, her cheeks blush and the
+ * face lights up (globals.css, .ai-face). `happy` keeps the smile, for the
+ * open chat.
+ */
+function Avatar({ happy = false }: { happy?: boolean }) {
   return (
-    <span className="chat-avatar" aria-hidden="true">
-      愛
-    </span>
+    <svg className={`ai-face${happy ? " happy" : ""}`} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <circle className="ai-pop" cx="35" cy="37" r="23" />
+      <circle className="ai-skin" cx="32" cy="34" r="23" />
+      <path className="ai-ink ai-curl" d="M28 19c-2-4.8 3-8.6 6.8-6 2.4 1.7 1 5.2-1.8 4.6" />
+      <g className="ai-calm">
+        <circle className="ai-dot" cx="24" cy="32" r="2.8" />
+        <circle className="ai-dot" cx="40" cy="32" r="2.8" />
+        <path className="ai-ink" d="M27 42.5q5 3.4 10 0" />
+      </g>
+      <g className="ai-joy">
+        <path className="ai-ink" d="M20.5 33q3.5-4.6 7 0M36.5 33q3.5-4.6 7 0" />
+        <path className="ai-mouth" d="M23.5 40.5q8.5 10 17 0z" />
+        <ellipse className="ai-cheek" cx="18.5" cy="40" rx="3.6" ry="2.4" />
+        <ellipse className="ai-cheek" cx="45.5" cy="40" rx="3.6" ry="2.4" />
+      </g>
+    </svg>
   );
 }
 
@@ -165,7 +185,7 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
     return (
       <button type="button" className="chat-launcher" onClick={() => setOpen(true)} aria-label="Chat with Ai-chan, the shopping assistant">
         <Avatar />
-        <span>Ask Ai-chan</span>
+        <span className="chat-label">Ask Ai-chan</span>
       </button>
     );
   }
@@ -174,7 +194,7 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
     <section className="chat-panel" role="dialog" aria-label="Ai-chan, shopping assistant" onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <header className="chat-head">
         <div className="chat-who">
-          <Avatar />
+          <Avatar happy />
           <div>
             <strong>Ai-chan</strong>
             <span>Your SigPath shopping helper</span>
