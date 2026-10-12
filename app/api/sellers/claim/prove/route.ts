@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { proveHandle } from "@/lib/sellers/claim";
 import { listingLookup } from "@/lib/sellers/badges";
 import { VerifiedSellerLog } from "@/lib/sellers/verified-log";
@@ -14,6 +15,8 @@ import { DecisionLog } from "@/lib/reports/reports";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.write);
+  if (tooMany) return tooMany;
   let body: Record<string, unknown>;
   try {
     body = await req.json();

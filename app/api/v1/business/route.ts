@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { businessRecord } from "@/lib/api/verification";
 import { apiDepsFromEnv } from "@/lib/api/deps";
-import { refuseUnpaid } from "@/lib/api/gate";
+import { refuseUnpaidOrLimited } from "@/lib/api/gate";
+import { RULES } from "@/lib/guard/limit";
 
 // GET /api/v1/business?vatCountry=DE&vatNumber=123456789 | ?domain=example.de | ?id=b_...
 // A verified business: status, evidence and linked accounts. `found: false`
@@ -10,7 +11,7 @@ import { refuseUnpaid } from "@/lib/api/gate";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const refused = refuseUnpaid(req);
+  const refused = await refuseUnpaidOrLimited(req, RULES.search);
   if (refused) return refused;
   const p = req.nextUrl.searchParams;
   const r = await businessRecord(

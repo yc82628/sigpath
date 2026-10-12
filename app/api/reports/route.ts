@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { submitReport } from "@/lib/reports/reports";
 import { evidenceProvider, reportDepsFromEnv } from "@/lib/reports/evidence";
 
@@ -16,6 +17,8 @@ import { evidenceProvider, reportDepsFromEnv } from "@/lib/reports/evidence";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.write);
+  if (tooMany) return tooMany;
   let body: Record<string, unknown>;
   try {
     body = await req.json();

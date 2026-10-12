@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { collectGithub } from "@/lib/footprint/github";
 import { computeFootprintScore } from "@/lib/footprint/score";
@@ -52,6 +53,8 @@ function methodFlags(
 }
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, [RULES.attest, RULES.attestDaily]);
+  if (tooMany) return tooMany;
   let body: {
     platform?: string;
     handle?: string;

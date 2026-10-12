@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 
 // GET /api/search?q=thinkpad+x1
@@ -30,6 +31,8 @@ import { labelledSearch } from "@/lib/marketplace/labelled-search";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.search);
+  if (tooMany) return tooMany;
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   if (!q) {
     return NextResponse.json({ error: "Pass ?q=<search terms>." }, { status: 400 });

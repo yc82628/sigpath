@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { getLivenessProvider } from "@/lib/liveness";
 import { VisionLivenessProvider, getPublicChallenge } from "@/lib/liveness/vision";
 import { issueNonce, recordLiveness } from "@/lib/liveness/store";
@@ -26,6 +27,8 @@ import type { RiskBand } from "@/lib/liveness/injection";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.liveness);
+  if (tooMany) return tooMany;
   let body: {
     action?: string;
     sessionId?: string;

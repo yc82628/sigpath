@@ -3,7 +3,8 @@ import { checkSupplier } from "@/lib/suppliers/check";
 import { BusinessLog } from "@/lib/sellers/business";
 import { VerifiedSellerLog } from "@/lib/sellers/verified-log";
 import { DecisionLog } from "@/lib/reports/reports";
-import { refuseUnpaid } from "@/lib/api/gate";
+import { refuseUnpaidOrLimited } from "@/lib/api/gate";
+import { RULES } from "@/lib/guard/limit";
 import { API_MARKETPLACES } from "@/lib/api/verification";
 
 // POST /api/v1/supplier  { vatCountry?, vatNumber?, name?, domain?, marketplace?, handle? }
@@ -14,7 +15,7 @@ import { API_MARKETPLACES } from "@/lib/api/verification";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const refused = refuseUnpaid(req);
+  const refused = await refuseUnpaidOrLimited(req, RULES.supplier);
   if (refused) return refused;
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const str = (k: string) => (typeof body?.[k] === "string" ? (body[k] as string).slice(0, 200) : undefined);

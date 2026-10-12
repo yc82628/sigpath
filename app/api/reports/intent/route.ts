@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { createReportIntent } from "@/lib/reports/reports";
 import { reportDepsFromEnv } from "@/lib/reports/evidence";
 
@@ -11,6 +12,8 @@ import { reportDepsFromEnv } from "@/lib/reports/evidence";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.write);
+  if (tooMany) return tooMany;
   let body: { order?: unknown; wallet?: unknown };
   try {
     body = await req.json();

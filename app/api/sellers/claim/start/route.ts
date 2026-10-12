@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { startClaim } from "@/lib/sellers/claim";
 
 // POST /api/sellers/claim/start  { wallet }
@@ -10,6 +11,8 @@ import { startClaim } from "@/lib/sellers/claim";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.write);
+  if (tooMany) return tooMany;
   let body: { wallet?: unknown };
   try {
     body = await req.json();

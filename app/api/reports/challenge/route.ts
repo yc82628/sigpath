@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { bindEvidenceSession, verifyIntentSignature } from "@/lib/reports/reports";
 import { evidenceProvider } from "@/lib/reports/evidence";
 import { getPublicChallenge } from "@/lib/liveness/vision";
@@ -14,6 +15,8 @@ import { getPublicChallenge } from "@/lib/liveness/vision";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.write);
+  if (tooMany) return tooMany;
   let body: { intentId?: unknown; signature?: unknown };
   try {
     body = await req.json();

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "@/lib/assistant/assistant";
 import { assistantConfig, assistantSetupGaps, ModelApiError, modelFromConfig } from "@/lib/assistant/models";
-import { RateLimiter } from "@/lib/assistant/rate-limit";
+import { limited, RULES } from "@/lib/guard/limit";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 import { withoutSiteOnly } from "@/lib/marketplace/site-only";
 
@@ -16,9 +16,6 @@ import { withoutSiteOnly } from "@/lib/marketplace/site-only";
 export const runtime = "nodejs";
 // The status below reads the environment on every request, not once at build time.
 export const dynamic = "force-dynamic";
-
-// 20 turns per 10 minutes per client.
-const limiter = new RateLimiter(20, 10 * 60 * 1000);
 
 // GET /api/assistant: whether the assistant is on here, and if not, which
 // settings are missing (names only, never values).
@@ -35,10 +32,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "The shopping assistant isn't set up on this server.", missing: assistantSetupGaps() }, { status: 503 });
   }
 
-  const client = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "local";
-  if (!limiter.allow(client)) {
-    return NextResponse.json({ error: "That's a lot of questions! Give it a few minutes and try again." }, { status: 429 });
-  }
+  const tooMany = await limited(req.headers, RULES.assistant);
+  if (tooMany) return tooMany;
 
   const parsed = ChatRequest.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

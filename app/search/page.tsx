@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
+import { limitedMessage, RULES } from "@/lib/guard/limit";
 import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
 import { formatMoney, totalPrice, type Listing, type SourceResult } from "@/lib/marketplace/types";
@@ -187,7 +189,7 @@ function ListingRow({
   );
 }
 
-export default function SearchPage({
+export default async function SearchPage({
   searchParams,
 }: {
   searchParams: { q?: string; checked?: string };
@@ -203,8 +205,10 @@ export default function SearchPage({
   // them. Verdicts are only ever drawn from the complete set — a price compared
   // against half the marketplaces is exactly the biased comparison this design
   // refuses — so nothing streamed early carries a verdict or a pay button.
-  const sources = q ? defaultSources() : [];
-  const pending = q ? startSearch(q, sources, { limit: 20 }) : [];
+  // Every search is an eBay call against the site's daily quota: a script gets a pause, not the quota.
+  const tooMany = q ? await limitedMessage(headers(), RULES.search) : null;
+  const sources = q && !tooMany ? defaultSources() : [];
+  const pending = q && !tooMany ? startSearch(q, sources, { limit: 20 }) : [];
 
   return (
     <main className="container wide">
@@ -230,7 +234,8 @@ export default function SearchPage({
         No account, no sign-in, nothing stored about this search{vapidKey ? " — unless you turn on a price alert" : ""}.
       </p>
 
-      {q && (
+      {tooMany && <p className="notice withheld">{tooMany}</p>}
+      {q && !tooMany && (
         <Suspense key={`${q}|${checkedOnly}`} fallback={<SearchProgress ids={sources.map((s) => s.id)} pending={pending} />}>
           <SearchResults q={q} checkedOnly={checkedOnly} vapidKey={vapidKey} pending={pending} />
         </Suspense>

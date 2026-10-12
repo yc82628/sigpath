@@ -78,6 +78,14 @@ export default function PrivacyPage() {
         secure, working site). The site&apos;s fonts are served by SigPath itself, so your browser makes no request to Google
         Fonts.
       </p>
+      <p>
+        So that one script can&apos;t use up the site&apos;s searches or its checks for everyone, SigPath counts how many
+        searches and requests come from each connection in a short window (ten minutes; one hour or one day for a few
+        checks). It doesn&apos;t store your IP address for this: only a keyed hash of it, which can&apos;t be turned back into
+        the address without SigPath&apos;s secret, next to a number.{" "}
+        {hasDatabase() ? "The count is kept in SigPath's database (Upstash) and" : "The count"} is deleted
+        automatically when its window ends (legal basis: Art. 6(1)(f) GDPR, our interest in keeping the site available).
+      </p>
 
       {counter && (
         <>

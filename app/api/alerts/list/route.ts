@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { listWatches } from "@/lib/alerts/api";
 import { WatchStore } from "@/lib/alerts/watches";
 
@@ -8,6 +9,8 @@ import { WatchStore } from "@/lib/alerts/watches";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const tooMany = await limited(req.headers, RULES.alerts);
+  if (tooMany) return tooMany;
   const body = await req.json().catch(() => null);
   const r = await listWatches(body, WatchStore.fromEnv());
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });

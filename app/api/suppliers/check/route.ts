@@ -3,7 +3,7 @@ import { checkSupplier } from "@/lib/suppliers/check";
 import { BusinessLog } from "@/lib/sellers/business";
 import { VerifiedSellerLog } from "@/lib/sellers/verified-log";
 import { DecisionLog } from "@/lib/reports/reports";
-import { RateLimiter } from "@/lib/assistant/rate-limit";
+import { limited, RULES } from "@/lib/guard/limit";
 
 // POST /api/suppliers/check  { vatCountry?, vatNumber?, name?, domain?, marketplace?, handle? }
 //
@@ -13,12 +13,9 @@ import { RateLimiter } from "@/lib/assistant/rate-limit";
 
 export const runtime = "nodejs";
 
-// Each check asks public registers: 10 per 10 minutes per client.
-const limiter = new RateLimiter(10, 10 * 60 * 1000);
-
 export async function POST(req: NextRequest) {
-  const client = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "local";
-  if (!limiter.allow(client)) return NextResponse.json({ error: "Too many checks. Try again in a few minutes." }, { status: 429 });
+  const tooMany = await limited(req.headers, RULES.supplier);
+  if (tooMany) return tooMany;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const str = (k: string) => (typeof body?.[k] === "string" ? (body[k] as string).slice(0, 200) : undefined);

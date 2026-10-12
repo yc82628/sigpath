@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { labelledSearch } from "@/lib/marketplace/labelled-search";
 import { agentCheck, gatewayAuthorised, GATEWAY_HEADER } from "@/lib/agents/check";
 import { withoutSiteOnly } from "@/lib/marketplace/site-only";
+import { limited, RULES } from "@/lib/guard/limit";
 
 // GET /api/check?q=thinkpad+x1
 //
@@ -22,6 +23,12 @@ export async function GET(req: NextRequest) {
       { error: "Call this through SigPath's pay.sh gateway, which handles the USDC payment. See /agents." },
       { status: 401 },
     );
+  }
+
+  // Paid traffic isn't limited; the open origin (no gateway key) is, like a search.
+  if (!process.env.SIGPATH_GATEWAY_KEY?.trim()) {
+    const tooMany = await limited(req.headers, RULES.search);
+    if (tooMany) return tooMany;
   }
 
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();

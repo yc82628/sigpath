@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limited, RULES } from "@/lib/guard/limit";
 import { prepareRefund } from "@/lib/checkout/checkout";
 
 // POST /api/orders/<order>/refund  { caller }  -> { transaction (base64, unsigned) }
@@ -11,6 +12,8 @@ import { prepareRefund } from "@/lib/checkout/checkout";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest, { params }: { params: { order: string } }) {
+  const tooMany = await limited(req.headers, RULES.write);
+  if (tooMany) return tooMany;
   let body: { caller?: unknown };
   try {
     body = await req.json();

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { checkPrice, parsePrice, SHOPS } from "@/lib/marketplace/price-check";
 import { formatMoney } from "@/lib/marketplace/types";
+import { limitedMessage, RULES } from "@/lib/guard/limit";
 
 /**
  * app/check — check a price from any shop (Amazon, AliExpress, anywhere)
@@ -30,7 +31,9 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   const url = /^https:\/\//.test(searchParams.url ?? "") ? searchParams.url!.slice(0, 500) : undefined;
   const price = priceText ? parsePrice(priceText) : null;
   const asked = !!(title || priceText);
-  const result = title && price ? await checkPrice({ title, price, from, url }) : null;
+  // A check is an eBay search too, against the same daily quota.
+  const tooMany = title && price ? await limitedMessage(h, RULES.search) : null;
+  const result = title && price && !tooMany ? await checkPrice({ title, price, from, url }) : null;
 
   return (
     <main className="container">
@@ -42,7 +45,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
 
       {asked && !result && (
         <p className="notice withheld">
-          {!title ? "Add the product's name." : `"${priceText}" isn't a price SigPath can read. Type it like 249,00 € or 249.00.`}
+          {tooMany ?? (!title ? "Add the product's name." : `"${priceText}" isn't a price SigPath can read. Type it like 249,00 € or 249.00.`)}
         </p>
       )}
 

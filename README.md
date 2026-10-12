@@ -122,7 +122,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 533 tests, as of 2026-10-12
+npm test                                   # 541 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -144,7 +144,7 @@ The rest of this README is the engineering detail:
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
 - [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
-- [Where records are kept](#where-records-are-kept) · [Known toolchain traps](#known-toolchain-traps) · [Scripts](#scripts)
+- [Where records are kept](#where-records-are-kept) · [Security headers and rate limits](#security-headers-and-rate-limits) · [Known toolchain traps](#known-toolchain-traps) · [Scripts](#scripts)
 
 ---
 
@@ -1460,6 +1460,58 @@ Vercel's Upstash integration sets), and in files otherwise:
 - `npx tsx scripts/kv-check.ts` proves both kinds against the real database:
   an encrypted record written, read, expiring and deleted, and a table record
   that is never overwritten, listed and deleted.
+
+## Security headers and rate limits
+
+**Headers** (`next.config.js`, on every response):
+
+| Header | What it stops |
+|---|---|
+| `Content-Security-Policy` | Scripts and styles only from SigPath itself; photos from any https host (eBay, AliExpress); fetches only over https/wss (the Solana RPC); no plugins, no `<base>` rewriting, forms only to SigPath, no frames, and `frame-ancestors 'none'` so no site can frame a "Pay with USDC" button (clickjacking). `'unsafe-inline'` stays for scripts because Next.js inlines its own; `'unsafe-eval'` only in development |
+| `Strict-Transport-Security` | Downgrade to http, for two years, subdomains included |
+| `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` | Framing in old browsers; a file served as one type and run as another |
+| `Referrer-Policy: strict-origin-when-cross-origin` | The search in the URL reaching eBay or AliExpress: they see the origin only |
+| `Permissions-Policy` | Camera only for SigPath itself (the live-photo check); microphone, location, payment, USB and the rest off |
+| `Cross-Origin-Opener-Policy: same-origin-allow-popups` | Other windows getting a handle on SigPath's; the MoonPay window SigPath opens still works |
+
+`X-Powered-By` is off. Checked on a production build in the browser: search
+with eBay photos, `/check` and its bookmark, alerts, seller verification, the
+camera page (camera allowed, location blocked) and Ai-chan's streamed answers
+all work, with no policy violations in the console.
+
+**Rate limits** (`lib/guard/limit.ts`), counted in the shared database so they
+hold across every Vercel instance. They used to be counters in each instance's
+memory, so a limit of 20 was 20 *per instance*, and the routes that spend the
+most had none:
+
+| Rule | Limit | Why |
+|---|---|---|
+| Search: `/search`, `/check`, `/api/search`, the open `/api/check` and `/api/v1` | 60 per 10 min | Each is an eBay Browse call against the site's 5,000-a-day quota |
+| Ai-chan | 20 per 10 min | A model call per turn |
+| `/api/liveness` | 20 per hour | A vision-model call per photo |
+| `/api/attest` | 5 per hour, and 50 a day for the whole site | Each new handle costs the operator wallet rent on chain |
+| VAT, domain, supplier checks | 10–20 per 10 min | Calls to VIES and DNS |
+| Every route that writes, signs or sends a transaction | 30 per 10 min | Checkout, reports, seller claims and replies, refunds, the onramp link |
+| Price alerts | 60 per 10 min | The browser's inbox polls now and then; a loop doesn't |
+
+- **Fixed windows:** `INCR` on `sigpath:rl:<rule>:<client>:<window>`, which
+  expires on its own. Over the limit: `429` with `Retry-After` and a plain
+  message (on the search page, the message instead of results).
+- **No IP address is stored:** the client is an HMAC of its address under a
+  server secret (`RATE_LIMIT_SECRET`, else `QUOTE_SECRET`). The privacy page
+  says so.
+- **Paid traffic isn't limited:** requests the pay.sh gateway forwards with
+  `SIGPATH_GATEWAY_KEY` were each paid for. Without that key the origin is
+  open, and limited like a search.
+- **If the database doesn't answer**, limits fall back to the instance's
+  memory: never no limits, never everyone refused.
+- **A test fails if a new API route forgets its limit**
+  (`tests/limit.test.ts`). The four without one are listed there with the
+  reason: the alerts scheduler (behind its secret), eBay's signed account
+  deletion notices, and two reads of public records.
+- Measured on a production build: the 11th VAT check in ten minutes got `429`
+  with `Retry-After`, and the counter was in the database under the client's
+  HMAC, expiring on its own.
 
 ## Where to run what
 
