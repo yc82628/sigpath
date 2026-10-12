@@ -1303,18 +1303,23 @@ reported as unpublished.
 
 ---
 
-## The two-chain split
+## One chain: Solana
 
-Solana is the source of truth. Attestations are created, scored and revoked
-there — cheap enough to write per-subject records, fast enough that a revocation
-is visible to every verifier within a slot.
+**SigPath runs on Solana only.** The escrow, the fake-product reports, the
+verified-seller badges, the verified businesses and the identity attestations
+are all created, read and revoked there: cheap enough to write per-subject
+records, fast enough that a revocation is visible to every verifier within a
+slot.
 
-Base (via EAS) is a **mirror**, so the same claim is portable to EVM consumers.
-It is **off by default** and nothing in the core flow blocks on it. If the mirror
-ever disagrees with Solana, Solana wins.
-
-Two chains that can both *originate* an attestation would give you two answers
-and no way to reconcile them. Hence: one writer, one mirror.
+**Base is an unbuilt idea, not a feature.** The plan was to mirror the identity
+engine's attestations to Base (Ethereum Attestation Service), so EVM apps
+could read the same claim, with Solana staying the only writer: two chains that
+can both *originate* an attestation would give two answers and no way to
+reconcile them. A first draft of the mirror is in `lib/chains/base/attest.ts`
+(`mirrorToBase`, `revokeOnBase`) and the program has a `link_base`
+instruction, but **nothing calls them**: no page, API route or script mirrors
+anything, even with `BASE_ENABLED=true`. It has never run, and it would only
+have covered the identity attestations, not the escrow, reports or badges.
 
 ---
 
@@ -1331,7 +1336,7 @@ lib/
     solana/pda.ts            address derivation — no signer needed
     solana/client.ts         read path; anyone can verify, no key required
     solana/instructions.ts   hand-built instructions (no IDL — see trap #3)
-    base/attest.ts           EAS mirror — SERVER ONLY, holds an EVM key
+    base/attest.ts           unbuilt Base (EAS) mirror, not called anywhere — SERVER ONLY, holds an EVM key
   footprint/
     types.ts                 signal vocabulary: self_asserted / temporal / corroborated
     github-signals.ts        raw counts -> weighted signals (testable offline)
@@ -1554,9 +1559,12 @@ The clean fix is Anchor 0.31.x. That is a migration, not a patch.
 
 ---
 
-## Enabling Base
+## Base: notes for an unbuilt mirror
 
-Off by default; the Solana path is complete without it.
+Not a feature (see [One chain: Solana](#one-chain-solana)). Setting these
+values configures `lib/chains/base/attest.ts`, but nothing calls it yet;
+building the mirror means calling `mirrorToBase` after an attestation is issued
+on Solana and `link_base` once it confirms.
 
 1. Fund an EVM wallet on Base Sepolia → `BASE_ATTESTER_SECRET`
 2. Register the schema once at https://base-sepolia.easscan.org — the string is
@@ -1752,8 +1760,9 @@ third is the load-bearing one.
   and tested against fixtures; it hasn't answered a live request yet.
 - **X and LinkedIn collectors are thin by necessity** — they contribute breadth
   and name agreement, not depth. See the comments in each file.
-- **The Base mirror has never been executed.** It needs a registered schema and a
-  funded EVM wallet.
+- **Base is an unbuilt idea.** The mirror's draft code isn't called from any
+  flow and has never run; building it would also need a registered schema and
+  a funded EVM wallet.
 - **Session state is in-memory.** `lib/footprint/session.ts` uses a `Map` —
   single instance only. Move to Redis before scaling out.
 
