@@ -320,10 +320,15 @@ async function SearchResults({
 }) {
   // Upheld fake-product reports flag their seller's listings — and a flag
   // removes the pay button, so the same finding closes SigPath's checkout to them.
-  const upheldReports = await DecisionLog.fromEnv().upheldCounts();
-  const result = assembleSearch(q, await Promise.all(pending), { limit: 20 }, { upheldReports });
-  const badgeEntries = await VerifiedSellerLog.fromEnv().all();
-  const businesses = businessIndex(await BusinessLog.fromEnv().all(), badgeEntries, upheldReports);
+  // Read while the marketplaces answer: each is a round trip to the database.
+  const [upheldReports, badgeEntries, businessEntries, answered] = await Promise.all([
+    DecisionLog.fromEnv().upheldCounts(),
+    VerifiedSellerLog.fromEnv().all(),
+    BusinessLog.fromEnv().all(),
+    Promise.all(pending),
+  ]);
+  const result = assembleSearch(q, answered, { limit: 20 }, { upheldReports });
+  const businesses = businessIndex(businessEntries, badgeEntries, upheldReports);
   // Same as labelledSearch: a verified business's photo under an unlinked account on another marketplace.
   result.analysis = { ...result.analysis, flags: [...result.analysis.flags, ...verifiedPhotoFlags(result.listings, businesses)] };
   const businessOf = (l: Listing) => businesses.get(sellerKey(l.source, l.seller.handle)) ?? null;

@@ -122,7 +122,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 525 tests, as of 2026-10-12
+npm test                                   # 533 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -144,7 +144,7 @@ The rest of this README is the engineering detail:
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
 - [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
-- [Known toolchain traps](#known-toolchain-traps) · [Scripts](#scripts)
+- [Where records are kept](#where-records-are-kept) · [Known toolchain traps](#known-toolchain-traps) · [Scripts](#scripts)
 
 ---
 
@@ -955,7 +955,9 @@ one is configured, which a deployment on Vercel needs: its disk is temporary and
 per instance. The database only ever holds ciphertext, and each record also
 expires there at its retention limit, so it is deleted even if every sweep
 failed. Without a database, records are files. Prove the connection with
-`npx tsx scripts/kv-check.ts`. A production deployment still needs a real
+`npx tsx scripts/kv-check.ts`. The logs beside them (badges, businesses, report
+decisions) live in the same database: see
+[Where records are kept](#where-records-are-kept). A production deployment still needs a real
 privacy policy reviewed by someone qualified — this README is not one.
 
 **Operator workflow:**
@@ -1424,6 +1426,40 @@ systems collapse, and the reason `revoke` flips a flag instead of closing the
 account.
 
 ---
+
+## Where records are kept
+
+On Vercel each request may run on a different short-lived instance, and its
+disk is temporary. Until 2026-10-12 only the encrypted per-order records used
+the shared database; the logs were JSON files in the instance's temp
+directory, so a badge issued on one instance was missing on the next, and every
+deploy wiped them all. Now everything is in one shared Upstash Redis database
+when one is configured (`KV_REST_API_URL` + `KV_REST_API_TOKEN`, the names
+Vercel's Upstash integration sets), and in files otherwise:
+
+| Records | In the database | Without one |
+|---|---|---|
+| Delivery addresses, who sold an order, pending reports | One encrypted key per order, expiring at its retention limit (`lib/checkout/encrypted-store.ts`) | One file per order |
+| Verified-seller badges, verified businesses, report decisions, report cases, price alerts | One hash per log, one field per record (`lib/kv/table.ts`) | One JSON file per log, as before |
+
+- **A write touches only its own record**, so two instances writing different
+  records can't overwrite each other (tested with two "instances" on one
+  database). Write-once rules hold under a race too: a decision for an order,
+  a badge for a handle and a case for a report are created with `HSETNX`, so
+  the second of two simultaneous requests is refused.
+- **Read your own writes:** every store in one process shares one database
+  client, and with it Upstash's sync token, so a badge just written is what
+  the next read in the same request sees.
+- **Three reads per search** (badges, businesses, upheld reports), made in
+  parallel with the marketplace calls.
+- **Local runs share the live records** when `.env.local` has the database
+  keys, which is what lets the operator tools (`reports-admin`,
+  `orders-admin`) work on the live site's reports and orders. To keep a local
+  run apart, set the matching `*_FILE` / `*_DIR` setting: an explicit file
+  always wins (`.env.local.example`). Tests and the devnet scripts use files.
+- `npx tsx scripts/kv-check.ts` proves both kinds against the real database:
+  an encrypted record written, read, expiring and deleted, and a table record
+  that is never overwritten, listed and deleted.
 
 ## Where to run what
 

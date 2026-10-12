@@ -16,10 +16,14 @@ import { VerifiedSellerLog, badgeFor } from "../sellers/verified-log";
 import { BusinessLog, businessIndex, verifiedPhotoFlags } from "../sellers/business";
 
 export async function labelledSearch(q: string, opts: { limit: number; currency?: string }) {
-  const upheldReports = await DecisionLog.fromEnv().upheldCounts();
+  // Three reads, one round trip's wait: each is a call to the database when one is configured.
+  const [upheldReports, badges, businessEntries] = await Promise.all([
+    DecisionLog.fromEnv().upheldCounts(),
+    VerifiedSellerLog.fromEnv().all(),
+    BusinessLog.fromEnv().all(),
+  ]);
   const raw = await searchAll(q, defaultSources(), opts, { upheldReports });
-  const badges = await VerifiedSellerLog.fromEnv().all();
-  const businesses = businessIndex(await BusinessLog.fromEnv().all(), badges, upheldReports);
+  const businesses = businessIndex(businessEntries, badges, upheldReports);
   // A verified business's photo under an account it hasn't linked, on another marketplace.
   raw.analysis = { ...raw.analysis, flags: [...raw.analysis.flags, ...verifiedPhotoFlags(raw.listings, businesses)] };
   const key = (l: { source: string; seller: { handle: string } }) => sellerKey(l.source, l.seller.handle);

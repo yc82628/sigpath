@@ -41,8 +41,16 @@ export class UpstashKv implements Kv {
     } catch {
       return null;
     }
-    return new UpstashKv(url, token, fetchImpl);
+    if (fetchImpl !== fetch) return new UpstashKv(url, token, fetchImpl);
+    // One client per database in this process, so every store shares its sync
+    // token: a badge written by one store is then seen by the next store's read.
+    const id = `${url} ${token}`;
+    let kv = UpstashKv.shared.get(id);
+    if (!kv) UpstashKv.shared.set(id, (kv = new UpstashKv(url, token, fetchImpl)));
+    return kv;
   }
+
+  private static readonly shared = new Map<string, UpstashKv>();
 
   /**
    * Read your own writes. Upstash may answer a read from a copy that hasn't

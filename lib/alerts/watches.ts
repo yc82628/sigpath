@@ -22,11 +22,11 @@
  * about it would be SigPath doing the scammer's work.
  */
 
-import { readFile, writeFile, mkdir, rename } from "fs/promises";
-import { dirname, join } from "path";
-import { randomBytes, randomUUID } from "crypto";
+import { join } from "path";
+import { randomUUID } from "crypto";
 import type { Money } from "../marketplace/types";
 import { dataDir } from "../data-dir";
+import { asTable, tableFromEnv, type Table } from "../kv/table";
 
 export const WATCH_TTL_SECS = 30 * 24 * 3600;
 export const MAX_WATCHES_PER_BROWSER = 10;
@@ -55,85 +55,70 @@ export interface Watch {
 }
 
 export class WatchStore {
-  constructor(private readonly file: string) {}
+  private readonly table: Table<Watch>;
+
+  constructor(table: Table<Watch> | string) {
+    this.table = asTable(table);
+  }
 
   static fromEnv(env: Record<string, string | undefined> = process.env): WatchStore {
-    return new WatchStore(env.ALERTS_FILE?.trim() || join(dataDir(env), "alerts", "watches.json"));
+    return new WatchStore(
+      tableFromEnv(env, {
+        explicitFile: env.ALERTS_FILE,
+        defaultFile: join(dataDir(env), "alerts", "watches.json"),
+        name: "price-alerts",
+      }),
+    );
   }
 
   async all(): Promise<Record<string, Watch>> {
-    try {
-      return JSON.parse(await readFile(this.file, "utf8"));
-    } catch {
-      return {};
-    }
-  }
-
-  private async write(all: Record<string, Watch>) {
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
-    await rename(tmp, this.file);
+    return this.table.all();
   }
 
   async forEndpoint(endpoint: string): Promise<Watch[]> {
-    return Object.values(await this.all()).filter((w) => w.endpoint === endpoint);
+    return Object.values(await this.table.all()).filter((w) => w.endpoint === endpoint);
   }
 
   async add(input: Omit<Watch, "id" | "createdAt" | "expiresAt">, nowS: number): Promise<Watch> {
-    const all = await this.all();
-    const mine = Object.values(all).filter((w) => w.endpoint === input.endpoint);
-    if (mine.length >= MAX_WATCHES_PER_BROWSER) throw new WatchLimitError();
+    if ((await this.forEndpoint(input.endpoint)).length >= MAX_WATCHES_PER_BROWSER) throw new WatchLimitError();
     const w: Watch = { ...input, id: randomUUID(), createdAt: nowS, expiresAt: nowS + WATCH_TTL_SECS };
-    all[w.id] = w;
-    await this.write(all);
+    await this.table.set(w.id, w);
     return w;
   }
 
   /** Deletes only if `endpoint` owns it — the endpoint is the only credential. */
   async remove(id: string, endpoint: string): Promise<boolean> {
-    const all = await this.all();
-    if (all[id]?.endpoint !== endpoint) return false;
-    delete all[id];
-    await this.write(all);
-    return true;
+    if ((await this.table.get(id))?.endpoint !== endpoint) return false;
+    return (await this.table.delete(id)) > 0;
   }
 
   async removeEndpoint(endpoint: string): Promise<number> {
-    const all = await this.all();
-    const ids = Object.keys(all).filter((id) => all[id].endpoint === endpoint);
-    for (const id of ids) delete all[id];
-    if (ids.length) await this.write(all);
-    return ids.length;
+    return this.table.delete(...(await this.forEndpoint(endpoint)).map((w) => w.id));
   }
 
   /** Hand pending alerts to the browser that owns them, and clear them. */
   async collect(endpoint: string): Promise<PendingAlert[]> {
-    const all = await this.all();
     const out: PendingAlert[] = [];
-    for (const w of Object.values(all)) {
-      if (w.endpoint === endpoint && w.pending) {
-        out.push(w.pending);
-        delete w.pending;
-      }
+    const cleared: Record<string, Watch> = {};
+    for (const w of await this.forEndpoint(endpoint)) {
+      if (!w.pending) continue;
+      out.push(w.pending);
+      const { pending: _, ...rest } = w;
+      cleared[w.id] = rest;
     }
-    if (out.length) await this.write(all);
+    await this.table.setMany(cleared);
     return out;
   }
 
   async update(id: string, patch: Partial<Watch>): Promise<void> {
-    const all = await this.all();
-    if (!all[id]) return;
-    all[id] = { ...all[id], ...patch };
-    await this.write(all);
+    const w = await this.table.get(id);
+    if (!w) return;
+    await this.table.set(id, { ...w, ...patch });
   }
 
   async sweep(nowS: number): Promise<number> {
-    const all = await this.all();
-    const ids = Object.keys(all).filter((id) => nowS >= all[id].expiresAt);
-    for (const id of ids) delete all[id];
-    if (ids.length) await this.write(all);
-    return ids.length;
+    const all = await this.table.all();
+    return this.table.delete(...Object.keys(all).filter((id) => nowS >= all[id].expiresAt));
   }
 }
 

@@ -27,8 +27,7 @@
  */
 
 import { createHmac } from "crypto";
-import { readFile, writeFile, mkdir, rename } from "fs/promises";
-import { dirname, join } from "path";
+import { join } from "path";
 import { randomBytes } from "crypto";
 import nacl from "tweetnacl";
 import { PublicKey } from "@solana/web3.js";
@@ -39,6 +38,7 @@ import type { Listing } from "../marketplace/types";
 import { sellerKey } from "../marketplace/types";
 import { businessMessage } from "./business-message";
 import { dataDir } from "../data-dir";
+import { asTable, tableFromEnv, type Table } from "../kv/table";
 
 type Env = Record<string, string | undefined>;
 
@@ -176,50 +176,50 @@ export interface Business {
 }
 
 export class BusinessLog {
-  constructor(private readonly file: string) {}
+  private readonly table: Table<Business>;
+
+  constructor(table: Table<Business> | string) {
+    this.table = asTable(table);
+  }
 
   static fromEnv(env: Env = process.env): BusinessLog {
-    return new BusinessLog(env.BUSINESSES_FILE?.trim() || join(dataDir(env), "sellers", "businesses.json"));
+    return new BusinessLog(
+      tableFromEnv(env, {
+        explicitFile: env.BUSINESSES_FILE,
+        defaultFile: join(dataDir(env), "sellers", "businesses.json"),
+        name: "businesses",
+      }),
+    );
   }
 
   /** Keyed by owner wallet. */
   async all(): Promise<Record<string, Business>> {
-    try {
-      return JSON.parse(await readFile(this.file, "utf8"));
-    } catch {
-      return {};
-    }
+    return this.table.all();
   }
 
   async byWallet(wallet: string): Promise<Business | null> {
-    return (await this.all())[wallet] ?? null;
+    return this.table.get(wallet);
   }
 
   async byId(id: string): Promise<Business | null> {
-    return Object.values(await this.all()).find((b) => b.id === id) ?? null;
-  }
-
-  private async write(all: Record<string, Business>) {
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
-    await rename(tmp, this.file);
+    return Object.values(await this.table.all()).find((b) => b.id === id) ?? null;
   }
 
   async update(wallet: string, change: (b: Business) => Business, nowS = Math.floor(Date.now() / 1000)): Promise<Business> {
-    const all = await this.all();
-    const current = all[wallet] ?? { id: `b_${randomBytes(6).toString("base64url")}`, wallet, createdAt: nowS };
-    all[wallet] = change(current);
-    await this.write(all);
-    return all[wallet];
+    const existing = await this.table.get(wallet);
+    if (!existing) {
+      const created = change({ id: `b_${randomBytes(6).toString("base64url")}`, wallet, createdAt: nowS });
+      if (await this.table.setIfAbsent(wallet, created)) return created;
+      // Created by another request meanwhile: apply the change to that one, keeping its id.
+    }
+    const current = existing ?? (await this.table.get(wallet))!;
+    const next = change(current);
+    await this.table.set(wallet, next);
+    return next;
   }
 
   async remove(wallet: string): Promise<boolean> {
-    const all = await this.all();
-    if (!all[wallet]) return false;
-    delete all[wallet];
-    await this.write(all);
-    return true;
+    return (await this.table.delete(wallet)) > 0;
   }
 }
 

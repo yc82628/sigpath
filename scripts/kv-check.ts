@@ -5,7 +5,9 @@
  *
  * Writes one encrypted test record under a throwaway order id, reads it back,
  * lists it, deletes it, and checks nothing is left. Uses a random key, so the
- * record is unreadable to anything else; prints no secrets.
+ * record is unreadable to anything else; prints no secrets. Then the same for
+ * a table (lib/kv/table.ts, what badges, businesses, report decisions and
+ * cases, and price alerts use), in a throwaway table of its own.
  */
 
 import { readFileSync } from "fs";
@@ -14,6 +16,7 @@ import { Keypair } from "@solana/web3.js";
 import { UpstashKv } from "../lib/kv/upstash";
 import { KvBackend } from "../lib/checkout/encrypted-store";
 import { AddressStore } from "../lib/checkout/address-store";
+import { KvTable } from "../lib/kv/table";
 
 for (const line of (() => { try { return readFileSync(".env.local", "utf8").split(/\r?\n/); } catch { return []; } })()) {
   const eq = line.indexOf("=");
@@ -47,6 +50,16 @@ async function main() {
   const deleted = await store.delete(order);
   const gone = (await store.get(order)) === null && !(await store.list()).some((r) => r.order === order);
 
+  // A table of its own, never a real one.
+  const table = new KvTable<{ n: number }>(kv, "kv-check");
+  const id = randomBytes(8).toString("hex");
+  await table.set(id, { n: 1 });
+  const firstWins = (await table.setIfAbsent(id, { n: 2 })) === false && (await table.get(id))?.n === 1;
+  await table.setMany({ [`${id}-b`]: { n: 3 } });
+  const tableAll = await table.all();
+  const tableListed = tableAll[id]?.n === 1 && tableAll[`${id}-b`]?.n === 3;
+  const tableDeleted = (await table.delete(id, `${id}-b`)) === 2 && (await table.get(id)) === null;
+
   const checks: [string, boolean][] = [
     ["written and read back intact", JSON.stringify(back?.record) === JSON.stringify(record)],
     ["stored encrypted (no address in the database)", encrypted],
@@ -54,6 +67,9 @@ async function main() {
     ["listed", listed],
     ["deleted", deleted],
     ["nothing left behind", gone],
+    ["table: an existing record is never overwritten", firstWins],
+    ["table: listed in full", tableListed],
+    ["table: deleted", tableDeleted],
   ];
   for (const [name, ok] of checks) console.log(ok ? "OK  " : "FAIL", name);
   if (checks.some(([, ok]) => !ok)) process.exit(1);

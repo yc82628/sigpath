@@ -15,10 +15,9 @@
  * says so before they submit.
  */
 
-import { mkdir, readFile, rename, writeFile } from "fs/promises";
-import { dirname, join } from "path";
-import { randomBytes } from "crypto";
+import { join } from "path";
 import { dataDir } from "../data-dir";
+import { asTable, tableFromEnv, type Table } from "../kv/table";
 
 /** How long a notified seller has to reply before a report can be upheld without them. */
 export const REPLY_WINDOW_SECS = 7 * 24 * 3600;
@@ -41,71 +40,62 @@ export interface Case {
 }
 
 export class CaseLog {
-  constructor(private readonly file: string) {}
+  private readonly table: Table<Case>;
+
+  constructor(table: Table<Case> | string) {
+    this.table = asTable(table);
+  }
 
   static fromEnv(env: Record<string, string | undefined> = process.env): CaseLog {
-    return new CaseLog(env.REPORT_CASES_FILE?.trim() || join(dataDir(env), "reports", "cases.json"));
+    return new CaseLog(
+      tableFromEnv(env, {
+        explicitFile: env.REPORT_CASES_FILE,
+        defaultFile: join(dataDir(env), "reports", "cases.json"),
+        name: "report-cases",
+      }),
+    );
   }
 
   async all(): Promise<Record<string, Case>> {
-    try {
-      return JSON.parse(await readFile(this.file, "utf8"));
-    } catch {
-      return {};
-    }
+    return this.table.all();
   }
 
   async get(order: string): Promise<Case | null> {
-    return (await this.all())[order] ?? null;
+    return this.table.get(order);
   }
 
   async forSeller(sellerKey: string): Promise<{ order: string; c: Case }[]> {
-    return Object.entries(await this.all())
+    return Object.entries(await this.table.all())
       .filter(([, c]) => c.sellerKey === sellerKey)
       .map(([order, c]) => ({ order, c }));
   }
 
-  private async write(all: Record<string, Case>) {
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
-    await rename(tmp, this.file);
-  }
-
   async open(order: string, sellerKey: string, filedAt: number): Promise<void> {
-    const all = await this.all();
-    if (all[order]) throw new Error("A case for this order already exists.");
-    all[order] = { sellerKey, filedAt };
-    await this.write(all);
+    if (!(await this.table.setIfAbsent(order, { sellerKey, filedAt }))) throw new Error("A case for this order already exists.");
   }
 
   /** Delete every case about one seller — their replies and appeals are their own words. Returns how many. */
   async removeSeller(sellerKey: string): Promise<number> {
-    const all = await this.all();
-    const orders = Object.keys(all).filter((o) => all[o].sellerKey === sellerKey);
-    for (const o of orders) delete all[o];
-    if (orders.length) await this.write(all);
-    return orders.length;
+    const all = await this.table.all();
+    return this.table.delete(...Object.keys(all).filter((o) => all[o].sellerKey === sellerKey));
   }
 
   /** Record the notice. Idempotent: the FIRST notice starts the window; re-sending doesn't restart it. */
   async markNotified(order: string, at: number): Promise<Case> {
-    const all = await this.all();
-    const c = all[order];
+    const c = await this.table.get(order);
     if (!c) throw new Error("No case for that order.");
     c.notifiedAt ??= at;
-    await this.write(all);
+    await this.table.set(order, c);
     return c;
   }
 
   /** One reply and one appeal per case. Write-once, so a response can't be rewritten after the fact. */
   async respond(order: string, kind: "reply" | "appeal", r: SellerResponse): Promise<Case> {
-    const all = await this.all();
-    const c = all[order];
+    const c = await this.table.get(order);
     if (!c) throw new Error("No case for that order.");
     if (c[kind]) throw new Error(`The seller has already submitted a ${kind} for this report.`);
     c[kind] = r;
-    await this.write(all);
+    await this.table.set(order, c);
     return c;
   }
 }

@@ -1,10 +1,12 @@
 /**
  * lib/data-dir.ts — where SigPath keeps its files.
  *
- * Locally: ./.data (gitignored). On Vercel the app directory is read-only and
- * only the temp directory is writable, so it falls back there. That storage is
- * per instance and doesn't survive a redeploy: fine for a demo, not for real
- * orders. Set DATA_DIR to a persistent disk for that.
+ * Only when no shared database is configured: with one (lib/kv/upstash.ts),
+ * every record and log lives there instead (lib/kv/table.ts,
+ * lib/checkout/encrypted-store.ts). Locally: ./.data (gitignored). On Vercel
+ * the app directory is read-only and only the temp directory is writable, so
+ * it falls back there. That storage is per instance and doesn't survive a
+ * redeploy: fine for a demo, not for real records.
  */
 
 import { tmpdir } from "os";

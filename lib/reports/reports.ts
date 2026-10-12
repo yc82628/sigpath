@@ -38,8 +38,7 @@
 
 import nacl from "tweetnacl";
 import { createHash, randomBytes, randomUUID } from "crypto";
-import { mkdir, readFile, rename, writeFile } from "fs/promises";
-import { dirname, join } from "path";
+import { join } from "path";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { EncryptedStore, backendFromEnv, keyFromEnv } from "../checkout/encrypted-store";
 import { readOrder } from "../checkout/checkout";
@@ -59,6 +58,7 @@ export const PENDING_REPORT_MAX_SECS = 90 * 24 * 3600;
 // One definition of seller identity, shared with search — see marketplace/types.
 import { sellerKey } from "../marketplace/types";
 import { dataDir } from "../data-dir";
+import { asTable, tableFromEnv, type Table } from "../kv/table";
 export { sellerKey };
 
 // ---------------------------------------------------------------------------
@@ -124,39 +124,38 @@ export interface Decision {
 }
 
 /**
- * The decision log. A plain JSON file, written atomically, never edited in
- * place: a decision once recorded is not overwritten. It holds no personal
- * data, which is what lets it outlive the pending report.
+ * The decision log. A decision once recorded is not overwritten: the only
+ * change it can receive is a reversal. It holds no personal data, which is
+ * what lets it outlive the pending report. In the shared database when one is
+ * configured, else a JSON file (lib/kv/table.ts).
  */
 export class DecisionLog {
-  constructor(private readonly file: string) {}
+  private readonly table: Table<Decision>;
+
+  constructor(table: Table<Decision> | string) {
+    this.table = asTable(table);
+  }
 
   static fromEnv(env: Record<string, string | undefined> = process.env): DecisionLog {
-    return new DecisionLog(env.REPORT_DECISIONS_FILE?.trim() || join(dataDir(env), "reports", "decisions.json"));
+    return new DecisionLog(
+      tableFromEnv(env, {
+        explicitFile: env.REPORT_DECISIONS_FILE,
+        defaultFile: join(dataDir(env), "reports", "decisions.json"),
+        name: "report-decisions",
+      }),
+    );
   }
 
   async all(): Promise<Record<string, Decision>> {
-    try {
-      return JSON.parse(await readFile(this.file, "utf8"));
-    } catch {
-      return {};
-    }
+    return this.table.all();
   }
 
   async get(order: string): Promise<Decision | null> {
-    return (await this.all())[order] ?? null;
+    return this.table.get(order);
   }
 
   async record(order: string, d: Decision): Promise<void> {
-    const all = await this.all();
-    if (all[order]) throw new Error("A decision for this order already exists.");
-    all[order] = d;
-    await mkdir(dirname(this.file), { recursive: true });
-    // Write-then-rename: a crash mid-write leaves the old log intact rather
-    // than a truncated one that parses as "no decisions".
-    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
-    await rename(tmp, this.file);
+    if (!(await this.table.setIfAbsent(order, d))) throw new Error("A decision for this order already exists.");
   }
 
   /**
@@ -165,27 +164,18 @@ export class DecisionLog {
    * when, stays on the record. Returns how many decisions were renamed.
    */
   async renameSeller(from: string, to: string): Promise<number> {
-    const all = await this.all();
-    let n = 0;
-    for (const d of Object.values(all)) {
-      if (d.sellerKey === from) {
-        d.sellerKey = to;
-        n++;
-      }
+    const renamed: Record<string, Decision> = {};
+    for (const [order, d] of Object.entries(await this.table.all())) {
+      if (d.sellerKey === from) renamed[order] = { ...d, sellerKey: to };
     }
-    if (n) {
-      await mkdir(dirname(this.file), { recursive: true });
-      const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-      await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
-      await rename(tmp, this.file);
-    }
-    return n;
+    await this.table.setMany(renamed);
+    return Object.keys(renamed).length;
   }
 
   /** Upheld reports per seller — what search flags and the checkout gate read. */
   async upheldCounts(): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
-    for (const d of Object.values(await this.all())) {
+    for (const d of Object.values(await this.table.all())) {
       // A reversed finding no longer counts. It is still in the log.
       if (d.status === "upheld" && !d.reversal) counts.set(d.sellerKey, (counts.get(d.sellerKey) ?? 0) + 1);
     }
@@ -198,16 +188,12 @@ export class DecisionLog {
    * shows that the finding was made, and when it was overturned.
    */
   async markReversed(order: string, reversal: { at: number; attestation?: string }): Promise<Decision> {
-    const all = await this.all();
-    const d = all[order];
+    const d = await this.table.get(order);
     if (!d) throw new Error("No decision for that order.");
     if (d.status !== "upheld") throw new Error("Only an upheld finding can be reversed.");
     if (d.reversal) throw new Error("That finding has already been reversed.");
     d.reversal = reversal;
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 });
-    await rename(tmp, this.file);
+    await this.table.set(order, d);
     return d;
   }
 }
