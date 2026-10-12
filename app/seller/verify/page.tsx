@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PopIcon from "../../components/PopIcon";
 import { claimMarketplaces } from "@/lib/sellers/claim";
 import VerifyForm from "./VerifyForm";
 
@@ -31,27 +32,42 @@ export default function VerifyPage() {
 
       <section className="guarantees">
         <h2>What it checks, and what it doesn&apos;t</h2>
-        <ul>
-          <li>
-            <strong>You control the account:</strong> you put a one-time code in one of your listings, and
-            SigPath reads it back through the marketplace&apos;s own API.
+        <ul className="icon-list">
+          <li className="with-icon">
+            <PopIcon name="key" tone="purple" size={24} />
+            <span>
+              <strong>You control the account:</strong> you put a one-time code in one of your listings, and
+              SigPath reads it back through the marketplace&apos;s own API.
+            </span>
           </li>
-          <li>
-            <strong>You hold the wallet:</strong> you sign a message with it. The badge is a token in that
-            wallet that <strong>can&apos;t be transferred or sold</strong>.
+          <li className="with-icon">
+            <PopIcon name="wallet" tone="blue" size={24} />
+            <span>
+              <strong>You hold the wallet:</strong> you sign a message with it. The badge is a token in that
+              wallet that <strong>can&apos;t be transferred or sold</strong>.
+            </span>
           </li>
-          <li>
-            <strong>A real person is behind it:</strong> a live photo with a handwritten code, checked and
-            discarded. No picture or face data is kept.
+          <li className="with-icon">
+            <PopIcon name="user-focus" tone="green" size={24} />
+            <span>
+              <strong>A real person is behind it:</strong> a live photo with a handwritten code, checked and
+              discarded. No picture or face data is kept.
+            </span>
           </li>
-          <li>
-            It is <strong>revoked</strong> if a buyer&apos;s fake-product report against the account is upheld
-            — and an account with an upheld report can&apos;t be verified at all. The badge lasts a year.
+          <li className="with-icon">
+            <PopIcon name="prohibit" tone="purple" size={24} />
+            <span>
+              It is <strong>revoked</strong> if a buyer&apos;s fake-product report against the account is upheld
+              — and an account with an upheld report can&apos;t be verified at all. The badge lasts a year.
+            </span>
           </li>
-          <li>
-            It does <strong>not</strong> vouch for any particular item, and it can&apos;t stop someone opening
-            a new account. What it does is make &ldquo;verified&rdquo; visibly different from &ldquo;no
-            track record&rdquo;.
+          <li className="with-icon">
+            <PopIcon name="info" tone="blue" size={24} />
+            <span>
+              It does <strong>not</strong> vouch for any particular item, and it can&apos;t stop someone opening
+              a new account. What it does is make &ldquo;verified&rdquo; visibly different from &ldquo;no
+              track record&rdquo;.
+            </span>
           </li>
         </ul>
       </section>

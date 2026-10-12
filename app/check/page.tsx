@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { checkPrice, parsePrice, SHOPS } from "@/lib/marketplace/price-check";
 import { formatMoney } from "@/lib/marketplace/types";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
+import PopIcon from "../components/PopIcon";
 
 /**
  * app/check — check a price from any shop (Amazon, AliExpress, anywhere)
@@ -126,7 +127,10 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
       </form>
 
       <section className="guarantees">
-        <h2>One click from the product page</h2>
+        <h2 className="with-icon">
+          <PopIcon name="bookmark-simple" tone="green" size={24} />
+          One click from the product page
+        </h2>
         <p>
           Drag this button to your browser&apos;s bookmarks bar:{" "}
           <span

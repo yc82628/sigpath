@@ -8,6 +8,7 @@ import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag } from "@/lib/l
 import { visitCounterOn } from "@/lib/visits";
 import VisitCounter from "./components/VisitCounter";
 import SaleDayBanner from "./components/SaleDayBanner";
+import PopIcon from "./components/PopIcon";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -34,9 +35,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Wordmark />
             </Link>
             <nav className="site-nav" aria-label="Main">
-              <Link href="/search">Search</Link>
-              <Link href="/alerts">Alerts</Link>
-              <Link href="/seller/verify">For sellers</Link>
+              <Link href="/search" className="with-icon">
+                <PopIcon name="magnifying-glass" tone="purple" size={18} neon />
+                Search
+              </Link>
+              <Link href="/alerts" className="with-icon">
+                <PopIcon name="bell-ringing" tone="blue" size={18} neon />
+                Alerts
+              </Link>
+              <Link href="/seller/verify" className="with-icon">
+                <PopIcon name="storefront" tone="green" size={18} neon />
+                For sellers
+              </Link>
             </nav>
           </div>
         </header>

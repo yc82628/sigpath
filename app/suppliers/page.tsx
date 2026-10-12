@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PopIcon from "../components/PopIcon";
 import SupplierCheck from "./SupplierCheck";
 
 /**
@@ -17,18 +18,27 @@ export default function SuppliersPage() {
 
       <section className="guarantees">
         <h2>What it checks</h2>
-        <ul>
-          <li>
-            <strong>Registered business:</strong> the VAT number against the EU&apos;s VIES register, and whether the name
-            they gave you matches the register&apos;s.
+        <ul className="icon-list">
+          <li className="with-icon">
+            <PopIcon name="buildings" tone="purple" size={24} />
+            <span>
+              <strong>Registered business:</strong> the VAT number against the EU&apos;s VIES register, and whether the name
+              they gave you matches the register&apos;s.
+            </span>
           </li>
-          <li>
-            <strong>Website age:</strong> when the domain was registered, from its registry. Scam shops are typically weeks
-            old.
+          <li className="with-icon">
+            <PopIcon name="calendar-dots" tone="blue" size={24} />
+            <span>
+              <strong>Website age:</strong> when the domain was registered, from its registry. Scam shops are typically weeks
+              old.
+            </span>
           </li>
-          <li>
-            <strong>SigPath&apos;s records:</strong> verified sellers and businesses, upheld fake-product reports, and details
-            that belong to a <em>different</em> verified business.
+          <li className="with-icon">
+            <PopIcon name="database" tone="green" size={24} />
+            <span>
+              <strong>SigPath&apos;s records:</strong> verified sellers and businesses, upheld fake-product reports, and details
+              that belong to a <em>different</em> verified business.
+            </span>
           </li>
         </ul>
       </section>

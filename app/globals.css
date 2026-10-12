@@ -243,10 +243,8 @@ button { font-family: var(--font-sans); }
 .category-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); border-color: var(--brand); }
 .category-icon {
   display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px;
-  background: var(--brand-soft); color: var(--brand);
+  background: var(--surface-2);
 }
-/* Every other tile wears the palette: light sage on ink. */
-.category-grid li:nth-child(even) .category-icon { background: var(--ink); color: var(--sage-light); }
 @media (max-width: 640px) {
   .category-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-inner { padding: 56px 16px 44px; }
@@ -313,6 +311,33 @@ body { isolation: isolate; }
   .laptop, .phone, .phone-scroll, .smoke span { animation: none; }
 }
 
+/* --- Icons: Pop in the light theme, Neon in the dark (PopIcon.tsx) ---------- */
+.pop-icon { display: inline-block; flex: none; vertical-align: -0.2em; overflow: visible; }
+.pop-icon.tone-purple { --tone: #9945ff; }
+.pop-icon.tone-blue { --tone: #00c2ff; }
+.pop-icon.tone-green { --tone: #14f195; }
+/* Pop: ink outline over a solid fill, the fill set off down and to the right. */
+.pop-icon .pop-fill { fill: var(--tone); transform: translate(22px, 20px); }
+.pop-icon .pop-line { fill: var(--fg); }
+/* Neon: the outline in colour, glowing, over a faint wash. */
+.pop-icon.neon { filter: drop-shadow(0 0 2px var(--tone)) drop-shadow(0 0 7px color-mix(in srgb, var(--tone) 55%, transparent)); }
+.pop-icon.neon .pop-fill { fill: var(--tone); opacity: 0.18; transform: none; }
+.pop-icon.neon .pop-line { fill: var(--tone); }
+@media (prefers-color-scheme: dark) {
+  .pop-icon { filter: drop-shadow(0 0 2px var(--tone)) drop-shadow(0 0 7px color-mix(in srgb, var(--tone) 55%, transparent)); }
+  .pop-icon .pop-fill { opacity: 0.18; transform: none; }
+  .pop-icon .pop-line { fill: var(--tone); }
+}
+
+/* An icon beside a line of text: lists, headings, the header menu. */
+.with-icon { display: flex; align-items: flex-start; gap: 12px; }
+.with-icon > .pop-icon { margin-top: 0.1em; }
+h2.with-icon, .site-nav a.with-icon { align-items: center; gap: 8px; }
+h2.with-icon > .pop-icon, .site-nav a.with-icon > .pop-icon { margin-top: 0; }
+.guarantees ul.icon-list { list-style: none; padding-left: 0; }
+.guarantees ul.icon-list li { margin: 10px 0; }
+@media (max-width: 420px) { .site-nav .pop-icon { display: none; } }
+
 .promise-row { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .promise-item {
   display: flex; align-items: center; gap: 14px; padding: 16px 18px;
@@ -332,18 +357,14 @@ body { isolation: isolate; }
 
 .how h1 { margin-top: 32px; }
 .how h2 { font-size: 1.3rem; margin: 32px 0 8px; }
-.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+/* Each step leads with its icon (PopIcon), in an ordered list so the order is still read out. */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .steps li {
-  counter-increment: step; position: relative; padding: 14px 16px 14px 56px;
+  padding: 14px 16px; gap: 16px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--muted);
 }
 .steps li strong { color: var(--fg); }
-.steps li::before {
-  content: counter(step); position: absolute; left: 16px; top: 14px;
-  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--brand); color: var(--brand-ink); font-weight: 700; font-size: 0.85rem;
-}
 .how-cta { margin-top: 24px; }
 
 /* ==========================================================================
