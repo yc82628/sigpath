@@ -65,12 +65,19 @@ test("a sighting is Amazon's own product page, tagged; never checked, never in t
   assert.ok(SITE_ONLY.has("amazon"), "never passed to the paid API or the assistant");
 });
 
-test("the extension runs only on the five shops and talks only to SigPath", () => {
+test("the extension runs by itself only on the listed shops, elsewhere only when asked, and talks only to SigPath", () => {
   const m = JSON.parse(readFileSync("extension/manifest.json", "utf8"));
-  assert.deepEqual(m.permissions, ["storage"]);
-  assert.deepEqual(m.host_permissions, ["https://sigpath.vercel.app/*", "http://localhost:3000/*"]);
+  // activeTab + scripting: "Check this page" reaches only the open tab, only when the shopper clicks it.
+  assert.deepEqual(m.permissions, ["storage", "activeTab", "scripting"]);
+  assert.deepEqual(m.host_permissions, ["https://sigpath.vercel.app/*"], "SigPath only, never the shopper's own machine");
   assert.deepEqual(m.content_scripts[0].matches, [
     "https://www.amazon.de/*",
+    "https://www.amazon.com/*",
+    "https://www.amazon.co.uk/*",
+    "https://www.amazon.fr/*",
+    "https://www.amazon.it/*",
+    "https://www.amazon.es/*",
+    "https://www.amazon.nl/*",
     "https://*.aliexpress.com/*",
     "https://www.otto.de/*",
     "https://www.mediamarkt.de/*",

@@ -3,28 +3,41 @@
 // It reads what the page shows (the product's name and price, on Amazon also
 // its ASIN, photo and seller), asks SigPath about it through the background
 // worker, and shows the answer in a small panel at the bottom right. On an
-// Amazon.de results page, with "share prices" on, it reports the products and
-// prices listed there. It reads only this page, only what's on screen, and
-// sends nothing about the shopper.
+// Amazon results page it puts a "SigPath check" button on every result, and on
+// Amazon.de, with "share prices" on, reports the products and prices listed
+// there. It reads only this page, only what's on screen, and sends nothing
+// about the shopper. On any other shop it runs when the shopper presses "Check
+// this page" in the extension's menu.
 
 (() => {
   if (window.top !== window) return; // not inside the shop's own frames
+  // Already running here: the menu's "Check this page" on a covered page asks it to look again.
+  if (window.__sigpathRunning) {
+    if (window.__sigpathRerun) window.__sigpathRerun();
+    return;
+  }
+  window.__sigpathRunning = true;
 
   const DE = (navigator.language || "").toLowerCase().startsWith("de");
   const T = DE
     ? { checking: "SigPath prüft …", typical: "Typisch auf eBay", listings: "Angebote", below: "unter", above: "über", same: "genau der typische Preis",
         best: "Bestes geprüftes eBay-Angebot", full: "Ganze Prüfung auf SigPath →", soldBy: "Verkauf durch", ebayDown: "eBay hat gerade nicht geantwortet: kein Vergleich.",
         error: "SigPath ist gerade nicht erreichbar.", close: "Schließen", reload: "Die Erweiterung wurde neu geladen: lade diese Seite neu.",
-        noAnswer: "Keine Antwort von der Erweiterung.", noPrice: "Den Preis auf dieser Seite konnte SigPath nicht lesen: vielleicht ist der Artikel nicht verfügbar, oder erst eine Variante (Farbe, Größe) wählen.", checked: "Geprüft", caution: "Vorsicht", unchecked: "Nicht geprüft", newW: "neu", usedW: "gebraucht" }
+        noAnswer: "Keine Antwort von der Erweiterung.", button: "Mit SigPath prüfen →", on: "SigPath ist an: „Mit SigPath prüfen“ bei jedem Ergebnis, oder ein Produkt öffnen.",
+        nothing: "Auf dieser Seite hat SigPath kein Produkt mit Preis gefunden.", noPrice: "Den Preis auf dieser Seite konnte SigPath nicht lesen: vielleicht ist der Artikel nicht verfügbar, oder erst eine Variante (Farbe, Größe) wählen.", checked: "Geprüft", caution: "Vorsicht", unchecked: "Nicht geprüft", newW: "neu", usedW: "gebraucht" }
     : { checking: "SigPath is checking…", typical: "Typical on eBay", listings: "listings", below: "below", above: "above", same: "exactly the typical price",
         best: "Best checked eBay deal", full: "Full check on SigPath →", soldBy: "Sold by", ebayDown: "eBay didn't answer just now: no comparison.",
         error: "SigPath can't be reached right now.", close: "Close", reload: "The extension was reloaded: reload this page.",
-        noAnswer: "No answer from the extension.", noPrice: "SigPath couldn't read the price on this page: the item may be unavailable, or choose an option (colour, size) first.", checked: "Checked", caution: "Caution", unchecked: "Not checked", newW: "new", usedW: "used" };
+        noAnswer: "No answer from the extension.", button: "Check with SigPath →", on: "SigPath is on: “Check with SigPath” on any result, or open a product.",
+        nothing: "SigPath found no product with a price on this page.", noPrice: "SigPath couldn't read the price on this page: the item may be unavailable, or choose an option (colour, size) first.", checked: "Checked", caution: "Caution", unchecked: "Not checked", newW: "new", usedW: "used" };
 
   const host = location.hostname;
-  const SHOP = /amazon\.de$/.test(host) ? "amazon" : /aliexpress\.com$/.test(host) ? "aliexpress" : /otto\.de$/.test(host) ? "otto"
-    : /mediamarkt\.de$/.test(host) ? "mediamarkt" : /saturn\.de$/.test(host) ? "saturn" : null;
+  const manual = () => !!window.__sigpathManual; // "Check this page" in the extension's menu
+  const SHOP = /(^|\.)amazon\.(de|com|co\.uk|fr|it|es|nl)$/.test(host) ? "amazon" : /aliexpress\.com$/.test(host) ? "aliexpress"
+    : /otto\.de$/.test(host) ? "otto" : /mediamarkt\.de$/.test(host) ? "mediamarkt" : /saturn\.de$/.test(host) ? "saturn" : manual() ? "other" : null;
   if (!SHOP) return;
+  // Sightings are euro prices from Amazon.de only (lib/extension/seen.ts).
+  const AMAZON_DE = /(^|\.)amazon\.de$/.test(host);
 
   const $ = (s, root = document) => root.querySelector(s);
   const text = (el) => (el ? (el.getAttribute("content") || el.innerText || el.textContent || "").replace(/\s+/g, " ").trim() : "");
@@ -122,18 +135,38 @@
   // ---- Amazon results pages: the prices on screen -------------------------
 
   const reported = new Set();
-  function reportSearchResults() {
+  let server = "https://sigpath.vercel.app";
+  ask({ type: "settings" }).then((r) => { if (r.ok && r.data && r.data.server) server = r.data.server; });
+  let notePill = false;
+
+  /** A "SigPath check" button on each result, opening SigPath's check for it; on Amazon.de the prices are reported. */
+  function searchResults() {
     const items = [];
     for (const r of document.querySelectorAll('div[data-component-type="s-search-result"][data-asin]')) {
       const asin = r.getAttribute("data-asin");
       if (!asin || reported.has(asin)) continue;
       const title = text($("h2", r)) || $("h2", r)?.getAttribute("aria-label") || "";
-      const amount = cents(text($(".a-price:not(.a-text-price) .a-offscreen", r)));
+      const priceText = text($(".a-price:not(.a-text-price) .a-offscreen", r));
+      const amount = cents(priceText);
       if (!title || !amount) continue;
       reported.add(asin);
-      items.push({ asin, title, price: { amount, currency: "EUR" }, imageUrl: $("img.s-image", r)?.src });
+      if (AMAZON_DE) items.push({ asin, title, price: { amount, currency: "EUR" }, imageUrl: $("img.s-image", r)?.src });
+      const a = document.createElement("a");
+      // A link to the check, not a verdict: no ✓ until SigPath has actually checked something.
+      a.textContent = T.button;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.href = `${server}/check?${new URLSearchParams({ title: title.slice(0, 200), price: priceText, from: "amazon", url: `${location.origin}/dp/${asin}` })}`;
+      a.style.cssText = "display:inline-block;margin:6px 0 2px;padding:3px 10px;border-radius:999px;background:#6a2fe0;color:#fff;font:600 12px/1.6 system-ui,sans-serif;text-decoration:none;";
+      const where = $(".a-price", r)?.closest(".a-row") || $("h2", r)?.parentElement || r;
+      where.appendChild(document.createElement("br"));
+      where.appendChild(a);
     }
     if (items.length) ask({ type: "seen", items: items.slice(0, 60) });
+    if (reported.size && !notePill) {
+      notePill = true;
+      showPanel().body.innerHTML = `<p class="muted">${T.on}</p>`;
+    }
   }
 
   // ---- The panel ----------------------------------------------------------
@@ -185,6 +218,8 @@
     if (product.seller) html += `<p class="muted">${T.soldBy}: ${esc(product.seller)}</p>`;
     html += `<p><a href="${safeUrl(r.checkUrl)}" target="_blank" rel="noopener">${T.full}</a></p>`;
     p.body.innerHTML = html;
+    // The verdict on the toolbar icon too.
+    ask({ type: "badge", text: r.verdict === "checked" ? "✓" : r.verdict === "caution" ? "!" : "?" });
   }
 
   // ---- Running it ---------------------------------------------------------
@@ -192,11 +227,15 @@
   let lastChecked = "";
   async function run() {
     if (SHOP === "amazon" && /^\/s$|^\/s\//.test(location.pathname)) {
-      reportSearchResults();
+      searchResults();
       return;
     }
     const product = SHOP === "amazon" ? amazonProduct() : otherProduct();
-    if (!product) return;
+    if (!product) {
+      // Asked from the menu, it answers even when there's nothing to check.
+      if (manual() && !panel) showPanel().body.innerHTML = `<p class="muted">${T.nothing}</p>`;
+      return;
+    }
     const key = `${product.title}|${product.price}`;
     if (key === lastChecked) return;
     lastChecked = key;
@@ -227,6 +266,10 @@
     render(res.data, product);
   }
 
+  window.__sigpathRerun = () => {
+    lastChecked = "";
+    run();
+  };
   run();
   // Shops that change page without reloading (OTTO, MediaMarkt), and Amazon results that load more as you scroll.
   let href = location.href;

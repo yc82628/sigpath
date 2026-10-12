@@ -13,7 +13,8 @@ export default function ExtensionPage() {
     <main className="container">
       <h1>The SigPath extension</h1>
       <p className="lede">
-        SigPath&apos;s check on the product page you&apos;re looking at: Amazon.de, AliExpress, OTTO, MediaMarkt and Saturn.
+        SigPath&apos;s check on the product page you&apos;re looking at: Amazon, AliExpress, OTTO, MediaMarkt and Saturn by
+        itself, any other shop from the extension&apos;s menu.
       </p>
 
       <section className="guarantees">
@@ -25,8 +26,16 @@ export default function ExtensionPage() {
             it.
           </li>
           <li>
-            <strong>On Amazon.de,</strong> with &ldquo;Share Amazon prices I see&rdquo; on, the products and prices you
-            see go into SigPath&apos;s search as &ldquo;seen on Amazon&rdquo;, so other shoppers can compare them. The
+            <strong>On Amazon&apos;s search results,</strong> a &ldquo;Check with SigPath&rdquo; button under every result&apos;s
+            price, opening SigPath&apos;s check for it.
+          </li>
+          <li>
+            <strong>On any other shop,</strong> click the extension&apos;s icon and &ldquo;Check this page&rdquo;. The icon
+            shows the verdict: ✓ checked, ! caution, ? not checked.
+          </li>
+          <li>
+            <strong>On Amazon.de,</strong> if you turn on &ldquo;Share Amazon.de prices I see&rdquo;, the products and
+            prices you see go into SigPath&apos;s search as &ldquo;seen on Amazon&rdquo;, so other shoppers can compare them. The
             product and its price only, never anything about you.
           </li>
         </ul>
@@ -35,8 +44,8 @@ export default function ExtensionPage() {
       <section className="guarantees">
         <h2>What it shares, and the switch</h2>
         <p>
-          The switch is in the extension&apos;s menu (its icon in the toolbar). It&apos;s on when you install it: turn it
-          off and nothing is shared, and the check still works. The extension reads only the shop page you opened, and
+          The switch is in the extension&apos;s menu (its icon in the toolbar), and it&apos;s off until you turn it on.
+          Off, nothing is shared, and the check still works. The extension reads only the shop page you opened, and
           nothing about you is sent with it. The full detail is in the <Link href="/privacy#extension">privacy notice</Link>.
         </p>
       </section>
@@ -57,7 +66,8 @@ export default function ExtensionPage() {
           <li>
             Click &ldquo;Load unpacked&rdquo; and choose the <code>extension</code> folder.
           </li>
-          <li>Open any product on Amazon.de: the SigPath panel appears at the bottom right.</li>
+          <li>Open any product on Amazon: the SigPath panel appears at the bottom right. Already had it installed? Click
+            its reload arrow in the extensions page, then reload the Amazon page.</li>
         </ol>
         <p className="hint">It will be in the Chrome Web Store and Edge Add-ons once it&apos;s been reviewed there.</p>
       </section>

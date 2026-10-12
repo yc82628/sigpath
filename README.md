@@ -619,16 +619,23 @@ commission on orders through its links.
 ## The browser extension, and Amazon seen by shoppers
 
 `extension/` is a Chrome/Edge extension (Manifest V3), installed unpacked for
-now (`/extension` explains how). It runs only on Amazon.de, AliExpress, OTTO,
-MediaMarkt and Saturn, and talks only to SigPath.
+now (`/extension` explains how). It runs by itself only on Amazon (.de, .com,
+.co.uk, .fr, .it, .es, .nl), AliExpress, OTTO, MediaMarkt and Saturn; on any
+other shop only when the shopper clicks "Check this page" in its menu
+(`activeTab`: that tab, that click). It talks only to SigPath.
+
+- **On Amazon's search results** a "Check with SigPath →" button under each
+  result's price opens SigPath's check for it. The toolbar icon shows the
+  verdict of the product page that's open (✓, !, ?).
 
 - **On a product page** it reads what the page shows (name and price; on
   Amazon also the ASIN, photo and seller) and shows SigPath's check in a
   panel at the bottom right: the verdict, the eBay typical price, the best
   checked eBay deal (`POST /api/extension/check`, the same check as
   `/check`, rate-limited like a search).
-- **Amazon prices seen by shoppers** (`lib/extension/seen.ts`). With "Share
-  Amazon prices I see" on (the default, a switch in the extension's menu),
+- **Amazon prices seen by shoppers** (`lib/extension/seen.ts`). Only with "Share
+  Amazon.de prices I see" on (a switch in the extension's menu, off until the
+  shopper turns it on),
   the Amazon products a shopper opens, and those on Amazon results pages
   (`POST /api/extension/seen`), are kept: ASIN, title, euro price, photo
   address, when. Nothing about the shopper. SigPath's search then shows them

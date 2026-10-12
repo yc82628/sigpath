@@ -115,10 +115,11 @@ export default function PrivacyPage() {
 
       <h2 id="extension">The SigPath browser extension</h2>
       <p>
-        The extension runs only on Amazon.de, AliExpress, OTTO, MediaMarkt and Saturn pages you open. On a product page
+        The extension runs by itself only on Amazon, AliExpress, OTTO, MediaMarkt and Saturn pages you open, and on another
+        shop&apos;s page only when you click &ldquo;Check this page&rdquo; in its menu. On a product page
         it reads the product&apos;s name and price (on Amazon also its product number, photo address and seller name) and
-        sends them, with the page&apos;s address, to SigPath for the same check as /check. With &ldquo;Share Amazon prices
-        I see&rdquo; on (the default, a switch in the extension), SigPath keeps Amazon products you looked at, and those
+        sends them, with the page&apos;s address, to SigPath for the same check as /check. Only if you turn on &ldquo;Share
+        Amazon.de prices I see&rdquo; (a switch in the extension&apos;s menu, off until you do), SigPath keeps Amazon products you looked at, and those
         listed on Amazon results pages you open: the product number, title, price, photo address and when it was seen,
         for SigPath&apos;s search to show as &ldquo;seen on Amazon&rdquo;. Nothing about you is sent or kept with them:
         no account, no address, no record of who saw what. A newer sighting of a product replaces the older one, and
