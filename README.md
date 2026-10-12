@@ -4,20 +4,23 @@
 
 **Deal Go – Scam Towed.** Every deal compared. Every deal checked.
 
-SigPath searches eBay, Amazon and Etsy at once and shows the best price, with
-shipping included. It then checks every result before you buy: is the price
-plausible for the condition, is the photo recycled from another seller, is the
-account brand new, has a verified buyer reported this seller for fakes? Pay
-through SigPath and your money waits in an on-chain escrow until the order
-ships, or comes back to you automatically. No account, no sign-in, no tracking.
+SigPath searches live marketplaces at once and shows the best price, with
+shipping included, and checks a price from any other shop (Amazon, AliExpress,
+anywhere) against the same live market. It then checks every result before you
+buy: is the price plausible for the condition, is the photo recycled from
+another seller, is the account brand new, has a verified buyer reported this
+seller for fakes? Pay through SigPath and your money waits in an on-chain escrow
+until the order ships, or comes back to you automatically. No account, no
+sign-in, no tracking.
 
 Built for the **Solana × Superteam Germany** hackathon.
 
 **Live at [sigpath.vercel.app](https://sigpath.vercel.app):** every search pulls
 50 real listings from **eBay** (eBay Germany, through the official Browse API)
-and checks each one against identical listings. A demo feed with scams planted
-on purpose runs next to it, in its own comparison, so a catch is always on
-screen. Ai-chan answers there too, on Google Gemini.
+and checks each one against identical listings. Real listings only: the demo
+feed with scams planted on purpose stays off there. **`/check`** compares a price
+from Amazon, AliExpress or any shop with those listings, read from the page the
+shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
 
 | | Live on devnet |
 |---|---|
@@ -35,13 +38,15 @@ screen. Ai-chan answers there too, on Google Gemini.
 
 ## What a shopper gets
 
-- **One search, every marketplace.** eBay, Amazon and Etsy through their
-  official APIs, with prices compared including shipping. eBay is live; the
-  Etsy adapter is built and waits for its key (a "Personal App", which Etsy
-  reviews by hand). Etsy's API terms are kept in code
-  (`lib/marketplace/etsy-terms.ts`): its required notice in the footer, no Etsy
-  listings in the paid API or the AI assistant, and Etsy items bought on Etsy,
-  never through SigPath's checkout. Amazon retired the Product
+- **One search, every marketplace.** Through official APIs only, with prices
+  compared including shipping. eBay is live. **AliExpress** (official Affiliate
+  API, `sources/aliexpress.ts`) is built and waits for its keys: its listings
+  show their live prices and a link to buy on AliExpress, but stay out of the
+  price comparison, because the same product costs far less there than on eBay
+  Germany and pooling them would flag honest sellers as too cheap (see
+  [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)). Etsy, which
+  AliExpress replaced, is no longer searched; its adapter and API terms
+  (`lib/marketplace/etsy-terms.ts`) stay in the code. Amazon retired the Product
   Advertising API that `sources/amazon.ts` uses (2026); its successor, the
   Creators API, needs an Associates account with 10 sales in 30 days. Until
   then Amazon is a search link carrying the Associates tag
@@ -51,6 +56,11 @@ screen. Ai-chan answers there too, on Google Gemini.
   requires of comparison sites (`lib/legal/site.ts`). idealo and
   Kleinanzeigen have no API SigPath may use, so they get a one-click link
   instead of scraping.
+- **Check a price from any shop** (`/check`). A "SigPath check" bookmark reads
+  the product's name and price from the Amazon or AliExpress page the shopper is
+  on, in their own browser, and the price gets the same verdict an eBay listing
+  would. No API key, no scraping, nothing sent to the shop (see
+  [Check a price](#check-a-price--amazon-aliexpress-or-any-shop)).
 - **One verdict per listing.** ✓ **SigPath-checked**: the price matches the market
   for its condition and nothing was flagged. **! Look closer**: with the reason,
   such as a photo on two seller accounts, a three-day-old account, or a price far
@@ -95,17 +105,24 @@ npm run dev
 ```
 
 Open http://localhost:3000 and search for anything. A **demo feed** is on by
-default (`STUB_FEED=true`). It deliberately includes a bait listing, a recycled
-photo and a brand-new account, so every verdict is on screen without any keys.
-For live results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` or
-`ETSY_KEYSTRING`/`ETSY_SHARED_SECRET` to `.env.local`, and `AMAZON_PARTNER_TAG`
-to tag the Amazon search link (see `.env.local.example`). The demo feed can stay
-on next to them: its invented prices are only ever compared with each other,
-never with real listings, and a demo listing never takes a best-deal spot once a
-real marketplace answered. Set `STUB_FEED=false` to hide it.
+default here. It deliberately includes a bait listing, a recycled photo and a
+brand-new account, so every verdict is on screen without any keys. For live
+results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` to `.env.local`,
+`ALIEXPRESS_APP_KEY`/`ALIEXPRESS_APP_SECRET`/`ALIEXPRESS_TRACKING_ID` for
+AliExpress, and `AMAZON_PARTNER_TAG` to tag the Amazon search link (see
+`.env.local.example`). The demo feed can stay on next to them: its invented
+prices are only ever compared with each other, never with real listings, and a
+demo listing never takes a best-deal spot once a real marketplace answered.
+
+The demo feed is **on by default locally and in Vercel previews, off by default
+on the live site** (`VERCEL_ENV=production`), so real shoppers never see
+invented products (`demoFeedOn`, `lib/marketplace/sources/index.ts`).
+`STUB_FEED=true` or `=false` overrides either default. Until 2026-10-11 it was
+on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
+the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 499 tests, as of 2026-10-10
+npm test                                   # 525 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -114,7 +131,7 @@ npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned b
 The devnet scripts need an operator key in `.env.local`, and they create a test
 wallet to fund from faucet.circle.com.
 
-**Pages:** `/search` · `/alerts` · `/suppliers` · `/developers` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
+**Pages:** `/search` · `/check` · `/alerts` · `/suppliers` · `/developers` · `/agents` · `/seller/verify` · `/seller/<marketplace>/<handle>`
 (a seller's public record) · `/checkout` · `/order/<address>` · `/report/<order>`
 
 ## Contents
@@ -122,6 +139,7 @@ wallet to fund from faucet.circle.com.
 The rest of this README is the engineering detail:
 
 - [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [Check a price: Amazon, AliExpress or any shop](#check-a-price--amazon-aliexpress-or-any-shop) · [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)
 - [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
@@ -412,7 +430,7 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
 |---|---|---|
 | **✓ SigPath-checked** | Its price was compared with enough listings of the same product, configuration and condition, and nothing was flagged | Green |
 | **! Look closer** | Anything was flagged, and every reason is listed | Amber, the same as flags always were: an observation, not an alarm |
-| **Not price-checked** | Nothing was flagged, but the price couldn't be compared (too few of the same product, an accessory, sold for parts, Etsy, unknown condition…) | Neutral grey: a handmade mug with no retail median isn't suspicious |
+| **Not price-checked** | Nothing was flagged, but the price couldn't be compared (too few of the same product, an accessory, sold for parts, AliExpress, unknown condition…) | Neutral grey: a handmade mug with no retail median isn't suspicious |
 
 - **Like for like, read from the title** (`lib/marketplace/identity.ts`). Each
   listing is priced only against listings that are the same product: model words
@@ -422,11 +440,17 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
   **Accessories** ("charger for…", "case") and **for-parts** units ("not working",
   "iCloud locked") are never compared. They're "Not price-checked" with the reason,
   instead of being wrongly flagged as too cheap. "With case", "charger included"
-  and "not cracked" don't count. Ai-chan never suggests them as picks.
+  and "not cracked" don't count. Ai-chan never suggests them as picks. A search
+  for the accessory itself compares accessories, and a German compound names its
+  last part: searching "Schutzhülle" is searching for a "Hülle". Until
+  2026-10-12 it wasn't: checking a €2.79 AirPods case from AliExpress said "it
+  looks like an accessory (hülle), not the Schutzhülle für Airpods Pro 2 itself".
+  One earbud of a pair ("Links", "right AirPod only") is a part, not a cheap
+  pair: it was once the live "best checked deal" for AirPods Pro 2 at €60.80.
 - **Every check says whether it ran.** Photo, seller history and buyer reports
   each get their own line. A tick appears only for evidence actually looked at.
   Otherwise the line says it wasn't checked and why ("Seller history not checked:
-  Etsy doesn't publish it"). There's no blanket "no warnings" line.
+  AliExpress doesn't publish it"). There's no blanket "no warnings" line.
 - **"Checked" means checked, not guaranteed.** One line on every results page
   says so and says what to do if a fake gets through: report it.
 - **Real and demo are never pooled.** The demo feed's prices are invented, so
@@ -463,7 +487,84 @@ three verdicts, with the reasons underneath (`lib/marketplace/label.ts`):
 
 Flags now carry their marketplace as well as their id. Ids are only unique within
 one marketplace, and grouping by id alone could hang an eBay listing's flag on an
-Etsy listing with the same number (tested).
+AliExpress listing with the same number (tested).
+
+---
+
+## Check a price — Amazon, AliExpress or any shop
+
+Shoppers find a product on Amazon or AliExpress and want to know if the price
+is fair. Amazon's product API needs 10 sales first, AliExpress's needs approved
+keys, and fetching their pages from a server means scraping, blocked datacenter
+IPs, paid proxies and CAPTCHAs. So SigPath doesn't fetch them. **The shopper brings the
+product** (`/check`, [lib/marketplace/price-check.ts](lib/marketplace/price-check.ts)):
+
+1. **The "SigPath check" bookmark** (a bookmarklet, dragged to the bookmarks bar
+   from `/check`) runs on the product page the shopper is already looking at,
+   in their own browser. It reads only the title and the price shown (Amazon's
+   `#productTitle` and price block, AliExpress's product title and current
+   price, or a shop's schema.org JSON-LD offer) and opens `/check` with them.
+   Nothing else on the page is read, and nothing is sent to the shop. Or type
+   the name and price in.
+2. **The title becomes an eBay search** (`shortQuery`). Shop titles run long
+   ("Apple AirPods Pro 2 Wireless Earbuds, Up to 2x More…"), and SigPath only
+   compares listings that name every searched word, so the search is just the
+   model: the name before the first comma, bracket or dash, cut at the first
+   word that describes rather than names, at most six words. ®™© are dropped
+   ("Playstation®5" → "Playstation 5").
+3. **The product joins the live eBay results as one more listing**, through the
+   search's own comparison (`searchAll`, `withLabels`), so it gets exactly the
+   verdict an eBay listing would: compared only with the same model,
+   configuration and condition, and flagged if it's far below them. The page
+   also shows the best checked eBay deals for it.
+
+Prices parse as shops print them: "1.249,00 €", "€1,249.00", "US $23.50",
+"RM 99" (`parsePrice`). With eBay not answering, there's no comparison and the
+verdict doesn't pretend otherwise (tested).
+
+Checked live on 2026-10-11 and 2026-10-12:
+
+| Product | Price | Verdict |
+|---|---|---|
+| PlayStation 5 Digital Edition, amazon.de (via the bookmark) | €599.99 | ✓ checked: 10% above the median of 6 identical eBay listings; best checked eBay deal €460.49 new |
+| PlayStation 5 Slim, typed in | €149 | ! Look closer: far below the median, with the reason |
+| Baseus USB-C cable, de.aliexpress.com (via the bookmark) | €4.29 | Not price-checked: only 2 eBay listings |
+| AirPods Pro 2 case, de.aliexpress.com (via the bookmark) | €2.79 | Not price-checked, no false alarm |
+
+The bookmark read the title and price on all six AliExpress product pages
+tried. The privacy page says what `/check` receives (title, price, page
+address) and that none of it is stored.
+
+## AliExpress — live prices, kept out of the median
+
+`lib/marketplace/sources/aliexpress.ts`, through AliExpress's official
+Affiliate API (AliExpress Open Platform): free, and AliExpress pays a
+commission on orders through its links.
+
+- **The request:** `GET https://api-sg.aliexpress.com/sync`,
+  `aliexpress.affiliate.product.query`, signed with HMAC-SHA256 over the
+  sorted parameters (checked against both of the docs' worked examples).
+  Prices come back in the shopper's currency, with tax for the ship-to country
+  (`ALIEXPRESS_SHIP_TO`, default `DE`; `MY` for Malaysia).
+- **Shown, not compared.** `priceComparable = false`: the same product costs far
+  less on AliExpress than on eBay Germany, so in one median every AliExpress
+  listing would be "well below the median", a false alarm on honest sellers.
+  And comparing AliExpress only with itself isn't a counterfeit check: a copy
+  sold by many sellers at the same low price looks normal next to the others.
+  Its listings show their live price and a link to buy on AliExpress, marked
+  "Not price-checked", and never reach the median or the best checked deals.
+- **Bought on AliExpress.** No shipping in the search result, so never through
+  SigPath's checkout ("AliExpress items are bought on AliExpress, through its
+  own checkout"). Its links are affiliate links (`rel="sponsored"`), and the
+  footer says so once a tracking ID is set.
+- **Kept to the site.** AliExpress listings don't reach the paid API, the AI
+  assistant or the agents page (`lib/marketplace/site-only.ts`), as Etsy's
+  terms required before it.
+- **Keys:** `ALIEXPRESS_APP_KEY`, `ALIEXPRESS_APP_SECRET` (secret),
+  `ALIEXPRESS_TRACKING_ID`, from an Affiliates API app on the AliExpress Open
+  Platform (steps in `.env.local.example`). Without them the source reports
+  `not_configured` and the home page doesn't list AliExpress. A key problem
+  comes back as AliExpress's own error code in the source's status line.
 
 ---
 
@@ -702,7 +803,7 @@ through eBay's application growth check once there is real traffic.
 ## Pay with USDC — the order escrow
 
 `programs/sigpath_orders` lets a shopper pay on SigPath with USDC instead of
-typing a card number into every retailer's site. Amazon, eBay and Etsy do not
+typing a card number into every retailer's site. Amazon, eBay and AliExpress do not
 take USDC, so SigPath buys the item on the shopper's behalf — which means the
 shopper is trusting SigPath with their money. The program is what earns that
 trust:
@@ -796,7 +897,7 @@ use when there is more than one.
 | The browser never builds the payment | The server builds the unsigned transaction; the wallet only signs it (Solana Pay *transaction request*) |
 | SigPath won't buy a likely scam with its own money | Listings the anomaly checks flagged get **no pay button**, and no quote is ever signed for them |
 | SigPath won't buy a price nobody could check | A listing must have been compared against enough listings **of its own condition** — new with new, used with used. Too few comparables, unknown condition, or a marketplace down: no pay button, with the reason shown |
-| No under-quoting | Listings with unpublished shipping (all of Etsy, some eBay) can't be checked out |
+| No under-quoting | Listings with unpublished shipping (all of AliExpress, some eBay) can't be checked out |
 | The price shown is the price charged | EUR→USDC at the ECB rate, shown with its date, integer arithmetic, rounded **up** |
 | The fee shown is the fee charged | SigPath's service fee is **signed into each quote** with the price, so it can't be edited in the browser, and a later change to the setting doesn't touch quotes already shown |
 | The fee is protected like the price | It is paid into the escrow with the price: SigPath receives it only through `fulfil`, and a refund returns it with everything else |
@@ -1646,6 +1747,9 @@ third is the load-bearing one.
 - **Amazon is a tagged search link only (as of 2026-10-11).** No Associates tag
   is set yet. Amazon prices need the Creators API, open after 10 qualifying
   sales in 30 days; Amazon seller verification needs SP-API registration.
+  Until then `/check` compares an Amazon price with live eBay.
+- **AliExpress waits for its keys (applied 2026-10-12).** The source is built
+  and tested against fixtures; it hasn't answered a live request yet.
 - **X and LinkedIn collectors are thin by necessity** — they contribute breadth
   and name agreement, not depth. See the comments in each file.
 - **The Base mirror has never been executed.** It needs a registered schema and a
