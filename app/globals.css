@@ -253,6 +253,64 @@ button { font-family: var(--font-sans); }
   .market-row { gap: 20px; font-size: 1rem; }
 }
 
+/* --- Home: SigPath on a laptop and a phone --------------------------------- */
+.devices { position: relative; max-width: 880px; margin: 8px auto 0; padding: 24px 16px 8px; }
+.laptop { width: 82%; margin: 0 auto 0 0; animation: float 9s ease-in-out infinite alternate; }
+.laptop-lid {
+  padding: 2.2% 2.2% 3%; border-radius: 18px 18px 6px 6px;
+  background: linear-gradient(160deg, #2b2650, #12102a); border: 1px solid #3b3475;
+  box-shadow: 0 30px 60px -20px rgba(11, 10, 26, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+.laptop-screen { aspect-ratio: 16 / 10; overflow: hidden; border-radius: 6px; background: #0b0a1a; }
+.laptop-screen img, .phone-screen img { display: block; width: 100%; height: auto; }
+.laptop-base {
+  position: relative; height: 14px; margin: 0 -6%; border-radius: 0 0 16px 16px;
+  background: linear-gradient(#cfcbe4, #8f8aae); box-shadow: 0 18px 30px -12px rgba(11, 10, 26, 0.45);
+}
+.laptop-base::before { content: ""; position: absolute; left: 42%; right: 42%; top: 0; height: 5px; border-radius: 0 0 8px 8px; background: #7d789e; }
+.phone {
+  position: absolute; right: 4%; bottom: -4%; width: 25%; min-width: 120px; max-width: 220px;
+  padding: 3.2% 1.6%; border-radius: 34px; background: #12102a; border: 1px solid #3b3475;
+  box-shadow: 0 30px 60px -18px rgba(11, 10, 26, 0.6), 0 0 0 4px rgba(153, 69, 255, 0.18);
+  animation: float 7s ease-in-out -2s infinite alternate;
+}
+.phone::before { content: ""; position: absolute; top: 1.6%; left: 38%; right: 38%; height: 1.2%; min-height: 5px; border-radius: 99px; background: #2b2650; z-index: 1; }
+.phone-screen { aspect-ratio: 390 / 844; overflow: hidden; border-radius: 24px; background: #0b0a1a; }
+/* Scroll from the top of the search to near its end and back: 67.5% is the
+   screenshot's height (390 x 2600) less one screen (390 x 844). */
+.phone-scroll { animation: phone-scroll 22s ease-in-out 1.5s infinite alternate; }
+/* Under the laptop, clear of the phone in front of it. */
+.devices-caption { width: 66%; margin: 34px 0 0; text-align: center; font-size: 0.82rem; color: var(--muted); }
+@keyframes float { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+@keyframes phone-scroll { 0%, 8% { transform: translateY(0); } 92%, 100% { transform: translateY(-67.5%); } }
+@media (max-width: 640px) {
+  .devices { padding: 12px 12px 0; }
+  .laptop { width: 88%; }
+  .phone { right: 0; width: 30%; border-radius: 22px; }
+  .phone-screen { border-radius: 15px; }
+}
+
+/* --- Home: smoke behind the page --------------------------------------------
+   Three very large, very soft clouds in the Solana colours, drifting over a
+   minute or more. Only transform is animated, so it runs on the GPU without
+   repainting; no filter, no canvas, no video, no library. The page's own
+   layers stay above it (body isolates its stacking context). */
+body { isolation: isolate; }
+.smoke { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.smoke span { position: absolute; width: 70vmax; height: 52vmax; border-radius: 50%; opacity: var(--smoke-opacity); will-change: transform; }
+.smoke-a { left: -22vmax; top: -12vmax; background: radial-gradient(closest-side, rgba(153, 69, 255, 0.55), rgba(153, 69, 255, 0) 100%); animation: drift-a 64s ease-in-out infinite alternate; }
+.smoke-b { right: -26vmax; top: 18vh; background: radial-gradient(closest-side, rgba(0, 194, 255, 0.42), rgba(0, 194, 255, 0) 100%); animation: drift-b 78s ease-in-out infinite alternate; }
+.smoke-c { left: 14vw; bottom: -30vmax; background: radial-gradient(closest-side, rgba(20, 241, 149, 0.34), rgba(20, 241, 149, 0) 100%); animation: drift-c 92s ease-in-out infinite alternate; }
+@keyframes drift-a { from { transform: translate(0, 0) rotate(0deg) scale(1); } to { transform: translate(18vw, 10vh) rotate(25deg) scale(1.15); } }
+@keyframes drift-b { from { transform: translate(0, 0) rotate(0deg) scale(1.1); } to { transform: translate(-22vw, -8vh) rotate(-20deg) scale(0.95); } }
+@keyframes drift-c { from { transform: translate(0, 0) rotate(0deg) scale(0.95); } to { transform: translate(-12vw, -14vh) rotate(18deg) scale(1.12); } }
+:root { --smoke-opacity: 0.45; }
+@media (prefers-color-scheme: dark) { :root { --smoke-opacity: 0.6; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .laptop, .phone, .phone-scroll, .smoke span { animation: none; }
+}
+
 .promise-row { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .promise-item {
   display: flex; align-items: center; gap: 14px; padding: 16px 18px;
@@ -344,10 +402,13 @@ button { font-family: var(--font-sans); }
   background: var(--surface-2); color: var(--fg); border: 1px solid var(--border); vertical-align: 1px;
 }
 
+/* A phone: photo and price side by side on top, the title and every check at
+   full width beneath, instead of squeezing them into a column between the two. */
 @media (max-width: 560px) {
-  .listing { flex-wrap: wrap; }
-  .thumb { width: 72px; height: 72px; }
-  .listing .price { text-align: left; }
+  .listing { display: grid; grid-template-columns: 64px 1fr; gap: 10px 14px; padding: 14px; }
+  .listing .thumb { grid-row: 1; grid-column: 1; width: 64px; height: 64px; font-size: 1.3rem; }
+  .listing .price { grid-row: 1; grid-column: 2; align-self: center; text-align: left; }
+  .listing .body { grid-row: 2; grid-column: 1 / -1; }
 }
 
 /* Deliberately not red and not alarming: these are observations for the buyer

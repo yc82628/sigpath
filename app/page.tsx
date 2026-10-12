@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge, SLOGAN } from "./components/Logo";
 import { aliexpressOn } from "@/lib/legal/site";
+import HeroDevices, { Smoke } from "./components/HeroDevices";
 
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
 
@@ -92,6 +93,7 @@ export default function Home() {
   const markets = ["eBay", ...(aliexpressOn() ? ["AliExpress"] : [])];
   return (
     <main>
+      <Smoke />
       <section className="hero">
         <div className="hero-inner">
           <Badge className="hero-badge" />
@@ -126,6 +128,7 @@ export default function Home() {
             Found it on Amazon or AliExpress? <Link href="/check">Check that price →</Link>
           </p>
         </div>
+        <HeroDevices />
       </section>
 
       <section className="container wide home-section" aria-labelledby="browse">
