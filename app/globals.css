@@ -301,6 +301,8 @@ body { isolation: isolate; }
 .smoke-a { left: -22vmax; top: -12vmax; background: radial-gradient(closest-side, rgba(153, 69, 255, 0.55), rgba(153, 69, 255, 0) 100%); animation: drift-a 64s ease-in-out infinite alternate; }
 .smoke-b { right: -26vmax; top: 18vh; background: radial-gradient(closest-side, rgba(0, 194, 255, 0.42), rgba(0, 194, 255, 0) 100%); animation: drift-b 78s ease-in-out infinite alternate; }
 .smoke-c { left: 14vw; bottom: -30vmax; background: radial-gradient(closest-side, rgba(20, 241, 149, 0.34), rgba(20, 241, 149, 0) 100%); animation: drift-c 92s ease-in-out infinite alternate; }
+/* The cursor's smoke trail (FluidTrail.tsx): drawn on its own canvas, over the clouds. */
+.fluid-trail { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 @keyframes drift-a { from { transform: translate(0, 0) rotate(0deg) scale(1); } to { transform: translate(18vw, 10vh) rotate(25deg) scale(1.15); } }
 @keyframes drift-b { from { transform: translate(0, 0) rotate(0deg) scale(1.1); } to { transform: translate(-22vw, -8vh) rotate(-20deg) scale(0.95); } }
 @keyframes drift-c { from { transform: translate(0, 0) rotate(0deg) scale(0.95); } to { transform: translate(-12vw, -14vh) rotate(18deg) scale(1.12); } }

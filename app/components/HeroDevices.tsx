@@ -1,3 +1,5 @@
+import FluidTrail from "./FluidTrail";
+
 /**
  * The home page's introduction: SigPath on a laptop and a phone.
  *
@@ -32,13 +34,17 @@ export default function HeroDevices() {
   );
 }
 
-/** Slow smoke behind the whole page: three soft clouds, CSS only. */
+/**
+ * Slow smoke behind the whole page: three soft clouds (CSS only), and with a
+ * mouse, a smoke trail behind the cursor (FluidTrail).
+ */
 export function Smoke() {
   return (
     <div className="smoke" aria-hidden="true">
       <span className="smoke-a" />
       <span className="smoke-b" />
       <span className="smoke-c" />
+      <FluidTrail />
     </div>
   );
 }
