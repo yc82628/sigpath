@@ -51,6 +51,8 @@ export interface CartItem {
   /** The search's signed quote, if it offered SigPath checkout. Expires (ms). */
   quote?: { token: string; usdc?: string; expiresAt: number };
   addedAt: number;
+  /** Ticked off on the "Buy on eBay" checklist: the shopper bought it there. */
+  bought?: boolean;
 }
 
 const money = (m: unknown): m is Money =>
@@ -76,6 +78,7 @@ export function parseCart(raw: string | null | undefined): CartItem[] {
     if (typeof c.title !== "string" || typeof c.url !== "string" || !/^https:\/\//.test(c.url)) continue;
     if (!money(c.price) || (c.shipping !== undefined && !money(c.shipping))) continue;
     if (!["checked", "caution", "unchecked"].includes(c.verdict) || typeof c.addedAt !== "number") continue;
+    if (c.bought !== undefined && typeof c.bought !== "boolean") continue;
     seen.add(c.key);
     out.push(c);
     if (out.length >= CART_MAX_ITEMS) break;
@@ -93,6 +96,25 @@ export function addItem(cart: CartItem[], item: CartItem): AddResult {
 
 export function removeItem(cart: CartItem[], key: string): CartItem[] {
   return cart.filter((c) => c.key !== key);
+}
+
+export function setBought(cart: CartItem[], key: string, bought: boolean): CartItem[] {
+  return cart.map((c) => (c.key === key ? { ...c, bought } : c));
+}
+
+/** A fresh quote from the cart's re-check (lib/cart/requote.ts) replaces the old one. */
+export function setQuote(cart: CartItem[], key: string, quote: NonNullable<CartItem["quote"]>): CartItem[] {
+  return cart.map((c) => (c.key === key ? { ...c, quote } : c));
+}
+
+/** Items SigPath's USDC checkout can try to cover: SigPath-checked, from a marketplace it buys on. */
+export function checkoutCandidates(cart: CartItem[]): CartItem[] {
+  return cart.filter((c) => c.verdict === "checked" && !c.bought && (c.source === "ebay" || c.source === "stub"));
+}
+
+/** Does this item's quote still have time left (with a margin for filling in the form)? */
+export function quoteFresh(c: CartItem, nowMs = Date.now(), marginMs = 3 * 60 * 1000): boolean {
+  return !!c.quote && c.quote.expiresAt - nowMs > marginMs;
 }
 
 /** Drop what's past its time. */

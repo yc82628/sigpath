@@ -583,6 +583,14 @@ h2.with-icon > .pop-icon { margin-top: 0; }
 .cart-summary { margin-top: 20px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .cart-summary p { margin: 0 0 10px; }
 .cart-empty { margin-top: 24px; }
+.checkout-cta { background: var(--cta); color: var(--cta-ink); border-color: transparent; font-size: 1rem; padding: 12px 22px; }
+.ebay-checklist h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.ebay-checklist ol { margin: 0 0 10px; padding-left: 22px; display: grid; gap: 10px; }
+.ebay-checklist li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.ebay-checklist label { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; cursor: pointer; }
+.ebay-checklist input { width: 18px; height: 18px; accent-color: #9945ff; }
+.ebay-checklist li.done span { text-decoration: line-through; color: var(--muted); }
+.ebay-checklist .button { padding: 6px 14px; font-size: 0.85rem; }
 
 .checkout-item h2 { font-size: 1.1rem; margin: 0 0 4px; }
 .checkout-item h2 a { color: inherit; }

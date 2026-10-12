@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { canPayNow, itemTotal, priceMoved, removeItem, totals, type CartItem, type Freshness } from "@/lib/cart/cart";
+import { canPayNow, checkoutCandidates, itemTotal, priceMoved, removeItem, setBought, totals, type CartItem, type Freshness } from "@/lib/cart/cart";
 import { formatMoney } from "@/lib/marketplace/types";
 import { readCart, useCart, writeCart } from "../components/cart-store";
 
@@ -15,7 +15,16 @@ const VERDICT: Record<CartItem["verdict"], string> = {
 
 const shipLabel = (s?: { amount: number }) => (!s ? "shipping not included" : s.amount > 0 ? "incl. shipping" : "free shipping");
 
-export default function CartView({ removeIcon }: { removeIcon?: React.ReactNode }) {
+export default function CartView({
+  removeIcon,
+  checkoutOn = false,
+  maxPerPayment = 4,
+}: {
+  removeIcon?: React.ReactNode;
+  /** Whether SigPath's USDC checkout is switched on here. */
+  checkoutOn?: boolean;
+  maxPerPayment?: number;
+}) {
   const cart = useCart();
   const [fresh, setFresh] = useState<Record<string, Freshness>>({});
   const [checking, setChecking] = useState(false);
@@ -64,6 +73,11 @@ export default function CartView({ removeIcon }: { removeIcon?: React.ReactNode 
   }
 
   const sums = totals(cart, fresh);
+  const gone = (c: CartItem) => fresh[c.key]?.status === "gone";
+  // SigPath's checkout covers checked items; everything else is bought on its marketplace.
+  const viaSigPath = checkoutOn ? checkoutCandidates(cart).filter((c) => !gone(c)) : [];
+  const onEbay = cart.filter((c) => !viaSigPath.includes(c) && c.source !== "stub" && !gone(c));
+  const bought = cart.filter((c) => c.bought);
   return (
     <>
       {checking && <p className="hint">Checking today&apos;s prices&hellip;</p>}
@@ -141,11 +155,50 @@ export default function CartView({ removeIcon }: { removeIcon?: React.ReactNode 
           </strong>{" "}
           {sums.length ? sums.map(formatMoney).join(" + ") : "nothing still for sale"}
         </p>
-        <p className="hint">Each item is paid for separately, as each seller ships on their own.</p>
+        {viaSigPath.length > 0 && (
+          <p>
+            <Link className="button checkout-cta" href="/checkout/cart">
+              Proceed to checkout &middot; {Math.min(viaSigPath.length, maxPerPayment)} item{Math.min(viaSigPath.length, maxPerPayment) === 1 ? "" : "s"} in USDC &rarr;
+            </Link>
+          </p>
+        )}
+        {viaSigPath.length > maxPerPayment && (
+          <p className="hint">Up to {maxPerPayment} items per payment; the rest go in a second one.</p>
+        )}
         <button type="button" className="button ghost" onClick={() => writeCart([])}>
           Empty the cart
         </button>
       </section>
+
+      {onEbay.length > 0 && (
+        // eBay doesn't let other sites fill a buyer's eBay basket, so: one listing at a time, ticked off here.
+        <section className="cart-summary ebay-checklist" aria-label="Buy on eBay">
+          <h2>{viaSigPath.length ? "Buy the rest on eBay" : "Buy on eBay"}</h2>
+          <ol>
+            {onEbay.map((c) => (
+              <li key={c.key} className={c.bought ? "done" : ""}>
+                <label>
+                  <input type="checkbox" checked={!!c.bought} onChange={(e) => writeCart(setBought(readCart(), c.key, e.target.checked))} />
+                  <span>{c.title}</span>
+                </label>
+                <a className="button ghost" href={c.url} target="_blank" rel="noopener noreferrer">
+                  Open on eBay &rarr;
+                </a>
+              </li>
+            ))}
+          </ol>
+          {bought.length > 0 && (
+            <button
+              type="button"
+              className="cart-remove"
+              onClick={() => writeCart(readCart().filter((c) => !c.bought))}
+            >
+              {removeIcon}
+              Remove the {bought.length} bought
+            </button>
+          )}
+        </section>
+      )}
     </>
   );
 }

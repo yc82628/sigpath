@@ -125,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 547 tests, as of 2026-10-12
+npm test                                   # 552 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -588,10 +588,20 @@ commission on orders through its links.
   can't price live say so instead of guessing. Each eBay item counts against
   its own limit (150 per 10 minutes per client) because each is a call
   against the site's daily quota.
-- **Paying, item by item:** each seller ships separately and the escrow
-  protects each order on its own. "Pay with USDC" is offered only while the
-  search's signed quote is valid and the price hasn't moved; otherwise
-  "Check it again" (a fresh search and quote) or "Buy on eBay".
+- **Proceed to checkout** (`/checkout/cart`): the cart's SigPath-checked
+  items in **one USDC payment**: one delivery address, one wallet approval,
+  and one escrow order per item in a single transaction
+  (`prepareCartCheckout`, up to 4 per payment), so each item is still
+  fulfilled, refunded and reported on its own. Every rule of the single
+  checkout runs per item (signed quote, upheld reports, per-order limit), the
+  wallet must cover the whole cart and every order's rent, and every order's
+  records are stored before the transaction leaves the server. A quote that
+  has run out isn't re-signed: the item is searched and checked again exactly
+  as the search page does (`lib/cart/requote.ts`), and only if it still passes
+  does it get a new quote.
+- **Everything else, on eBay:** eBay doesn't let other sites fill a buyer's
+  eBay basket, so the rest of the cart is a "Buy on eBay" checklist: open each
+  listing, tick it off, remove what's bought.
 - The header's cart icon shows the count, and it's read out ("Cart, 2 items").
   Measured end to end on a production build with live eBay: a real listing
   and a demo listing added, the eBay price checked again on opening, the demo

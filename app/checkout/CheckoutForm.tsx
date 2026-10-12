@@ -27,11 +27,18 @@ type Phase = "idle" | "building" | "signing" | "confirming" | "error";
 
 export default function CheckoutForm({
   quote,
+  quotes,
+  onPaid,
   usdcDisplay,
   localDisplay,
   moonPay = false,
 }: {
-  quote: string;
+  /** One listing (the search's pay button)… */
+  quote?: string;
+  /** …or several from the cart: one transaction, one escrow order each. */
+  quotes?: string[];
+  /** For the cart: called with the orders once the payment is confirmed (or sent, if confirmation is slow). */
+  onPaid?: (orders: { order: string; source: string; id: string }[], confirmed: boolean) => void;
   usdcDisplay: string;
   /** The same total in the listing's currency, for reference (e.g. "145,82 €"). */
   localDisplay?: string;
@@ -91,16 +98,19 @@ export default function CheckoutForm({
     setTopUpNote("");
     let order: string;
     let transaction: string;
+    let cartOrders: { order: string; source: string; id: string }[] = [];
     try {
-      const res = await fetch("/api/checkout", {
+      const cart = quotes !== undefined;
+      const res = await fetch(cart ? "/api/checkout/cart" : "/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ quote, buyer: wallet.address, address }),
+        body: JSON.stringify(cart ? { quotes, buyer: wallet.address, address } : { quote, buyer: wallet.address, address }),
       });
       const body = await res.json();
       if (res.status === 402 && typeof body.shortfallUsdc === "number") setShortfall(body.shortfallUsdc);
       if (!res.ok) throw new Error(body.error ?? `Checkout failed (${res.status}).`);
-      order = body.order;
+      cartOrders = cart ? body.orders : [];
+      order = cart ? body.orders[0].order : body.order;
       transaction = body.transaction;
     } catch (err) {
       setPhase("error");
@@ -123,6 +133,7 @@ export default function CheckoutForm({
     setPhase("confirming");
     setMessage("Payment sent. Waiting for the network to confirm…");
     const seen = await waitForOrder(order, (s) => s.found === true);
+    if (onPaid) return onPaid(cartOrders, seen);
     // Go to the order page either way: it reads the chain directly, and is the
     // right place to watch a slow confirmation too.
     router.push(`/order/${order}${seen ? "" : "?pending=1"}`);

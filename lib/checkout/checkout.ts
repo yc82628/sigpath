@@ -14,7 +14,7 @@
  *   2. validate the address      — only the fields delivery needs
  *   3. price in USDC             — at a rate that is shown, never invented
  *   4. check the wallet can pay  — a plain message beats a failed signature
- *   5. build the transaction
+ *   5. build the transaction     (one escrow order per item: a cart pays for several at once)
  *   6. store the address         — BEFORE returning the transaction
  *
  * Step 6 before handing anything back means an order can never be paid for
@@ -130,6 +130,26 @@ export interface PreparedCheckout {
   listing: QuotedListing;
 }
 
+/** One order of a cart checkout. */
+export interface PreparedOrder {
+  order: string;
+  usdcBaseUnits: string;
+  usdcDisplay: string;
+  feeBaseUnits: string;
+  listing: QuotedListing;
+}
+
+/** Several orders, one transaction, one wallet approval: a cart. */
+export interface PreparedCartCheckout {
+  ok: true;
+  transaction: string;
+  orders: PreparedOrder[];
+  totalBaseUnits: string;
+  totalDisplay: string;
+  rate: FxRate | null;
+  windowSecs: number;
+}
+
 export interface CheckoutError {
   ok: false;
   /** HTTP status the route should answer with. */
@@ -139,19 +159,62 @@ export interface CheckoutError {
   shortfallUsdc?: number;
 }
 
+/**
+ * Items one cart payment can carry. Each is its own escrow order (its own
+ * account, vault and refund), so one late delivery refunds that item alone;
+ * the limit is what fits in one Solana transaction with room to spare.
+ */
+export const MAX_CART_ORDERS = 4;
+/** Solana's limit on a serialized transaction. */
+const TX_MAX_BYTES = 1232;
+
+type CheckoutDeps = {
+  env?: Record<string, string | undefined>;
+  conn?: Connection;
+  store?: AddressStore | null;
+  metaStore?: OrderMetaStore | null;
+  /** Sellers with upheld fake-product reports, by sellerKey. */
+  upheldReports?: ReadonlyMap<string, number>;
+  fetchImpl?: typeof fetch;
+  now?: number;
+};
+
 export async function prepareCheckout(
   input: { quote: unknown; buyer: unknown; address: unknown },
-  deps: {
-    env?: Record<string, string | undefined>;
-    conn?: Connection;
-    store?: AddressStore | null;
-    metaStore?: OrderMetaStore | null;
-    /** Sellers with upheld fake-product reports, by sellerKey. */
-    upheldReports?: ReadonlyMap<string, number>;
-    fetchImpl?: typeof fetch;
-    now?: number;
-  } = {},
+  deps: CheckoutDeps = {},
 ): Promise<PreparedCheckout | CheckoutError> {
+  const r = await prepareOrders({ quotes: [input.quote], buyer: input.buyer, address: input.address }, deps);
+  if (!r.ok) return r;
+  const o = r.orders[0];
+  return {
+    ok: true,
+    transaction: r.transaction,
+    order: o.order,
+    usdcBaseUnits: o.usdcBaseUnits,
+    usdcDisplay: o.usdcDisplay,
+    feeBaseUnits: o.feeBaseUnits,
+    rate: r.rate,
+    windowSecs: r.windowSecs,
+    listing: o.listing,
+  };
+}
+
+/** A cart: up to MAX_CART_ORDERS signed quotes, paid with one approval. */
+export async function prepareCartCheckout(
+  input: { quotes: unknown; buyer: unknown; address: unknown },
+  deps: CheckoutDeps = {},
+): Promise<PreparedCartCheckout | CheckoutError> {
+  if (!Array.isArray(input.quotes) || input.quotes.length === 0) return { ok: false, status: 400, error: "Nothing to pay for." };
+  if (input.quotes.length > MAX_CART_ORDERS) {
+    return { ok: false, status: 400, error: `One payment covers up to ${MAX_CART_ORDERS} items. Pay for the rest in a second payment.` };
+  }
+  return prepareOrders({ quotes: input.quotes, buyer: input.buyer, address: input.address }, deps);
+}
+
+async function prepareOrders(
+  input: { quotes: unknown[]; buyer: unknown; address: unknown },
+  deps: CheckoutDeps,
+): Promise<PreparedCartCheckout | CheckoutError> {
   const env = deps.env ?? process.env;
   const store = deps.store === undefined ? AddressStore.fromEnv(env) : deps.store;
   const metaStore = deps.metaStore === undefined ? OrderMetaStore.fromEnv(env) : deps.metaStore;
@@ -160,30 +223,36 @@ export async function prepareCheckout(
     // money for an order that could not be shipped.
     return { ok: false, status: 503, error: "Checkout is not configured (ADDRESS_KEY)." };
   }
+  const many = input.quotes.length > 1;
 
-  // 1. quote
-  if (typeof input.quote !== "string") return { ok: false, status: 400, error: "Missing quote." };
-  const q = verifyQuote(input.quote, env, deps.now);
-  if (!q.ok) {
-    const messages: Record<string, string> = {
-      expired: "This price has expired. Search again to get a current price.",
-      bad_signature: "This price could not be verified.",
-      malformed: "This price could not be read.",
-      not_configured: "Checkout is not configured (QUOTE_SECRET).",
-    };
-    return { ok: false, status: q.reason === "not_configured" ? 503 : 400, error: messages[q.reason] };
-  }
-  const listing = q.listing;
-
-  // Re-checked HERE, not only when the pay button was drawn: a quote lives
-  // thirty minutes, and a report upheld in that time must still stop SigPath
-  // paying this seller.
-  if ((deps.upheldReports?.get(sellerKey(listing.source, listing.seller)) ?? 0) > 0) {
-    return {
-      ok: false,
-      status: 409,
-      error: "SigPath no longer buys from this seller: a verified buyer's fake-product report against them was upheld.",
-    };
+  // 1. quotes
+  const listings: QuotedListing[] = [];
+  for (const quote of input.quotes) {
+    if (typeof quote !== "string") return { ok: false, status: 400, error: "Missing quote." };
+    const q = verifyQuote(quote, env, deps.now);
+    if (!q.ok) {
+      const messages: Record<string, string> = {
+        expired: many ? "A price in your cart has expired. Check the prices again." : "This price has expired. Search again to get a current price.",
+        bad_signature: "This price could not be verified.",
+        malformed: "This price could not be read.",
+        not_configured: "Checkout is not configured (QUOTE_SECRET).",
+      };
+      return { ok: false, status: q.reason === "not_configured" ? 503 : 400, error: messages[q.reason] };
+    }
+    if (listings.some((l) => l.source === q.listing.source && l.id === q.listing.id)) {
+      return { ok: false, status: 400, error: "The same item is in this payment twice." };
+    }
+    // Re-checked HERE, not only when the pay button was drawn: a quote lives
+    // thirty minutes, and a report upheld in that time must still stop SigPath
+    // paying this seller.
+    if ((deps.upheldReports?.get(sellerKey(q.listing.source, q.listing.seller)) ?? 0) > 0) {
+      return {
+        ok: false,
+        status: 409,
+        error: `SigPath no longer buys from ${many ? `the seller of "${q.listing.title}"` : "this seller"}: a verified buyer's fake-product report against them was upheld.`,
+      };
+    }
+    listings.push(q.listing);
   }
 
   // 2. buyer and address
@@ -196,124 +265,133 @@ export async function prepareCheckout(
   const addr = validateAddress(input.address);
   if (!addr.ok) return { ok: false, status: 400, error: addr.error };
 
-  // 3. price in USDC
-  const rate = listing.currency.toUpperCase() === "USD" ? null : await eurUsdRate(env, deps.fetchImpl);
-  const itemUsdc = toUsdcBaseUnits(listing.amount, listing.currency, rate);
-  if (itemUsdc === null) {
-    return {
-      ok: false,
-      status: listing.currency.toUpperCase() === "EUR" ? 503 : 400,
-      error:
-        listing.currency.toUpperCase() === "EUR"
-          ? "No exchange rate is available right now, so this cannot be priced in USDC."
-          : `Listings priced in ${listing.currency} cannot be paid in USDC yet.`,
-    };
+  // 3. prices in USDC, at one rate for the whole payment
+  const rate = listings.every((l) => l.currency.toUpperCase() === "USD") ? null : await eurUsdRate(env, deps.fetchImpl);
+  const priced: { listing: QuotedListing; usdc: bigint; fee: bigint }[] = [];
+  for (const listing of listings) {
+    const usd = listing.currency.toUpperCase() === "USD";
+    const itemUsdc = toUsdcBaseUnits(listing.amount, listing.currency, usd ? null : rate);
+    if (itemUsdc === null) {
+      return {
+        ok: false,
+        status: listing.currency.toUpperCase() === "EUR" ? 503 : 400,
+        error:
+          listing.currency.toUpperCase() === "EUR"
+            ? `No exchange rate is available right now, so ${many ? "these" : "this"} cannot be priced in USDC.`
+            : `Listings priced in ${listing.currency} cannot be paid in USDC yet.`,
+      };
+    }
+    // SigPath's service fee, at the rate signed into the quote, goes into the
+    // escrow with the price: paid out on fulfilment, refunded with it otherwise.
+    const { fee, total } = withServiceFee(itemUsdc, listing.feeBps ?? 0);
+    if (total > orders.MAX_AMOUNT) {
+      return {
+        ok: false,
+        status: 400,
+        error: `${many ? `"${listing.title}" costs` : "This costs"} ${orders.formatUsdc(total)}, over the ${orders.formatUsdc(orders.MAX_AMOUNT)} per-order limit.`,
+      };
+    }
+    priced.push({ listing, usdc: total, fee });
   }
-  // SigPath's service fee, at the rate signed into the quote, goes into the
-  // escrow with the price: paid out on fulfilment, refunded with it otherwise.
-  const { fee: feeUsdc, total: usdc } = withServiceFee(itemUsdc, listing.feeBps ?? 0);
-  if (usdc > orders.MAX_AMOUNT) {
-    return { ok: false, status: 400, error: `This costs ${orders.formatUsdc(usdc)}, over the ${orders.formatUsdc(orders.MAX_AMOUNT)} per-order limit.` };
-  }
+  const total = priced.reduce((t, p) => t + p.usdc, 0n);
 
-  // 4. can this wallet pay?
+  // 4. can this wallet pay for all of it?
   const conn = deps.conn ?? new Connection(ordersRpcUrl(env), "confirmed");
   const buyerToken = associatedTokenAddress(buyer, orders.USDC_MINT);
   const [tokenInfo, lamports] = await Promise.all([conn.getAccountInfo(buyerToken), conn.getBalance(buyer)]);
   const have = tokenAmountFromData(tokenInfo?.data) ?? 0n;
-  if (have < usdc) {
+  if (have < total) {
     return {
       ok: false,
       status: 402,
-      shortfallUsdc: Number(usdc - have) / 10 ** orders.USDC_DECIMALS,
-      error: `This wallet holds ${orders.formatUsdc(have)}; the order needs ${orders.formatUsdc(usdc)}.`,
+      shortfallUsdc: Number(total - have) / 10 ** orders.USDC_DECIMALS,
+      error: `This wallet holds ${orders.formatUsdc(have)}; ${many ? "these orders need" : "the order needs"} ${orders.formatUsdc(total)}.`,
     };
   }
-  if (lamports < MIN_SOL_LAMPORTS) {
+  // Each order pays rent for its own account and vault.
+  const needLamports = MIN_SOL_LAMPORTS * priced.length;
+  if (lamports < needLamports) {
     return {
       ok: false,
       status: 402,
-      error: `This wallet needs about ${(MIN_SOL_LAMPORTS / 1e9).toFixed(3)} SOL for fees and account rent.`,
+      error: `This wallet needs about ${(needLamports / 1e9).toFixed(3)} SOL for fees and account rent.`,
     };
   }
 
-  // 5. build
-  const nonce = newNonce();
-  const [order] = orders.orderPda(buyer, nonce);
+  // 5. build: one escrow order per item, all in one transaction
   const windowSecs = checkoutWindowSecs(env);
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
-  const tx = new Transaction({ feePayer: buyer, blockhash, lastValidBlockHeight }).add(
-    orders.createOrderIx({
-      buyer,
-      nonce,
-      amount: usdc,
-      listingHash: orders.listingHash(listing),
-      windowSecs,
-      buyerToken,
-    }),
-  );
+  const tx = new Transaction({ feePayer: buyer, blockhash, lastValidBlockHeight });
+  const built = priced.map((p) => {
+    const nonce = newNonce();
+    const [order] = orders.orderPda(buyer, nonce);
+    tx.add(
+      orders.createOrderIx({
+        buyer,
+        nonce,
+        amount: p.usdc,
+        listingHash: orders.listingHash(p.listing),
+        windowSecs,
+        buyerToken,
+      }),
+    );
+    return { ...p, order };
+  });
+  const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  if (serialized.length > TX_MAX_BYTES) {
+    return { ok: false, status: 400, error: "Too many items for one payment. Pay for fewer at a time." };
+  }
 
-  // 6a. record who the seller was — kept for the report window after
-  // fulfilment, so a fake-product report can land on the right seller. Stored
-  // BEFORE the address: if this fails nothing is stored at all; if the address
-  // then fails, this record is orphaned and the sweep removes it.
-  if (metaStore) {
+  // 6. record each order, BEFORE the transaction leaves the server. Per order:
+  // who the seller was first (kept for the report window after fulfilment, so a
+  // fake-product report can land on the right seller), then the address. If
+  // anything fails, nothing is returned, so nothing can be paid; what was
+  // already stored is orphaned and the sweep removes it.
+  for (const b of built) {
+    const listing = {
+      source: b.listing.source,
+      id: b.listing.id,
+      url: b.listing.url,
+      title: b.listing.title,
+      amount: b.listing.amount,
+      currency: b.listing.currency,
+    };
+    if (metaStore) {
+      try {
+        await metaStore.put(
+          b.order.toBase58(),
+          { buyer: buyer.toBase58(), seller: { source: b.listing.source, handle: b.listing.seller }, listing },
+          deps.now,
+        );
+      } catch {
+        return { ok: false, status: 500, error: "Could not record the order; nothing was charged." };
+      }
+    }
     try {
-      await metaStore.put(
-        order.toBase58(),
-        {
-          buyer: buyer.toBase58(),
-          seller: { source: listing.source, handle: listing.seller },
-          listing: {
-            source: listing.source,
-            id: listing.id,
-            url: listing.url,
-            title: listing.title,
-            amount: listing.amount,
-            currency: listing.currency,
-          },
-        },
+      await store.put(
+        b.order.toBase58(),
+        { address: addr.address, buyer: buyer.toBase58(), listing, usdc: b.usdc.toString(), feeUsdc: b.fee.toString() },
         deps.now,
       );
     } catch {
-      return { ok: false, status: 500, error: "Could not record the order; nothing was charged." };
+      return { ok: false, status: 500, error: "Could not record the delivery address; nothing was charged." };
     }
-  }
-
-  // 6b. store the address — before the transaction leaves the server
-  try {
-    await store.put(
-      order.toBase58(),
-      {
-        address: addr.address,
-        buyer: buyer.toBase58(),
-        listing: {
-          source: listing.source,
-          id: listing.id,
-          url: listing.url,
-          title: listing.title,
-          amount: listing.amount,
-          currency: listing.currency,
-        },
-        usdc: usdc.toString(),
-        feeUsdc: feeUsdc.toString(),
-      },
-      deps.now,
-    );
-  } catch {
-    return { ok: false, status: 500, error: "Could not record the delivery address; nothing was charged." };
   }
 
   return {
     ok: true,
-    transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
-    order: order.toBase58(),
-    usdcBaseUnits: usdc.toString(),
-    usdcDisplay: orders.formatUsdc(usdc),
-    feeBaseUnits: feeUsdc.toString(),
+    transaction: serialized.toString("base64"),
+    orders: built.map((b) => ({
+      order: b.order.toBase58(),
+      usdcBaseUnits: b.usdc.toString(),
+      usdcDisplay: orders.formatUsdc(b.usdc),
+      feeBaseUnits: b.fee.toString(),
+      listing: b.listing,
+    })),
+    totalBaseUnits: total.toString(),
+    totalDisplay: orders.formatUsdc(total),
     rate,
     windowSecs,
-    listing,
   };
 }
 

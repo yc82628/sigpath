@@ -1,5 +1,8 @@
 import PopIcon from "../components/PopIcon";
 import CartView from "./CartView";
+import { quoteSigningConfigured } from "@/lib/checkout/quote";
+import { AddressStore } from "@/lib/checkout/address-store";
+import { MAX_CART_ORDERS } from "@/lib/checkout/checkout";
 
 export const metadata = { title: "Your cart — SigPath" };
 
@@ -11,7 +14,11 @@ export default function CartPage() {
         Your cart
       </h1>
       <p className="lede">Saved in this browser only. Prices are checked again each time you open it.</p>
-      <CartView removeIcon={<PopIcon name="trash" tone="purple" size={18} />} />
+      <CartView
+        removeIcon={<PopIcon name="trash" tone="purple" size={18} />}
+        checkoutOn={quoteSigningConfigured() && AddressStore.fromEnv() !== null}
+        maxPerPayment={MAX_CART_ORDERS}
+      />
     </main>
   );
 }
