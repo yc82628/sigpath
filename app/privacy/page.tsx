@@ -113,6 +113,18 @@ export default function PrivacyPage() {
         and SigPath stores neither the search nor the results. A price check (/check) sends the product name and price you bring, and the address of the page they came from, to SigPath to compare with eBay; none of it is stored. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
       </p>
 
+      <h2 id="extension">The SigPath browser extension</h2>
+      <p>
+        The extension runs only on Amazon.de, AliExpress, OTTO, MediaMarkt and Saturn pages you open. On a product page
+        it reads the product&apos;s name and price (on Amazon also its product number, photo address and seller name) and
+        sends them, with the page&apos;s address, to SigPath for the same check as /check. With &ldquo;Share Amazon prices
+        I see&rdquo; on (the default, a switch in the extension), SigPath keeps Amazon products you looked at, and those
+        listed on Amazon results pages you open: the product number, title, price, photo address and when it was seen,
+        for SigPath&apos;s search to show as &ldquo;seen on Amazon&rdquo;. Nothing about you is sent or kept with them:
+        no account, no address, no record of who saw what. A newer sighting of a product replaces the older one, and
+        sightings over a week old are not shown. Turn the switch off and nothing is shared; the check still works.
+      </p>
+
       <h2>Your cart</h2>
       <p>
         The cart is kept only in your browser (its local storage), not on SigPath&apos;s servers, and there is no account

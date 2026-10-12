@@ -125,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 564 tests, as of 2026-10-12
+npm test                                   # 572 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -141,7 +141,7 @@ wallet to fund from faucet.circle.com.
 
 The rest of this README is the engineering detail:
 
-- [The cart](#the-cart--no-account-prices-checked-again) · [The menu, the footer and the fonts](#the-menu-the-footer-and-the-fonts) · [Deutsch / English](#deutsch--english) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [The cart](#the-cart--no-account-prices-checked-again) · [The browser extension](#the-browser-extension-and-amazon-seen-by-shoppers) · [The menu, the footer and the fonts](#the-menu-the-footer-and-the-fonts) · [Deutsch / English](#deutsch--english) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
 - [Check a price: Amazon, AliExpress or any shop](#check-a-price--amazon-aliexpress-or-any-shop) · [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)
 - [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
@@ -615,6 +615,36 @@ commission on orders through its links.
   Measured end to end on a production build with live eBay: a real listing
   and a demo listing added, the eBay price checked again on opening, the demo
   one offered USDC checkout on its still-valid quote.
+
+## The browser extension, and Amazon seen by shoppers
+
+`extension/` is a Chrome/Edge extension (Manifest V3), installed unpacked for
+now (`/extension` explains how). It runs only on Amazon.de, AliExpress, OTTO,
+MediaMarkt and Saturn, and talks only to SigPath.
+
+- **On a product page** it reads what the page shows (name and price; on
+  Amazon also the ASIN, photo and seller) and shows SigPath's check in a
+  panel at the bottom right: the verdict, the eBay typical price, the best
+  checked eBay deal (`POST /api/extension/check`, the same check as
+  `/check`, rate-limited like a search).
+- **Amazon prices seen by shoppers** (`lib/extension/seen.ts`). With "Share
+  Amazon prices I see" on (the default, a switch in the extension's menu),
+  the Amazon products a shopper opens, and those on Amazon results pages
+  (`POST /api/extension/seen`), are kept: ASIN, title, euro price, photo
+  address, when. Nothing about the shopper. SigPath's search then shows them
+  as Amazon results, "seen on Amazon 3 h ago"
+  (`lib/marketplace/sources/amazon-seen.ts`), linked to Amazon's own product
+  page with the Associates tag. SigPath never sends a bot to Amazon: every
+  price comes from a page a person opened.
+- **A pasted link** in the search bar (`lib/marketplace/link-query.ts`): an
+  Amazon, OTTO, MediaMarkt or Saturn product link names the product in its
+  path, so SigPath searches for that name on every marketplace. The shop's
+  page is never fetched. A link with only a number in it (AliExpress) is said
+  so, not searched as text.
+- **Never trusted.** Anyone with the extension can send a sighting, so it is
+  never price-checked, never in the median or the checkout, never passed to
+  the paid API or Ai-chan (`site-only.ts`), and gone after a week. Amazon's
+  own search link stays, since sightings aren't a live source.
 
 ## The menu, the footer and the fonts
 

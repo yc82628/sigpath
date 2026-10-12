@@ -118,6 +118,8 @@ export interface Listing {
   affiliate?: boolean;
   /** Unix seconds the listing went up, if published. */
   listedAt?: number;
+  /** A price a shopper saw earlier (ms), not a live one: Amazon via the extension (lib/extension/seen.ts). */
+  seenAt?: number;
 }
 
 /**
@@ -153,6 +155,8 @@ export interface SourceResult {
    * Absent means comparable.
    */
   comparable?: boolean;
+  /** Prices seen earlier, not live: the marketplace still gets its search link. */
+  snapshot?: boolean;
 }
 
 export interface SearchOptions {

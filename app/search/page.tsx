@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { looksLikeLink, queryFromLink } from "@/lib/marketplace/link-query";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
 import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
@@ -109,7 +111,8 @@ function ListingRow({
         </h3>
         <p className="meta">
           <span className="chip">{marketLabel(listing.source)}</span> {m.listing.conditions[listing.condition] ?? listing.condition} &middot;{" "}
-          {seller.displayName ?? seller.handle}
+          {/* A price a shopper saw, not a live one: says so where the seller would be. */}
+          {listing.seenAt ? m.listing.seen(Math.floor((Date.now() - listing.seenAt) / 3_600_000)) : seller.displayName ?? seller.handle}
           {business ? (
             // The business tier: a VAT number checked against the EU register,
             // and every account its wallet verified. Like the seller badge, it
@@ -224,7 +227,8 @@ function ListingRow({
       </div>
       <div className="price">
         {formatMoney(total)}
-        <span className="ship">{shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
+        {/* No shipping from the marketplace (AliExpress, Amazon sightings) is unknown shipping, not free shipping. */}
+        <span className="ship">{!listing.shipping ? m.listing.plusShipping : shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
       </div>
     </article>
   );
@@ -233,9 +237,16 @@ function ListingRow({
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: { q?: string; checked?: string };
+  searchParams: { q?: string; checked?: string; link?: string };
 }) {
-  const q = (searchParams.q ?? "").trim().slice(0, 120);
+  // A pasted product link: search for the product named in it (lib/marketplace/link-query.ts). The shop's page is
+  // never fetched. A link with no name in it is said so, rather than searched for as text.
+  const raw = (searchParams.q ?? "").trim().slice(0, 1000);
+  const fromLink = looksLikeLink(raw) ? queryFromLink(raw) : null;
+  if (fromLink) redirect(`/search?q=${encodeURIComponent(fromLink.query)}&link=${encodeURIComponent(fromLink.shop)}`);
+  const unreadableLink = looksLikeLink(raw);
+  const q = unreadableLink ? "" : raw.slice(0, 120);
+  const linkShop = (searchParams.link ?? "").trim().slice(0, 40);
   const checkedOnly = searchParams.checked === "1";
   const { m } = i18n();
   // Public by design: browsers need it to subscribe. Alerts are offered only when it's set.
@@ -270,6 +281,8 @@ export default async function SearchPage({
         <button type="submit">{m.home.searchButton}</button>
       </form>
       <p className="hint">{m.search.nothingStored}</p>
+      {unreadableLink && <p className="notice withheld">{m.search.linkUnreadable}</p>}
+      {q && linkShop && <p className="notice">{m.search.fromLink(linkShop)}</p>}
 
       {tooMany && <p className="notice withheld">{tooMany}</p>}
       {q && !tooMany && (

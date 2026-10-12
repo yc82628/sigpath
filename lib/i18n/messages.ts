@@ -44,6 +44,7 @@ const en = {
     check: "Check a price you found",
     cart: "Your cart",
     alerts: "Price alerts",
+    extension: "The browser extension",
     sell: "Sellers and businesses",
     verifySeller: "Become a verified seller",
     verifyBusiness: "Verify your business",
@@ -57,7 +58,7 @@ const en = {
   },
   home: {
     sub: "Every deal compared and checked.",
-    placeholder: "Search any product",
+    placeholder: "Search any product, or paste a link",
     searchLabel: "Search all marketplaces",
     searchButton: "Search",
     popular: "Popular searches",
@@ -94,8 +95,10 @@ const en = {
   search: {
     title: "Compare every marketplace",
     lede: "One search, every deal checked.",
-    placeholder: "What are you looking for?",
+    placeholder: "A product, or a link from Amazon, OTTO, MediaMarkt…",
     nothingStored: "Nothing about your search is stored.",
+    fromLink: (shop: string) => `Searched for the product in your ${shop} link, on every marketplace.`,
+    linkUnreadable: "That link doesn't name the product (some shops' links are just a number). Type its name instead, or open it with the SigPath extension.",
     searching: "Searching and checking…",
     searchingSource: "searching…",
     listingsChecking: (n: number) => `${n} listing${n === 1 ? "" : "s"} · checking…`,
@@ -128,7 +131,10 @@ const en = {
     tooMany: "That's a lot of searches. Give it a few minutes and try again.",
   },
   listing: {
+    /** A price a shopper saw with the extension, hours ago. */
+    seen: (h: number) => (h < 1 ? "seen on Amazon in the last hour" : h < 48 ? `seen on Amazon ${h} h ago` : `seen on Amazon ${Math.round(h / 24)} days ago`),
     freeShipping: "free shipping",
+    plusShipping: "plus shipping",
     inclShipping: "incl. shipping",
     ratingsUnverified: (n: number) => `${n} ratings, unverified`,
     ratingsTitle: "Reported by the marketplace itself; not independently verified",
@@ -368,6 +374,7 @@ const de: Messages = {
     check: "Einen gefundenen Preis prüfen",
     cart: "Dein Warenkorb",
     alerts: "Preisalarme",
+    extension: "Die Browser-Erweiterung",
     sell: "Verkäufer und Unternehmen",
     verifySeller: "Verifizierter Verkäufer werden",
     verifyBusiness: "Dein Unternehmen verifizieren",
@@ -381,7 +388,7 @@ const de: Messages = {
   },
   home: {
     sub: "Jedes Angebot verglichen und geprüft.",
-    placeholder: "Produkt suchen",
+    placeholder: "Produkt suchen oder Link einfügen",
     searchLabel: "Alle Marktplätze durchsuchen",
     searchButton: "Suchen",
     popular: "Beliebte Suchen",
@@ -418,8 +425,10 @@ const de: Messages = {
   search: {
     title: "Alle Marktplätze vergleichen",
     lede: "Eine Suche, jedes Angebot geprüft.",
-    placeholder: "Was suchst du?",
+    placeholder: "Ein Produkt oder ein Link von Amazon, OTTO, MediaMarkt …",
     nothingStored: "Über deine Suche wird nichts gespeichert.",
+    fromLink: (shop) => `Nach dem Produkt aus deinem ${shop}-Link gesucht, auf allen Marktplätzen.`,
+    linkUnreadable: "Dieser Link nennt das Produkt nicht (manche Shops verlinken nur eine Nummer). Gib den Namen ein, oder öffne ihn mit der SigPath-Erweiterung.",
     searching: "Suche und Prüfung läuft…",
     searchingSource: "wird durchsucht…",
     listingsChecking: (n) => `${n} ${n === 1 ? "Angebot" : "Angebote"} · wird geprüft…`,
@@ -452,7 +461,9 @@ const de: Messages = {
     tooMany: "Das sind viele Suchen. Warte ein paar Minuten und versuche es dann erneut.",
   },
   listing: {
+    seen: (h) => (h < 1 ? "in der letzten Stunde auf Amazon gesehen" : h < 48 ? `vor ${h} Std. auf Amazon gesehen` : `vor ${Math.round(h / 24)} Tagen auf Amazon gesehen`),
     freeShipping: "kostenloser Versand",
+    plusShipping: "zzgl. Versand",
     inclShipping: "inkl. Versand",
     ratingsUnverified: (n) => `${n} Bewertungen, ungeprüft`,
     ratingsTitle: "Vom Marktplatz selbst angegeben; nicht unabhängig geprüft",

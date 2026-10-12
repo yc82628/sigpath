@@ -10,11 +10,13 @@
  *               (lib/marketplace/etsy-terms.ts).
  *   aliexpress  Until its affiliate terms have been read for both uses, the
  *               cautious default is the same.
+ *   amazon      Prices shoppers saw with the extension (sources/amazon-seen.ts):
+ *               not Amazon's data to pass on, and not live.
  */
 
 import type { LabelledSearch } from "./labelled-search";
 
-export const SITE_ONLY = new Set(["etsy", "aliexpress"]);
+export const SITE_ONLY = new Set(["etsy", "aliexpress", "amazon"]);
 
 /** The search with every site-only listing and source removed: for the paid API and the AI assistant. */
 export function withoutSiteOnly(result: LabelledSearch): LabelledSearch {

@@ -13,6 +13,7 @@
 import type { MarketplaceSource } from "./types";
 import { EbaySource } from "./ebay";
 import { AmazonSource } from "./amazon";
+import { AmazonSeenSource } from "./amazon-seen";
 import { AliExpressSource } from "./aliexpress";
 import { FeedSource } from "./feed";
 import { StubSource } from "./stub";
@@ -36,7 +37,8 @@ export function defaultSources(env: Record<string, string | undefined> = process
   // not sources — see registry.ts for why there is no API we may query.
   const list: MarketplaceSource[] = [
     new EbaySource(env),
-    new AmazonSource(env),
+    // Amazon's retired product API if its keys are still set, else the prices shoppers saw with the extension.
+    env.AMAZON_ACCESS_KEY?.trim() && env.AMAZON_SECRET_KEY?.trim() ? new AmazonSource(env) : new AmazonSeenSource(env),
     // Etsy (sources/etsy.ts) is no longer searched: AliExpress replaced it.
     new AliExpressSource(env),
     new FeedSource(env),

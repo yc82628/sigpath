@@ -44,7 +44,7 @@ export function parsePrice(text: string, fallbackCurrency = "EUR"): Money | null
 /** Words that describe a product rather than name it: a shop title's model name ends before them. */
 const GENERIC = new Set([
   "wireless", "bluetooth", "kabellos", "kabellose", "kabelloser", "in-ear", "earbuds", "earphones", "headphones", "headset",
-  "kopfhörer", "ohrhörer", "smartphone", "handy", "laptop", "notebook", "tablet", "console", "konsole", "gaming",
+  "kopfhörer", "kopfhorer", "kopfhoerer", "ohrhörer", "ohrhorer", "smartphone", "handy", "laptop", "notebook", "tablet", "console", "konsole", "gaming",
   "with", "mit", "for", "für", "and", "und", "inkl", "inkl.", "including", "new", "neu", "original", "genuine",
 ]);
 
@@ -65,6 +65,10 @@ export function shortQuery(title: string): string {
 export const SHOPS: Record<string, { source: MarketplaceId; label: string }> = {
   amazon: { source: "amazon", label: "Amazon" },
   aliexpress: { source: "aliexpress", label: "AliExpress" },
+  // German shops the extension reads (extension/): checked like any other shop.
+  otto: { source: "feed", label: "OTTO" },
+  mediamarkt: { source: "feed", label: "MediaMarkt" },
+  saturn: { source: "feed", label: "Saturn" },
   other: { source: "feed", label: "another shop" },
 };
 

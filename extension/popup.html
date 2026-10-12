@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 280px; margin: 0; padding: 14px 16px; font: 14px/1.45 system-ui, sans-serif; color: #16132b; background: #fff; }
+  h1 { margin: 0 0 6px; font-size: 16px; }
+  p { margin: 6px 0; color: #5b5875; font-size: 12.5px; }
+  label { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0; cursor: pointer; }
+  .small { font-size: 12px; color: #5b5875; }
+  input[type=checkbox] { margin-top: 3px; accent-color: #6a2fe0; }
+  select { width: 100%; padding: 4px; margin-top: 4px; }
+  a { color: #6a2fe0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #151230; color: #f4f3fb; }
+    p, .small { color: #b9b5d6; }
+    a { color: #b48cff; }
+  }
+</style>
+</head>
+<body>
+  <h1>SigPath check</h1>
+  <p>Open a product on Amazon.de, AliExpress, OTTO, MediaMarkt or Saturn: SigPath's check appears at the bottom right.</p>
+  <label>
+    <input type="checkbox" id="share">
+    <span><strong>Share Amazon prices I see</strong><br><span class="small">The product and its price only, nothing about you. They show in SigPath's search as "seen on Amazon".</span></span>
+  </label>
+  <label style="display:block">Server (for the demo)
+    <select id="server">
+      <option value="https://sigpath.vercel.app">sigpath.vercel.app</option>
+      <option value="http://localhost:3000">localhost:3000</option>
+    </select>
+  </label>
+  <p><a href="https://sigpath.vercel.app/extension" target="_blank">What's shared, in full</a></p>
+  <script src="popup.js"></script>
+</body>
+</html>

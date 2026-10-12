@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "SigPath check",
+  "version": "0.1.0",
+  "description": "SigPath's scam and price check on the product page you're looking at: Amazon.de, AliExpress, OTTO, MediaMarkt and Saturn.",
+  "icons": { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
+  "action": { "default_popup": "popup.html", "default_icon": "icon.png", "default_title": "SigPath check" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage"],
+  "host_permissions": ["https://sigpath.vercel.app/*", "http://localhost:3000/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.de/*",
+        "https://*.aliexpress.com/*",
+        "https://www.otto.de/*",
+        "https://www.mediamarkt.de/*",
+        "https://www.saturn.de/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

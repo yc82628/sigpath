@@ -117,7 +117,7 @@ export function assembleSearch(
     // silently re-enable the biased comparison this design exists to prevent.
     analysis: withReportFlags(analyse(results, { currency: opts.currency, query: q }), listings, context.upheldReports),
     // Amazon gets a search link only while it isn't answering as a live source.
-    linkOut: linkOutTargets(q, { amazon: !results.some((r) => r.source === "amazon" && r.status === "ok") }),
+    linkOut: linkOutTargets(q, { amazon: !results.some((r) => r.source === "amazon" && r.status === "ok" && !r.snapshot) }),
   };
 }
 

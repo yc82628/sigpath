@@ -68,6 +68,9 @@ export const RULES = {
   cartItem: { name: "cart-item", limit: 150, windowSecs: TEN_MIN, message: "Too many price checks. Try again in a few minutes." },
   /** Price alerts: the browser asks for its inbox now and then; still not a loop. */
   alerts: { name: "alerts", limit: 60, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
+  /** The browser extension: each check is an eBay search; each "seen" report a database write. */
+  extension: { name: "extension", limit: 60, windowSecs: TEN_MIN, message: "Too many checks. Try again in a few minutes." },
+  extensionSeen: { name: "extension-seen", limit: 60, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
 } satisfies Record<string, Rule>;
 
 type Env = Record<string, string | undefined>;

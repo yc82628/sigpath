@@ -32,6 +32,7 @@ export const MENU_SECTIONS: Section[] = [
       { href: "/check", label: (m) => m.menu.check },
       { href: "/cart", label: (m) => m.menu.cart },
       { href: "/alerts", label: (m) => m.menu.alerts },
+      { href: "/extension", label: (m) => m.menu.extension },
     ],
   },
   {
