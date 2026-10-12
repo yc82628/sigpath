@@ -125,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 556 tests, as of 2026-10-12
+npm test                                   # 558 tests, as of 2026-10-12
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -141,7 +141,7 @@ wallet to fund from faucet.circle.com.
 
 The rest of this README is the engineering detail:
 
-- [The cart](#the-cart--no-account-prices-checked-again) · [Deutsch / English](#deutsch--english) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
+- [The cart](#the-cart--no-account-prices-checked-again) · [The menu, the footer and the fonts](#the-menu-the-footer-and-the-fonts) · [Deutsch / English](#deutsch--english) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
 - [Check a price: Amazon, AliExpress or any shop](#check-a-price--amazon-aliexpress-or-any-shop) · [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)
 - [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
 - [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
@@ -614,9 +614,26 @@ commission on orders through its links.
   and a demo listing added, the eBay price checked again on opening, the demo
   one offered USDC checkout on its still-valid quote.
 
+## The menu, the footer and the fonts
+
+- **The menu** (three lines beside the logo, `app/components/CatalogMenu.tsx`)
+  opens a drawer from the left, laid out like a big shop's catalogue: shop by
+  category, shop safely (search, price check, cart, alerts), sellers and
+  businesses, help and settings (with the language switch). It lists only
+  pages that exist (`app/components/catalog.ts`); `tests/catalog.test.ts`
+  fails on a link with no page or a label missing in either language. It's a
+  modal `<dialog>`: focus stays inside, Escape or a click on the dimmed page
+  closes it.
+- **The footer** is one line: the copyright, How it works, Privacy, Impressum,
+  API and the MIT licence, with one line of fine print under it (and the
+  affiliate disclosures, only while those programmes are on).
+- **The fonts** are Fredoka for headings and Nunito for text, rounded like
+  the Flex Pop icons' outlines; next/font builds them into the site, so a
+  shopper's browser never asks Google for them.
+
 ## Deutsch / English
 
-A **DE / EN** switch in the header (`lib/i18n`). Translated: the header and
+A **DE / EN** switch in the header (and in the menu) (`lib/i18n`). Translated: the header and
 footer, home, search (every verdict and every check reason), cart, both
 checkouts and the invoice, price check, How it works, alerts and Ai-chan, who
 is told to answer in German on German pages. Seller, business, supplier,

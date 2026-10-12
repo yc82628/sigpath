@@ -5,20 +5,9 @@ import HeroDevices, { Smoke } from "./components/HeroDevices";
 import PopIcon, { TONES } from "./components/PopIcon";
 import type { IconName } from "./components/icon-paths";
 import { getMessages } from "@/lib/i18n/server";
+import { CATEGORIES, categoryHref } from "./components/catalog";
 
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
-
-// Icons in SigPath's Pop/Neon style (PopIcon), the tone cycling through Solana's colours.
-const CATEGORIES: { label: string; q: string; icon: IconName }[] = [
-  { label: "Headphones", q: "AirPods Pro", icon: "headphones" },
-  { label: "Phones", q: "iPhone 15", icon: "device-mobile" },
-  { label: "Laptops", q: "ThinkPad X1", icon: "laptop" },
-  { label: "Gaming", q: "Nintendo Switch OLED", icon: "game-controller" },
-  { label: "Sneakers", q: "Nike Air Max 90", icon: "sneaker" },
-  { label: "Watches", q: "Apple Watch", icon: "watch" },
-  { label: "Cameras", q: "Sony A7 III", icon: "camera" },
-  { label: "Handmade", q: "handmade ceramic mug", icon: "gift" },
-];
 
 const PROMISES: { title: string; line: string; icon: IconName }[] = [
   { title: "Best price", line: "Live prices in one search", icon: "tag" },
@@ -73,9 +62,10 @@ export default function Home() {
       <section className="container wide home-section" aria-labelledby="browse">
         <h2 id="browse" className="section-title">{m.home.browse}</h2>
         <ul className="category-grid">
+          {/* Icons in SigPath's Flex Pop style (PopIcon), the tone cycling through Solana's colours. */}
           {CATEGORIES.map((c, i) => (
             <li key={c.label}>
-              <Link className="category-tile" href={`/search?q=${encodeURIComponent(c.q)}`}>
+              <Link className="category-tile" href={categoryHref(c.q)}>
                 <span className="category-icon">
                   <PopIcon name={c.icon} tone={TONES[i % 3]} size={30} />
                 </span>

@@ -26,12 +26,22 @@ export function useCheckText() {
   return (text: string) => translateCheck(text, lang);
 }
 
-/** "Deutsch" on an English page, "English" on a German one. */
-export function LangSwitch() {
+/** The other language, and a switch to it: writes the choice and re-renders the page. */
+export function useSwitchLang() {
   const lang = useLang();
-  const m = MESSAGES[lang];
   const router = useRouter();
   const other: Lang = lang === "de" ? "en" : "de";
+  const switchLang = () => {
+    document.cookie = `${LANG_COOKIE}=${other}; path=/; max-age=${LANG_COOKIE_MAX_AGE}; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
+    router.refresh();
+  };
+  return { other, switchLang };
+}
+
+/** "DE" on an English page, "EN" on a German one. */
+export function LangSwitch() {
+  const m = useMessages();
+  const { other, switchLang } = useSwitchLang();
   return (
     <button
       type="button"
@@ -39,10 +49,7 @@ export function LangSwitch() {
       lang={other}
       aria-label={m.nav.switchToLabel}
       data-label={m.nav.switchToLabel}
-      onClick={() => {
-        document.cookie = `${LANG_COOKIE}=${other}; path=/; max-age=${LANG_COOKIE_MAX_AGE}; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
-        router.refresh();
-      }}
+      onClick={switchLang}
     >
       {other === "de" ? "DE" : "EN"}
     </button>

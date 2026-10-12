@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Fragment } from "react";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Fredoka, Nunito } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
-import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag, operator } from "@/lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
 import VisitCounter from "./components/VisitCounter";
 import SaleDayBanner from "./components/SaleDayBanner";
-import PopIcon, { type Tone } from "./components/PopIcon";
+import PopIcon, { TONES, type Tone } from "./components/PopIcon";
+import CatalogMenu from "./components/CatalogMenu";
+import { CATEGORIES } from "./components/catalog";
 import CartLink from "./components/CartLink";
 import type { IconName } from "./components/icon-paths";
 import { LangProvider, LangSwitch } from "./components/I18n";
@@ -25,8 +27,10 @@ const NAV: { href: string; label: (m: Messages) => string; icon: IconName; tone:
 ];
 import "./globals.css";
 
-// Self-hosted at build time by next/font: no request to Google from a shopper's browser.
-const sans = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
+// Rounded like the Flex Pop icons' outlines: Fredoka for headings, Nunito for text. Self-hosted at build time by
+// next/font: no request to Google from a shopper's browser.
+const sans = Nunito({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
+const display = Fredoka({ subsets: ["latin"], display: "swap", variable: "--font-display" });
 
 export const metadata: Metadata = {
   title: `SigPath — ${SLOGAN}`,
@@ -44,14 +48,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const lang = getLang();
   const m = MESSAGES[lang];
   return (
-    <html lang={lang} className={sans.variable}>
+    <html lang={lang} className={`${sans.variable} ${display.variable}`}>
       <body>
         <LangProvider lang={lang}>
         <header className="site-header">
           <div className="site-header-inner">
-            <Link href="/" className="brand" aria-label={m.nav.home}>
-              <Wordmark />
-            </Link>
+            <div className="site-header-start">
+              <CatalogMenu
+                categoryIcons={CATEGORIES.map((c, i) => (
+                  <PopIcon key={c.icon} name={c.icon} tone={TONES[i % 3]} size={22} />
+                ))}
+              />
+              <Link href="/" className="brand" aria-label={m.nav.home}>
+                <Wordmark />
+              </Link>
+            </div>
             {/* Icons only: each link's name is its aria-label (read out) and its data-label (shown on hover and focus). */}
             <nav className="site-nav" aria-label={m.nav.main}>
               {NAV.map((n, i) => (
@@ -72,37 +83,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <SaleDayBanner />
         {children}
+        {/* Short on purpose: the menu at the top left lists every page. The affiliate lines show only while
+            those programmes are switched on, as the programmes require. */}
         <footer className="site-footer">
           <div className="site-footer-inner">
-            <p className="footer-links">
-              <strong>SigPath</strong>
-              <Link href="/how">{m.footer.howItWorks}</Link>
-              <Link href="/alerts">{m.footer.alerts}</Link>
-              <Link href="/seller/verify">{m.footer.sellers}</Link>
-              <Link href="/check">{m.footer.check}</Link>
-              <Link href="/suppliers">{m.footer.suppliers}</Link>
-              <Link href="/developers">{m.footer.api}</Link>
-              <Link href="/impressum">{m.footer.impressum}</Link>
-              <Link href="/privacy">{m.footer.privacy}</Link>
-            </p>
-            <p className="hint">
-              {m.footer.noTracking(visitCounterOn())} {m.footer.notGuarantee}
-            </p>
-            {aliexpressAffiliate() && <p className="hint">{m.footer.aliexpress}</p>}
-            {amazonTag() && (
-              <p className="hint">
-                As an Amazon Associate, SigPath earns from qualifying purchases. (Als Amazon-Partner verdient SigPath an
-                qualifizierten Verkäufen.) {AMAZON_PRICE_DISCLAIMER}
+            <div className="footer-row">
+              <p className="copyright">{m.footer.copyright(new Date().getFullYear())}</p>
+              <p className="footer-links">
+                <Link href="/how">{m.footer.howItWorks}</Link>
+                <Link href="/privacy">{m.footer.privacy}</Link>
+                <Link href="/impressum">{m.footer.impressum}</Link>
+                <Link href="/developers">{m.footer.api}</Link>
+                <a href="https://github.com/yc82628/sigpath/blob/main/LICENSE" rel="noopener">
+                  {m.footer.openSource}
+                </a>
               </p>
-            )}
-            {/* The holder is the Impressum's name once it's set (an env var, never the repo), else SigPath. The code
-                itself is MIT-licensed (LICENSE), so the line says so rather than "all rights reserved". */}
-            <p className="copyright">
-              {m.footer.copyright(new Date().getFullYear(), operator()?.name ?? "SigPath")}{" "}
-              <a href="https://github.com/yc82628/sigpath/blob/main/LICENSE" rel="noopener">
-                {m.footer.mit}
-              </a>
-              .
+            </div>
+            <p className="footer-note">
+              {m.footer.note(visitCounterOn())}
+              {aliexpressAffiliate() && <> {m.footer.aliexpress}</>}
+              {amazonTag() && (
+                <>
+                  {" "}
+                  As an Amazon Associate, SigPath earns from qualifying purchases. (Als Amazon-Partner verdient SigPath an
+                  qualifizierten Verkäufen.) {AMAZON_PRICE_DISCLAIMER}
+                </>
+              )}
             </p>
           </div>
         </footer>
