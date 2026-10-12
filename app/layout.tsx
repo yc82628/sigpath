@@ -8,7 +8,16 @@ import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag } from "@/lib/l
 import { visitCounterOn } from "@/lib/visits";
 import VisitCounter from "./components/VisitCounter";
 import SaleDayBanner from "./components/SaleDayBanner";
-import PopIcon from "./components/PopIcon";
+import PopIcon, { type Tone } from "./components/PopIcon";
+import type { IconName } from "./components/icon-paths";
+
+/** The header menu: only what SigPath has. No cart, profile or settings: there are no accounts. */
+const NAV: { href: string; label: string; icon: IconName; tone: Tone }[] = [
+  { href: "/search", label: "Search", icon: "magnifying-glass", tone: "purple" },
+  { href: "/alerts", label: "Price alerts", icon: "bell-ringing", tone: "blue" },
+  { href: "/seller/verify", label: "For sellers", icon: "storefront", tone: "green" },
+  { href: "/how", label: "About SigPath", icon: "info", tone: "purple" },
+];
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to Google from a shopper's browser.
@@ -34,19 +43,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="brand" aria-label="SigPath home">
               <Wordmark />
             </Link>
+            {/* Icons only: each link's name is its aria-label (read out) and its data-label (shown on hover and focus). */}
             <nav className="site-nav" aria-label="Main">
-              <Link href="/search" className="with-icon">
-                <PopIcon name="magnifying-glass" tone="purple" size={18} neon />
-                Search
-              </Link>
-              <Link href="/alerts" className="with-icon">
-                <PopIcon name="bell-ringing" tone="blue" size={18} neon />
-                Alerts
-              </Link>
-              <Link href="/seller/verify" className="with-icon">
-                <PopIcon name="storefront" tone="green" size={18} neon />
-                For sellers
-              </Link>
+              {NAV.map((n) => (
+                <Link key={n.href} href={n.href} className="nav-icon" aria-label={n.label} data-label={n.label}>
+                  <PopIcon name={n.icon} tone={n.tone} size={22} onDark />
+                </Link>
+              ))}
             </nav>
           </div>
         </header>

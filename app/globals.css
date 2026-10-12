@@ -174,12 +174,23 @@ button { font-family: var(--font-sans); }
 .sale-day a { color: var(--cta-ink); white-space: nowrap; }
 .brand { display: inline-flex; align-items: center; text-decoration: none; }
 .logo-wordmark { display: block; height: 24px; width: auto; }
-.site-nav { display: flex; gap: 4px; }
-.site-nav a {
-  color: var(--on-ink-muted); text-decoration: none; font-weight: 600; font-size: 0.92rem;
-  padding: 6px 12px; border-radius: 999px;
+.site-nav { display: flex; gap: 6px; }
+/* Icon-only links: a 40px target, the name in a label shown on hover and keyboard focus. */
+.nav-icon {
+  position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+  transition: background 0.15s ease;
 }
-.site-nav a:hover { color: var(--brass); text-decoration: underline; text-underline-offset: 4px; }
+.nav-icon:hover, .nav-icon:focus-visible { background: rgba(255, 255, 255, 0.08); }
+.nav-icon::after {
+  content: attr(data-label); position: absolute; top: calc(100% + 6px); left: 50%; transform: translate(-50%, -4px);
+  padding: 4px 10px; border-radius: 8px; background: var(--surface); color: var(--fg); border: 1px solid var(--border);
+  font-size: 0.8rem; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow);
+  opacity: 0; pointer-events: none; transition: opacity 0.12s ease, transform 0.12s ease; z-index: 30;
+}
+.nav-icon:hover::after, .nav-icon:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+/* The last label opens leftwards, so it never runs off the right edge. */
+.site-nav .nav-icon:last-child::after { left: auto; right: 0; transform: translateY(-4px); }
+.site-nav .nav-icon:last-child:hover::after, .site-nav .nav-icon:last-child:focus-visible::after { transform: none; }
 .site-header :focus-visible { outline-color: var(--brass); }
 
 .site-footer { margin-top: 64px; border-top: 1px solid var(--border); background: var(--surface); }
@@ -190,7 +201,7 @@ button { font-family: var(--font-sans); }
 .footer-links a:hover { color: var(--fg); }
 
 @media (max-width: 520px) {
-  .site-nav a { padding: 6px 8px; font-size: 0.85rem; }
+  .site-nav { gap: 2px; }
 }
 
 /* ==========================================================================
@@ -311,32 +322,26 @@ body { isolation: isolate; }
   .laptop, .phone, .phone-scroll, .smoke span { animation: none; }
 }
 
-/* --- Icons: Pop in the light theme, Neon in the dark (PopIcon.tsx) ---------- */
+/* --- Icons: Flex Pop (PopIcon.tsx) ------------------------------------------
+   An outline over a solid colour fill, the fill set off down and to the right
+   like a print slightly off register. The outline is the text colour, so it
+   is dark on the light theme and light on the dark one; on the always-dark
+   header it is light in both. */
 .pop-icon { display: inline-block; flex: none; vertical-align: -0.2em; overflow: visible; }
 .pop-icon.tone-purple { --tone: #9945ff; }
 .pop-icon.tone-blue { --tone: #00c2ff; }
 .pop-icon.tone-green { --tone: #14f195; }
-/* Pop: ink outline over a solid fill, the fill set off down and to the right. */
 .pop-icon .pop-fill { fill: var(--tone); transform: translate(22px, 20px); }
 .pop-icon .pop-line { fill: var(--fg); }
-/* Neon: the outline in colour, glowing, over a faint wash. */
-.pop-icon.neon { filter: drop-shadow(0 0 2px var(--tone)) drop-shadow(0 0 7px color-mix(in srgb, var(--tone) 55%, transparent)); }
-.pop-icon.neon .pop-fill { fill: var(--tone); opacity: 0.18; transform: none; }
-.pop-icon.neon .pop-line { fill: var(--tone); }
-@media (prefers-color-scheme: dark) {
-  .pop-icon { filter: drop-shadow(0 0 2px var(--tone)) drop-shadow(0 0 7px color-mix(in srgb, var(--tone) 55%, transparent)); }
-  .pop-icon .pop-fill { opacity: 0.18; transform: none; }
-  .pop-icon .pop-line { fill: var(--tone); }
-}
+.pop-icon.on-dark .pop-line { fill: #f4f3fb; }
 
 /* An icon beside a line of text: lists, headings, the header menu. */
 .with-icon { display: flex; align-items: flex-start; gap: 12px; }
 .with-icon > .pop-icon { margin-top: 0.1em; }
-h2.with-icon, .site-nav a.with-icon { align-items: center; gap: 8px; }
-h2.with-icon > .pop-icon, .site-nav a.with-icon > .pop-icon { margin-top: 0; }
+h2.with-icon { align-items: center; gap: 8px; }
+h2.with-icon > .pop-icon { margin-top: 0; }
 .guarantees ul.icon-list { list-style: none; padding-left: 0; }
 .guarantees ul.icon-list li { margin: 10px 0; }
-@media (max-width: 420px) { .site-nav .pop-icon { display: none; } }
 
 .promise-row { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .promise-item {
