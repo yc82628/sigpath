@@ -9,6 +9,9 @@ import { sasConfigFromEnv, signer } from "@/lib/chains/solana/sas";
 import { readVerifiedSeller, type OnChainBadge } from "@/lib/chains/solana/sas-verified";
 import { BusinessLog, businessIndex } from "@/lib/sellers/business";
 import { getLang } from "@/lib/i18n/server";
+import { sellerFindingsOnChain } from "@/lib/chains/solana/sas-reports";
+import { ISSUER } from "@/lib/proof/ledger";
+import { SOLANA_RPC_URL } from "@/lib/config";
 
 /**
  * app/seller/[source]/[handle] — the public record of a seller.
@@ -51,6 +54,11 @@ const en = {
   alsoA: "You can also ",
   alsoLink: "become a verified seller",
   back: "Back to search",
+  chainNone: "On Solana: no finding recorded against this handle.",
+  chainSome: (n: number, r: number) =>
+    `On Solana: ${n} finding${n === 1 ? "" : "s"} recorded against this handle${r ? `, ${r} reversed` : ""}.`,
+  chainWhy: " Read from the chain, not from SigPath's database.",
+  chainProof: "How to check",
 };
 const de: typeof en = {
   category: { counterfeit: "Artikel als nicht echt gemeldet", not_as_described: "Artikel weicht wesentlich vom Angebot ab" },
@@ -82,6 +90,11 @@ const de: typeof en = {
   alsoA: "Du kannst auch ",
   alsoLink: "verifizierter Verkäufer werden",
   back: "Zurück zur Suche",
+  chainNone: "Auf Solana: kein Befund gegen diesen Namen festgehalten.",
+  chainSome: (n, r) =>
+    `Auf Solana: ${n} ${n === 1 ? "Befund" : "Befunde"} gegen diesen Namen festgehalten${r ? `, ${r} aufgehoben` : ""}.`,
+  chainWhy: " Von der Blockchain gelesen, nicht aus der Datenbank von SigPath.",
+  chainProof: "So prüfst du es",
 };
 
 function day(s: number) {
@@ -112,6 +125,8 @@ export default async function SellerPage({ params }: { params: { source: string;
     onChain = await readVerifiedSeller((await signer(cfg)).address, await sellerSubject(key), cfg.rpcUrl).catch(() => null);
   }
   const verified = local && (!cfg || onChain?.status === "valid") ? local : null;
+  // The count as Solana holds it, found from the handle alone, exactly as any other app would.
+  const chain = await sellerFindingsOnChain(ISSUER, await sellerSubject(key), SOLANA_RPC_URL).catch(() => null);
 
   return (
     <main className="container">
@@ -164,6 +179,12 @@ export default async function SellerPage({ params }: { params: { source: string;
 
       <p className={active ? "notice withheld" : "notice"}>{active === 0 ? (findings.length ? t.noneStand : t.none) : t.stand(active)}</p>
       <p className="hint">{t.meaning}</p>
+      {chain && (
+        <p className="hint chain-count">
+          {chain.upheld ? t.chainSome(chain.upheld, chain.reversed.length) : t.chainNone}
+          {t.chainWhy} <Link href="/proof">{t.chainProof}</Link>
+        </p>
+      )}
 
       {findings.map((f, i) => (
         <article key={i} className="listing">

@@ -4,6 +4,7 @@ import HotDeals, { PopularSearches } from "./components/HotDeals";
 import { Badge, SLOGAN } from "./components/Logo";
 import { aliexpressOn } from "@/lib/legal/site";
 import HeroDevices, { Smoke } from "./components/HeroDevices";
+import ProofStrip from "./components/ProofStrip";
 import PopIcon, { TONES } from "./components/PopIcon";
 import type { IconName } from "./components/icon-paths";
 import { getLang, getMessages } from "@/lib/i18n/server";
@@ -17,6 +18,8 @@ const PROMISES: { title: string; line: string; icon: IconName }[] = [
   { title: "Every deal checked", line: "Too good to be true? We say so", icon: "seal-check" },
   { title: "Pay when it ships", line: "Your money waits safely until then", icon: "lock-key" },
 ];
+
+const DIFF_ICONS: IconName[] = ["gavel", "vault", "user-focus"];
 
 export default function Home() {
   const m = getMessages();
@@ -119,11 +122,36 @@ export default function Home() {
               </li>
             ))}
           </ul>
+          {/* Proof, not a promise: counted on Solana, so it streams in after the page. */}
+          <Suspense fallback={null}>
+            <ProofStrip />
+          </Suspense>
           <p className="hero-more">
             {m.home.foundElsewhere} <Link href="/check">{m.home.checkThatPrice}</Link>
           </p>
         </div>
         <HeroDevices label={m.home.devices} caption={m.home.devicesCaption} lang={getLang()} />
+      </section>
+
+      {/* What no other shopping site does: the record on Solana, the escrow, reports only from real buyers. */}
+      <section className="container wide home-section" aria-labelledby="different">
+        <h2 id="different" className="section-title">{m.home.diffTitle}</h2>
+        <p className="hint diff-sub">{m.home.diffSub}</p>
+        <ul className="diff-grid">
+          {m.home.diff.map((d, i) => (
+            <li key={d.title}>
+              <span className="promise-icon">
+                <PopIcon name={DIFF_ICONS[i]} tone={TONES[i % 3]} size={24} />
+              </span>
+              <strong>{d.title}</strong>
+              <span>{d.line}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="diff-links">
+          <Link href="/proof">{m.home.proofLink}</Link>
+          <Link href="/seller">{m.home.sellersLink}</Link>
+        </p>
       </section>
 
       <section className="container wide home-section" aria-labelledby="browse">

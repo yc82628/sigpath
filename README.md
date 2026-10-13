@@ -99,6 +99,35 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
    **soulbound badge**, a Token-2022 token that can't be transferred or sold. An
    upheld report burns it.
 
+### Proof, not promises — `/proof` and the rules for sellers
+
+A new site that takes crypto looks like a scam until it shows otherwise, and
+"trust us" is what a scam says. So SigPath shows its record **as Solana holds
+it**, not from its own database:
+
+- **`/proof`** reads, live (`lib/proof/ledger.ts`, kept five minutes per
+  instance): every escrow order the orders program holds — paid out, refunded,
+  USDC waiting now — and every upheld finding and reversal under SigPath's
+  attestation schemas, each linking to the explorer. Two `getProgramAccounts`
+  calls per kind, filtered on chain to SigPath's program and schemas. Sellers
+  appear as their subject hash, as on chain; a handle typed into "Check a
+  seller" goes to its seller page. Then the escrow's rules in plain words
+  (including what it can't prove), what SigPath will never ask for (recovery
+  phrase, a transfer outside the escrow, a password, card details), the code,
+  and every address.
+- **The seller page** (`/seller/<source>/<handle>`) adds the count read from
+  the chain by the handle alone (`sellerFindingsOnChain`), beside the one from
+  SigPath's log.
+- **`/seller`** — the rules for sellers, before anything happens to one: what
+  an honest seller gets (badge, fair comparison, protection from reports by
+  non-buyers, right of reply) and what shipping a fake leads to, step by step.
+- **The home page** says what's different in three cards and carries a live
+  line ("Live on Solana · devnet: 2 orders paid out · 2 refunded · 6 seller
+  findings on record"), streamed in after the page so a slow RPC never holds it
+  up, and absent if the chain hasn't answered.
+
+On devnet every page says so: the numbers are test orders and test findings.
+
 ## Try it in two minutes (no keys needed)
 
 ```powershell
@@ -125,7 +154,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 574 tests, as of 2026-10-13
+npm test                                   # 580 tests, as of 2026-10-13
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

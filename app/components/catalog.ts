@@ -38,6 +38,7 @@ export const MENU_SECTIONS: Section[] = [
   {
     title: (m) => m.menu.sell,
     links: [
+      { href: "/seller", label: (m) => m.menu.forSellers },
       { href: "/seller/verify", label: (m) => m.menu.verifySeller },
       { href: "/seller/business", label: (m) => m.menu.verifyBusiness },
       { href: "/suppliers", label: (m) => m.menu.supplier },
@@ -47,6 +48,7 @@ export const MENU_SECTIONS: Section[] = [
   {
     title: (m) => m.menu.help,
     links: [
+      { href: "/proof", label: (m) => m.menu.proof },
       { href: "/how", label: (m) => m.menu.how },
       { href: "/privacy", label: (m) => m.menu.privacy },
       { href: "/impressum", label: (m) => m.menu.impressum },

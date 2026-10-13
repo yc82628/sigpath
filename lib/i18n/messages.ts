@@ -33,6 +33,8 @@ const en = {
     marks: "eBay, Amazon and AliExpress and their logos are their owners' trademarks; SigPath isn't affiliated with them.",
     aliexpress: "SigPath may earn a commission on AliExpress purchases through its links.",
     copyright: (year: number) => `© ${year} SigPath`,
+    proof: "Proof on Solana",
+    forSellers: "For sellers",
   },
   menu: {
     openLabel: "Open the menu",
@@ -48,10 +50,12 @@ const en = {
     sell: "Sellers and businesses",
     verifySeller: "Become a verified seller",
     verifyBusiness: "Verify your business",
+    forSellers: "The rules for sellers",
     supplier: "Check a supplier",
     api: "SigPath API",
     help: "Help and settings",
     how: "How SigPath checks",
+    proof: "Proof on Solana",
     privacy: "Privacy",
     impressum: "Impressum",
     language: "Language",
@@ -71,6 +75,27 @@ const en = {
     soonTag: "coming soon",
     foundElsewhere: "Found it on Amazon or AliExpress?",
     checkThatPrice: "Check that price →",
+    proofLive: "Live on Solana",
+    proofLine: (paid: number, refunded: number, findings: number) =>
+      `${paid} order${paid === 1 ? "" : "s"} paid out · ${refunded} refunded · ${findings} seller finding${findings === 1 ? "" : "s"} on record`,
+    proofLink: "See the proof →",
+    diffTitle: "What makes SigPath different",
+    diffSub: "Anyone can say they're safe. SigPath's rules run on Solana, where you can check them.",
+    diff: [
+      {
+        title: "A record that follows scammers",
+        line: "eBay can't warn you about an AliExpress seller. SigPath's findings go on Solana under the seller's name, readable by every shop and app.",
+      },
+      {
+        title: "Your money held by code",
+        line: "Pay in USDC and an escrow program holds it until your order is placed, or sends it back to you by itself.",
+      },
+      {
+        title: "Only real buyers can report",
+        line: "A report needs the wallet that paid, a live photo of the item and a reviewer's decision. Rivals can't just pile on.",
+      },
+    ],
+    sellersLink: "Selling? The rules for sellers →",
     browse: "Start browsing",
     why: "Why SigPath",
     categories: {
@@ -371,6 +396,8 @@ const de: Messages = {
     marks: "eBay, Amazon, AliExpress und ihre Logos sind Marken ihrer Inhaber; SigPath ist mit ihnen nicht verbunden.",
     aliexpress: "SigPath erhält eventuell eine Provision für AliExpress-Käufe über seine Links.",
     copyright: (year) => `© ${year} SigPath`,
+    proof: "Nachweis auf Solana",
+    forSellers: "Für Verkäufer",
   },
   menu: {
     openLabel: "Menü öffnen",
@@ -386,10 +413,12 @@ const de: Messages = {
     sell: "Verkäufer und Unternehmen",
     verifySeller: "Verifizierter Verkäufer werden",
     verifyBusiness: "Dein Unternehmen verifizieren",
+    forSellers: "Die Regeln für Verkäufer",
     supplier: "Lieferanten prüfen",
     api: "SigPath-API",
     help: "Hilfe und Einstellungen",
     how: "So prüft SigPath",
+    proof: "Nachweis auf Solana",
     privacy: "Datenschutz",
     impressum: "Impressum",
     language: "Sprache",
@@ -409,6 +438,27 @@ const de: Messages = {
     soonTag: "demnächst",
     foundElsewhere: "Bei Amazon oder AliExpress gefunden?",
     checkThatPrice: "Diesen Preis prüfen →",
+    proofLive: "Live auf Solana",
+    proofLine: (paid, refunded, findings) =>
+      `${paid} ${paid === 1 ? "Bestellung" : "Bestellungen"} ausgezahlt · ${refunded} erstattet · ${findings} ${findings === 1 ? "Befund" : "Befunde"} gegen Verkäufer`,
+    proofLink: "Zum Nachweis →",
+    diffTitle: "Was SigPath anders macht",
+    diffSub: "Sicher nennen kann sich jeder. Die Regeln von SigPath laufen auf Solana, wo du sie nachprüfen kannst.",
+    diff: [
+      {
+        title: "Ein Eintrag, der Betrügern folgt",
+        line: "eBay kann dich nicht vor einem AliExpress-Verkäufer warnen. Die Befunde von SigPath stehen auf Solana unter dem Namen des Verkäufers, lesbar für jeden Shop und jede App.",
+      },
+      {
+        title: "Dein Geld, verwahrt von Code",
+        line: "Zahl in USDC, und ein Treuhandprogramm hält das Geld, bis deine Bestellung aufgegeben ist, oder schickt es dir von selbst zurück.",
+      },
+      {
+        title: "Nur echte Käufer können melden",
+        line: "Eine Meldung braucht die Wallet, die bezahlt hat, ein Live-Foto des Artikels und die Entscheidung einer prüfenden Person. Konkurrenten können nicht einfach Meldungen streuen.",
+      },
+    ],
+    sellersLink: "Du verkaufst? Die Regeln für Verkäufer →",
     browse: "Stöbern",
     why: "Warum SigPath",
     categories: {

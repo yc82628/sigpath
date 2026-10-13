@@ -90,7 +90,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="footer-row">
               <p className="copyright">{m.footer.copyright(new Date().getFullYear())}</p>
               <p className="footer-links">
+                <Link href="/proof">{m.footer.proof}</Link>
                 <Link href="/how">{m.footer.howItWorks}</Link>
+                <Link href="/seller">{m.footer.forSellers}</Link>
                 <Link href="/privacy">{m.footer.privacy}</Link>
                 <Link href="/impressum">{m.footer.impressum}</Link>
                 <Link href="/developers">{m.footer.api}</Link>
