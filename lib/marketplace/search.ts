@@ -104,10 +104,14 @@ export function assembleSearch(
 ): SearchResponse {
   const q = query.trim();
   const listings = results.flatMap((r) => r.listings).sort(byTotalAscending);
+  // A snapshot source with nothing to show (no Amazon prices shared yet) wasn't
+  // really searched: it isn't listed as a marketplace, nor named as left out of
+  // the comparison. It never counts towards the median either way.
+  const shown = results.filter((r) => !(r.snapshot && r.status === "ok" && r.listings.length === 0));
   return {
     query: q,
     listings,
-    sources: results.map((r) => ({
+    sources: shown.map((r) => ({
       source: r.source,
       status: r.status,
       count: r.listings.length,
@@ -115,7 +119,7 @@ export function assembleSearch(
     })),
     // Pass the FULL results, failures included. Passing only the ok ones would
     // silently re-enable the biased comparison this design exists to prevent.
-    analysis: withReportFlags(analyse(results, { currency: opts.currency, query: q }), listings, context.upheldReports),
+    analysis: withReportFlags(analyse(shown, { currency: opts.currency, query: q }), listings, context.upheldReports),
     // Amazon gets a search link only while it isn't answering as a live source.
     linkOut: linkOutTargets(q, { amazon: !results.some((r) => r.source === "amazon" && r.status === "ok" && !r.snapshot) }),
   };

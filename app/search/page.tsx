@@ -324,7 +324,8 @@ function SearchProgress({ ids, pending }: { ids: string[]; pending: Promise<Sour
 
 async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
   const r = await result;
-  if (r.status === "not_configured") return null;
+  // Not set up, or a snapshot with nothing in it (no Amazon prices shared yet): nothing to say about it.
+  if (r.status === "not_configured" || (r.snapshot && r.status === "ok" && r.listings.length === 0)) return null;
   const { m } = i18n();
   if (r.status !== "ok") {
     return (

@@ -84,3 +84,10 @@ test("the extension runs by itself only on the listed shops, elsewhere only when
     "https://www.saturn.de/*",
   ]);
 });
+
+test("with no Amazon prices shared, Amazon isn't shown as searched, nor as left out of the comparison", async () => {
+  const r = withLabels(await searchAll("ThinkPad X1", [new StubSource("EUR", 0), new AmazonSeenSource({}, store())], { limit: 25 }));
+  assert.ok(!r.sources.some((s) => s.source === "amazon"), "no \"Amazon: searched (0)\"");
+  assert.ok(!r.analysis.excludedFromComparison.includes("amazon"), "no \"not price-compared: Amazon\"");
+  assert.ok(r.linkOut.some((t) => t.id === "amazon"), "Amazon's own search link is still offered");
+});
