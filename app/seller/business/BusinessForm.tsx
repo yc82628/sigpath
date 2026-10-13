@@ -15,6 +15,8 @@ import { walletErrorMessage, type ConnectedWallet } from "../../components/walle
 import { businessMessage, domainAction, vatAction } from "@/lib/sellers/business-message";
 import type { BusinessStatus } from "@/lib/sellers/business-api";
 import type { BusinessView } from "@/lib/sellers/business";
+import { useLang } from "../../components/I18n";
+import { countryName } from "@/lib/i18n/countries";
 
 const COUNTRIES: [string, string][] = [
   ["AT", "Austria"], ["BE", "Belgium"], ["BG", "Bulgaria"], ["HR", "Croatia"], ["CY", "Cyprus"], ["CZ", "Czechia"],
@@ -39,6 +41,8 @@ async function postJson<T>(url: string, body: unknown): Promise<{ ok: true; valu
 }
 
 export default function BusinessForm() {
+  const lang = useLang();
+  const T = (en: string, german: string) => (lang === "de" ? german : en);
   const [connected, setConnected] = useState<ConnectedWallet | null>(null);
   const wallet = connected?.address ?? null;
   const [status, setStatus] = useState<BusinessStatus | null>(null);
@@ -114,56 +118,66 @@ export default function BusinessForm() {
     <div className="business-form">
       {!wallet && (
         <section className="step">
-          <h2>1. Connect your wallet</h2>
-          <p className="hint">The same wallet you used to verify your marketplace accounts.</p>
-          <WalletButton label="Connect wallet" disabled={busy} onConnect={connect} onError={setError} />
+          <h2>{T("1. Connect your wallet", "1. Wallet verbinden")}</h2>
+          <p className="hint">{T("The same wallet you used to verify your marketplace accounts.", "Dieselbe Wallet, mit der du deine Marktplatzkonten verifiziert hast.")}</p>
+          <WalletButton label={T("Connect wallet", "Wallet verbinden")} disabled={busy} onConnect={connect} onError={setError} />
         </section>
       )}
 
       {wallet && status && (
         <section className="step">
-          <h2>2. Your verified accounts</h2>
+          <h2>{T("2. Your verified accounts", "2. Deine verifizierten Konten")}</h2>
           {status.accounts.length === 0 ? (
             <p>
-              This wallet hasn&apos;t verified any marketplace accounts yet. <a href="/seller/verify">Verify one first</a>, then
-              come back.
+              {T("This wallet hasn't verified any marketplace accounts yet. ", "Diese Wallet hat noch keine Marktplatzkonten verifiziert. ")}
+              <a href="/seller/verify">{T("Verify one first", "Verifiziere zuerst eines")}</a>
+              {T(", then come back.", " und komm dann zurück.")}
             </p>
           ) : (
             <ul className="linked-accounts">
               {status.accounts.map((a) => (
                 <li key={a.sellerKey}>
                   <strong>{a.handle}</strong> <span className="chip">{MARKET[a.source] ?? a.source}</span>{" "}
-                  <span className="hint">{a.active ? "verified" : "badge not currently shown"}</span>
+                  <span className="hint">{a.active ? T("verified", "verifiziert") : T("badge not currently shown", "Abzeichen derzeit nicht angezeigt")}</span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="hint">Verify more accounts with this wallet and they join your business automatically.</p>
+          <p className="hint">{T("Verify more accounts with this wallet and they join your business automatically.", "Verifiziere weitere Konten mit dieser Wallet, und sie werden automatisch deinem Unternehmen zugeordnet.")}</p>
         </section>
       )}
 
       {wallet && activeAccounts.length > 0 && (
         <section className="step">
-          <h2>3. Your VAT number</h2>
+          <h2>{T("3. Your VAT number", "3. Deine USt-IdNr.")}</h2>
           {business?.vatMasked ? (
             <p className="notice">
-              ✓ <code>{business.vatMasked}</code> is valid in the EU register ({business.countryName})
-              {business.registeredName ? <>, registered as <strong>{business.registeredName}</strong></> : <>; the register doesn&apos;t publish the name</>}.
+              ✓ <code>{business.vatMasked}</code> {T("is valid in the EU register", "ist im EU-Register gültig")} (
+              {countryName(business.country, business.countryName, lang)})
+              {business.registeredName ? (
+                <>
+                  {T(", registered as ", ", eingetragen als ")}
+                  <strong>{business.registeredName}</strong>
+                </>
+              ) : (
+                <>{T("; the register doesn't publish the name", "; das Register veröffentlicht den Namen nicht")}</>
+              )}
+              .
             </p>
           ) : (
-            <p className="hint">Checked live against the EU&apos;s VIES register. The name shown is the register&apos;s, not what you type.</p>
+            <p className="hint">{T("Checked live against the EU's VIES register. The name shown is the register's, not what you type.", "Live im VIES-Register der EU geprüft. Der angezeigte Name stammt aus dem Register, nicht aus deiner Eingabe.")}</p>
           )}
           <div className="form-row">
-            <select value={country} onChange={(e) => setCountry(e.target.value)} aria-label="Country of registration">
+            <select value={country} onChange={(e) => setCountry(e.target.value)} aria-label={T("Country of registration", "Land der Eintragung")}>
               {COUNTRIES.map(([c, name]) => (
                 <option key={c} value={c}>
-                  {name}
+                  {countryName(c, name, lang)}
                 </option>
               ))}
             </select>
-            <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="VAT number" aria-label="VAT number" />
+            <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder={T("VAT number", "USt-IdNr.")} aria-label={T("VAT number", "USt-IdNr.")} />
             <button type="button" className="primary" disabled={busy || vatNumber.trim().length < 2} onClick={checkVatNumber}>
-              {business?.vatMasked ? "Check again" : "Check and sign"}
+              {business?.vatMasked ? T("Check again", "Erneut prüfen") : T("Check and sign", "Prüfen und signieren")}
             </button>
           </div>
         </section>
@@ -171,18 +185,18 @@ export default function BusinessForm() {
 
       {wallet && activeAccounts.length > 0 && (
         <section className="step">
-          <h2>4. Your website (optional)</h2>
-          {business?.domain && <p className="notice">✓ Controls {business.domain}.</p>}
+          <h2>{T("4. Your website (optional)", "4. Deine Website (optional)")}</h2>
+          {business?.domain && <p className="notice">✓ {T("Controls", "Verwaltet")} {business.domain}.</p>}
           {!record ? (
             <div className="form-row">
-              <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example-shop.de" aria-label="Website domain" />
+              <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example-shop.de" aria-label={T("Website domain", "Domain der Website")} />
               <button type="button" disabled={busy || !domain.trim()} onClick={startWebsite}>
-                Get the DNS record
+                {T("Get the DNS record", "DNS-Eintrag anzeigen")}
               </button>
             </div>
           ) : (
             <>
-              <p>Add this TXT record at your domain provider, then check it:</p>
+              <p>{T("Add this TXT record at your domain provider, then check it:", "Lege diesen TXT-Eintrag bei deinem Domain-Anbieter an und prüfe ihn dann:")}</p>
               <dl className="dns-record">
                 <dt>Name</dt>
                 <dd><code>{record.record.name}</code></dd>
@@ -192,7 +206,7 @@ export default function BusinessForm() {
                 <dd><code>{record.record.value}</code></dd>
               </dl>
               <button type="button" className="primary" disabled={busy} onClick={verifyWebsite}>
-                I&apos;ve added it: check and sign
+                {T("I've added it: check and sign", "Ist angelegt: prüfen und signieren")}
               </button>
             </>
           )}
@@ -201,13 +215,16 @@ export default function BusinessForm() {
 
       {business && business.status !== "verified" && (
         <p className="hint">
-          Your <a href={`/business/${encodeURIComponent(business.id)}`}>public profile</a> shows what's verified so far.
+          {T("Your ", "Dein ")}
+          <a href={`/business/${encodeURIComponent(business.id)}`}>{T("public profile", "öffentliches Profil")}</a>
+          {T(" shows what's verified so far.", " zeigt, was bisher verifiziert ist.")}
         </p>
       )}
       {business?.status === "verified" && (
         <p className="notice">
-          🎉 Your business is verified. <a href={`/business/${encodeURIComponent(business.id)}`}>See your public profile</a>, and link to it from
-          your shop.
+          🎉 {T("Your business is verified. ", "Dein Unternehmen ist verifiziert. ")}
+          <a href={`/business/${encodeURIComponent(business.id)}`}>{T("See your public profile", "Sieh dir dein öffentliches Profil an")}</a>
+          {T(", and link to it from your shop.", " und verlinke es in deinem Shop.")}
         </p>
       )}
       {error && (

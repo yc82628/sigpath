@@ -1,6 +1,9 @@
 import Link from "next/link";
 import PopIcon from "../components/PopIcon";
 import OpenFromHash from "../components/OpenFromHash";
+import { Part } from "./Part";
+import PrivacyDe from "./PrivacyDe";
+import { getLang } from "@/lib/i18n/server";
 import {
   aliexpressAffiliate,
   aliexpressOn,
@@ -31,26 +34,25 @@ import { BUSINESS_TTL_SECS } from "@/lib/sellers/business";
  * the constants the stores enforce. Not legal advice: have it reviewed.
  *
  * A picture summary first, then each topic folded (Part): the whole text is on
- * the page, as the law asks, without reading like a manual.
+ * the page, as the law asks, without reading like a manual. The German version
+ * is PrivacyDe.tsx: a change here belongs there too.
  */
 
-export const metadata = { title: "Privacy policy — SigPath" };
+export function generateMetadata() {
+  return { title: getLang() === "de" ? "Datenschutzerklärung — SigPath" : "Privacy policy — SigPath" };
+}
 export const dynamic = "force-dynamic";
 
 const days = (secs: number) => Math.round(secs / 86400);
 
-/** One topic of the full policy, folded: the summary above is what most people need. */
-function Part({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
-  return (
-    <details className="legal-part" id={id}>
-      <summary>{title}</summary>
-      <div>{children}</div>
-    </details>
-  );
-}
 const minutes = (secs: number) => Math.round(secs / 60);
 
+/** In the page's language: German (PrivacyDe.tsx) or English (below), the same policy either way. */
 export default function PrivacyPage() {
+  return getLang() === "de" ? <PrivacyDe /> : <PrivacyEn />;
+}
+
+function PrivacyEn() {
   const op = operator();
   const ai = assistantProvider();
   const photos = photoCheckProvider();

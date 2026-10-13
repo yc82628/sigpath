@@ -36,6 +36,7 @@ import type { BusinessBadge } from "../marketplace/label";
 import type { Flag } from "../marketplace/anomaly";
 import type { Listing } from "../marketplace/types";
 import { sellerKey } from "../marketplace/types";
+import { VIES_COUNTRIES } from "../i18n/countries";
 import { businessMessage } from "./business-message";
 import { dataDir } from "../data-dir";
 import { asTable, tableFromEnv, type Table } from "../kv/table";
@@ -50,12 +51,8 @@ export const SIGNATURE_WINDOW_MS = 10 * 60 * 1000;
 // --- VAT (EU VIES) ------------------------------------------------------------------
 
 /** EU VAT prefixes VIES answers for. Greece is EL; Northern Ireland is XI. */
-export const VIES_COUNTRIES: Record<string, string> = {
-  AT: "Austria", BE: "Belgium", BG: "Bulgaria", CY: "Cyprus", CZ: "Czechia", DE: "Germany", DK: "Denmark",
-  EE: "Estonia", EL: "Greece", ES: "Spain", FI: "Finland", FR: "France", HR: "Croatia", HU: "Hungary",
-  IE: "Ireland", IT: "Italy", LT: "Lithuania", LU: "Luxembourg", LV: "Latvia", MT: "Malta", NL: "Netherlands",
-  PL: "Poland", PT: "Portugal", RO: "Romania", SE: "Sweden", SI: "Slovenia", SK: "Slovakia", XI: "Northern Ireland",
-};
+// The VIES countries live in lib/i18n/countries.ts, which the browser can load too.
+export { VIES_COUNTRIES };
 
 export function normaliseVat(country: string, number: string): { country: string; number: string } | null {
   const c = country.trim().toUpperCase().replace(/^GR$/, "EL");

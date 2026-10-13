@@ -125,7 +125,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 572 tests, as of 2026-10-12
+npm test                                   # 574 tests, as of 2026-10-13
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -692,8 +692,15 @@ other shop only when the shopper clicks "Check this page" in its menu
 A **DE / EN** switch in the header (and in the menu) (`lib/i18n`). Translated: the header and
 footer, home, search (every verdict and every check reason), cart, both
 checkouts and the invoice, price check, How it works, alerts and Ai-chan, who
-is told to answer in German on German pages. Seller, business, supplier,
-developer and legal pages stay English for now.
+is told to answer in German on German pages. Since 2026-10-13 every page is
+translated: also orders, refunds and fake reports (with the camera's photo
+instructions), seller and business profiles, seller and business
+verification, the supplier check (its findings, lib/i18n/supplier.ts), the
+developer and agent pages, the extension page, the Impressum and the full
+privacy policy (app/privacy/PrivacyDe.tsx, kept topic for topic with the
+English). The paid API answers in English.
+- **Prices the German way** on German pages: "229,00 €", decimals with a
+  comma (lib/i18n/money.ts), also inside translated check reasons.
 
 - **One cookie,** `sigpath-lang`, set only when the switch is pressed, holding
   only `de` or `en` (the privacy page says so). Pages render in the chosen

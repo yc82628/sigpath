@@ -5,7 +5,8 @@ import { looksLikeLink, queryFromLink } from "@/lib/marketplace/link-query";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
 import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
-import { formatMoney, totalPrice, type Listing, type SourceResult } from "@/lib/marketplace/types";
+import { totalPrice, type Listing, type Money, type SourceResult } from "@/lib/marketplace/types";
+import { decimalText, moneyText } from "@/lib/i18n/money";
 import type { Flag } from "@/lib/marketplace/anomaly";
 import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
 import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
@@ -58,12 +59,15 @@ function i18n() {
   return { m: MESSAGES[lang], tc: (t: string) => translateCheck(t, lang), lang };
 }
 
+/** A price in the shopper's language: "229.00 EUR", or "229,00 €" on German pages. */
+const money = (x: Money) => moneyText(x, getLang());
+
 /** Checkout offer for one listing: a signed quote, a reason there is none, or null when checkout is off. */
 type CheckoutOffer = { token: string; usdc?: string } | { reason: string } | null;
 
 /** "163.41 USDC": a preview rounded UP to the cent, so the checkout never shows more than this. */
 function usdcPreview(baseUnits: bigint): string {
-  return `${(Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2)} USDC`;
+  return `${decimalText((Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2), getLang())} USDC`;
 }
 
 function ListingRow({
@@ -226,7 +230,7 @@ function ListingRow({
         )}
       </div>
       <div className="price">
-        {formatMoney(total)}
+        {money(total)}
         {/* No shipping from the marketplace (AliExpress, Amazon sightings) is unknown shipping, not free shipping. */}
         <span className="ship">{!listing.shipping ? m.listing.plusShipping : shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
       </div>
@@ -356,7 +360,7 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
                 <span className="check-head">{m.search.searching}</span>
               </div>
             </div>
-            <div className="price">{formatMoney(totalPrice(l))}</div>
+            <div className="price">{money(totalPrice(l))}</div>
           </article>
         ))}
     </div>
@@ -442,7 +446,7 @@ async function SearchResults({
             className={
               s.status === "ok" ? "ok" : s.status === "not_configured" ? "" : "degraded"
             }
-            title={s.detail ?? ""}
+            title={m.search.sourceDetail(s.detail ?? "")}
           >
             {marketLabel(s.source)}: {m.search.status[s.status] ?? s.status}
             {s.status === "ok" && ` (${s.count})`}
@@ -456,8 +460,8 @@ async function SearchResults({
               median — so both are shown when both could be computed. */}
           {m.search.median(
             [
-              a.median !== undefined ? m.search.newAcross(formatMoney({ amount: a.median, currency: a.currency! }), a.sampleSize ?? 0) : null,
-              a.used ? m.search.usedAcross(formatMoney({ amount: a.used.median, currency: a.currency! }), a.used.sampleSize) : null,
+              a.median !== undefined ? m.search.newAcross(money({ amount: a.median, currency: a.currency! }), a.sampleSize ?? 0) : null,
+              a.used ? m.search.usedAcross(money({ amount: a.used.median, currency: a.currency! }), a.used.sampleSize) : null,
             ]
               .filter(Boolean)
               .join("; "),
@@ -489,7 +493,7 @@ async function SearchResults({
           <ul>
             {deals.map((d) => (
               <li key={d.group}>
-                <span className="deal-price">{formatMoney(d.total)}</span>{" "}
+                <span className="deal-price">{money(d.total)}</span>{" "}
                 <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
                 <span className="hint">{d.group === "used" ? m.search.usedWord : m.search.newWord}</span>
                 <br />
@@ -558,7 +562,7 @@ async function SearchResults({
                 <a href={t.url} target="_blank" rel={t.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}>
                   {t.label} &rarr;
                 </a>
-                {t.note && <span className="hint"> {t.note}</span>}
+                {t.note && <span className="hint"> {m.search.linkNotes[t.id] ?? t.note}</span>}
               </li>
             ))}
           </ul>

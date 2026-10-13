@@ -10,10 +10,11 @@
  */
 
 import type { Lang } from "./lang";
+import { germanMoneyInText } from "./money";
 
 /** "on eBay", "on the demo feed", "on eBay and Amazon" -> "auf eBay", "im Demo-Feed", ... */
 function where(s: string): string {
-  const t = s.replace(/^on /, "");
+  const t = s.replace(/^(on|across) /, "");
   if (t === "the demo feed") return "im Demo-Feed";
   if (t === "the partner feed") return "im Partner-Feed";
   if (t === "this marketplace") return "auf diesem Marktplatz";
@@ -44,6 +45,27 @@ const condition = (s: string) => (s === "used" ? "gebrauchte" : s === "new" ? "n
 type Rule = [RegExp, (...m: string[]) => string];
 
 const RULES: Rule[] = [
+  // --- photo instructions (lib/challenge/generate.ts)
+  [
+    /^Write (\S+) on a piece of paper, place it next to the item you received, and photograph both\.$/,
+    (c) => `Schreib ${c} auf ein Blatt Papier, leg es neben den erhaltenen Artikel und fotografiere beides.`,
+  ],
+  [/^Write (\S+) on a piece of paper and hold it next to your face\.$/, (c) => `Schreib ${c} auf ein Blatt Papier und halte es neben dein Gesicht.`],
+  [
+    /^Write (\S+) on a piece of paper and hold it next to your face, and hold up (\d) fingers with your other hand\.$/,
+    (c, n) => `Schreib ${c} auf ein Blatt Papier, halte es neben dein Gesicht und zeig mit der anderen Hand ${n} Finger.`,
+  ],
+  [/^Write (\S+) on a piece of paper and hold it next to the item\.$/, (c) => `Schreib ${c} auf ein Blatt Papier und halte es neben den Artikel.`],
+  [
+    /^Write (\S+) on paper, place it beside the item, and photograph both from about (\d+)°\.$/,
+    (c, deg) => `Schreib ${c} auf Papier, leg es neben den Artikel und fotografiere beides aus etwa ${deg}°.`,
+  ],
+  [
+    /^Place the item next to something (blue|red|green|yellow|black|white) and photograph them together\.$/,
+    (c) =>
+      `Leg den Artikel neben etwas ${({ blue: "Blaues", red: "Rotes", green: "Grünes", yellow: "Gelbes", black: "Schwarzes", white: "Weißes" } as Record<string, string>)[c]} und fotografiere beides zusammen.`,
+  ],
+
   // --- headlines and short labels
   [/^SigPath-checked$/, () => "Von SigPath geprüft"],
   [/^Look closer$/, () => "Genauer hinsehen"],
@@ -51,16 +73,16 @@ const RULES: Rule[] = [
 
   // --- price comparison (label.ts, anomaly.ts)
   [
-    /^Price in line with the market: compared with (\d+) (used )?listings of (.+?) (on .+)\.$/,
+    /^Price in line with the market: compared with (\d+) (used )?listings of (.+?) ((?:on|across) .+)\.$/,
     (n, used, w, on) => `Preis im Marktrahmen: verglichen mit ${n} ${used ? "gebrauchten " : ""}Angeboten ${what(w)} ${where(on)}.`,
   ],
   [
-    /^Priced above most of the (\d+) (used )?listings of (.+?) (on .+) \(median (.+)\)\. You may find it cheaper\.$/,
+    /^Priced above most of the (\d+) (used )?listings of (.+?) ((?:on|across) .+) \(median (.+)\)\. You may find it cheaper\.$/,
     (n, used, w, on, median) => `Teurer als die meisten der ${n} ${used ? "gebrauchten " : ""}Angebote ${what(w)} ${where(on)} (Median ${median}). Vielleicht findest du es günstiger.`,
   ],
   [/^Price in line with comparable listings\.$/, () => "Preis im Rahmen vergleichbarer Angebote."],
   [
-    /^Priced well below the median of (\d+) comparable (used )?listings (on .+)\.$/,
+    /^Priced well below the median of (\d+) comparable (used )?listings ((?:on|across) .+)\.$/,
     (n, used, on) => `Deutlich unter dem Median von ${n} vergleichbaren ${used ? "gebrauchten " : ""}Angeboten ${where(on)}.`,
   ],
   [
@@ -183,7 +205,8 @@ export function translateCheck(text: string, lang: Lang): string {
   if (lang === "en") return text;
   for (const [re, f] of RULES) {
     const m = text.match(re);
-    if (m) return f(...m.slice(1).map((x) => x ?? ""));
+    // Prices inside the sentence, the German way too: "125.19 EUR" -> "125,19 €".
+    if (m) return germanMoneyInText(f(...m.slice(1).map((x) => x ?? "")));
   }
   return text;
 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { limited, RULES } from "@/lib/guard/limit";
 import { checkPrice, parsePrice, SHOPS } from "@/lib/marketplace/price-check";
-import { formatMoney } from "@/lib/marketplace/types";
+import type { Money } from "@/lib/marketplace/types";
+import { moneyText } from "@/lib/i18n/money";
 import { translateCheck } from "@/lib/i18n/checks";
 import { pickLang } from "@/lib/i18n/lang";
 import { SeenStore } from "@/lib/extension/seen";
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
 
   const result = await checkPrice({ title, price, from, url });
   const tc = (t: string) => translateCheck(t, lang);
+  const formatMoney = (x: Money) => moneyText(x, lang);
 
   if (from === "amazon" && b.share === true && typeof b.asin === "string") {
     await SeenStore.fromEnv()

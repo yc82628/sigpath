@@ -7,6 +7,9 @@
 
 import { useState } from "react";
 import type { SupplierReport } from "@/lib/suppliers/check";
+import { useLang } from "../components/I18n";
+import { countryName } from "@/lib/i18n/countries";
+import { translateSupplier } from "@/lib/i18n/supplier";
 
 const COUNTRIES: [string, string][] = [
   ["AT", "Austria"], ["BE", "Belgium"], ["BG", "Bulgaria"], ["HR", "Croatia"], ["CY", "Cyprus"], ["CZ", "Czechia"],
@@ -19,6 +22,9 @@ const COUNTRIES: [string, string][] = [
 const ICON = { good: "✓", warn: "!", bad: "✕", unknown: "–" } as const;
 
 export default function SupplierCheck() {
+  const lang = useLang();
+  const T = (en: string, german: string) => (lang === "de" ? german : en);
+  const tr = (s: string) => translateSupplier(s, lang);
   const [f, setF] = useState({ name: "", vatCountry: "DE", vatNumber: "", domain: "", marketplace: "ebay", handle: "" });
   const [report, setReport] = useState<SupplierReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,9 +44,9 @@ export default function SupplierCheck() {
       });
       const json = await res.json();
       if (res.ok) setReport(json as SupplierReport);
-      else setError((json as { error?: string }).error ?? "Something went wrong.");
+      else setError(tr((json as { error?: string }).error ?? T("Something went wrong.", "Etwas ist schiefgelaufen.")));
     } catch {
-      setError("Couldn't reach SigPath. Check your connection and try again.");
+      setError(T("Couldn't reach SigPath. Check your connection and try again.", "SigPath ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."));
     } finally {
       setBusy(false);
     }
@@ -50,39 +56,44 @@ export default function SupplierCheck() {
     <>
       <form className="supplier-form" onSubmit={run}>
         <label>
-          Supplier name <span className="hint">(as they gave it)</span>
+          {T("Supplier name", "Name des Lieferanten")} <span className="hint">{T("(as they gave it)", "(wie angegeben)")}</span>
           <input value={f.name} onChange={set("name")} placeholder="Acme Trading GmbH" />
         </label>
         <label>
-          EU VAT number
+          {T("EU VAT number", "EU-USt-IdNr.")}
           <span className="form-row">
-            <select value={f.vatCountry} onChange={set("vatCountry")} aria-label="VAT country">
+            <select value={f.vatCountry} onChange={set("vatCountry")} aria-label={T("VAT country", "Land der USt-IdNr.")}>
               {COUNTRIES.map(([c, n]) => (
                 <option key={c} value={c}>
-                  {n}
+                  {countryName(c, n, lang)}
                 </option>
               ))}
             </select>
-            <input value={f.vatNumber} onChange={set("vatNumber")} placeholder="123456789" aria-label="VAT number" />
+            <input value={f.vatNumber} onChange={set("vatNumber")} placeholder="123456789" aria-label={T("VAT number", "USt-IdNr.")} />
           </span>
         </label>
         <label>
-          Website
+          {T("Website", "Website")}
           <input value={f.domain} onChange={set("domain")} placeholder="acme-trading.de" />
         </label>
         <label>
-          Marketplace account
+          {T("Marketplace account", "Marktplatzkonto")}
           <span className="form-row">
-            <select value={f.marketplace} onChange={set("marketplace")} aria-label="Marketplace">
+            <select value={f.marketplace} onChange={set("marketplace")} aria-label={T("Marketplace", "Marktplatz")}>
               <option value="ebay">eBay</option>
               <option value="amazon">Amazon</option>
             </select>
-            <input value={f.handle} onChange={set("handle")} placeholder="seller name" aria-label="Seller name on the marketplace" />
+            <input
+              value={f.handle}
+              onChange={set("handle")}
+              placeholder={T("seller name", "Verkäufername")}
+              aria-label={T("Seller name on the marketplace", "Verkäufername auf dem Marktplatz")}
+            />
           </span>
         </label>
-        <p className="hint">Fill in what you have; one detail is enough, more is better. Nothing is saved.</p>
+        <p className="hint">{T("Fill in what you have; one detail is enough, more is better. Nothing is saved.", "Gib ein, was du hast: Eine Angabe reicht, mehr ist besser. Nichts wird gespeichert.")}</p>
         <button type="submit" className="primary" disabled={busy}>
-          {busy ? "Checking…" : "Check this supplier"}
+          {busy ? T("Checking…", "Wird geprüft…") : T("Check this supplier", "Diesen Lieferanten prüfen")}
         </button>
       </form>
 
@@ -94,7 +105,7 @@ export default function SupplierCheck() {
 
       {report && (
         <section className={`supplier-report ${report.summary.state}`} aria-live="polite">
-          <h2>{report.summary.headline}</h2>
+          <h2>{tr(report.summary.headline)}</h2>
           <ul className="findings">
             {report.findings.map((x, i) => (
               <li key={i} className={x.state}>
@@ -102,20 +113,24 @@ export default function SupplierCheck() {
                   {ICON[x.state]}
                 </span>
                 <span>
-                  <strong>{x.title}</strong>
-                  <span className="finding-detail">{x.detail}</span>
+                  <strong>{tr(x.title)}</strong>
+                  <span className="finding-detail">{tr(x.detail)}</span>
                 </span>
               </li>
             ))}
           </ul>
           {report.businessProfile && (
             <p>
-              <a href={report.businessProfile}>See their SigPath business profile &rarr;</a>
+              <a href={report.businessProfile}>{T("See their SigPath business profile →", "Zu ihrem SigPath-Unternehmensprofil →")}</a>
             </p>
           )}
           <p className="hint">
-            Checked {new Date(report.checkedAt).toLocaleString()}. These checks confirm who you&apos;re dealing with, not that an
-            order will arrive. For large orders, pay in a way you can reverse, and start with a small one.
+            {T("Checked ", "Geprüft am ")}
+            {new Date(report.checkedAt).toLocaleString(lang === "de" ? "de-DE" : "en-GB")}.{" "}
+            {T(
+              "These checks confirm who you're dealing with, not that an order will arrive. For large orders, pay in a way you can reverse, and start with a small one.",
+              "Diese Prüfungen bestätigen, mit wem du es zu tun hast, nicht, dass eine Bestellung ankommt. Zahle große Bestellungen so, dass du die Zahlung zurückholen kannst, und fang mit einer kleinen an.",
+            )}
           </p>
         </section>
       )}

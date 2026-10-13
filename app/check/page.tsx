@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { checkPrice, parsePrice, SHOPS } from "@/lib/marketplace/price-check";
-import { formatMoney } from "@/lib/marketplace/types";
+import { type Money } from "@/lib/marketplace/types";
+import { moneyText } from "@/lib/i18n/money";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
 import PopIcon from "../components/PopIcon";
 import { getLang } from "@/lib/i18n/server";
@@ -31,6 +32,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   const lang = getLang();
   const m = MESSAGES[lang];
   const tc = (t: string) => translateCheck(t, lang);
+  const money = (x: Money) => moneyText(x, lang);
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
   const title = (searchParams.title ?? "").trim().slice(0, 300);
   const priceText = (searchParams.price ?? "").trim().slice(0, 40);
@@ -58,7 +60,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
           <h2>
             {m.check.shopNames[result.shop] ?? result.shop}: {result.product.title}
           </h2>
-          <p className="deal-price">{formatMoney(result.product.price)}</p>
+          <p className="deal-price">{money(result.product.price)}</p>
           <div className={`check-label ${result.product.check.verdict}`}>
             <span className="check-head">
               {result.product.check.verdict === "checked" ? "✓ " : result.product.check.verdict === "caution" ? "! " : ""}
@@ -75,7 +77,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
           {result.comparison && (
             <p>
               {m.check.median(result.comparison.sampleSize)}{" "}
-              <strong>{formatMoney({ amount: result.comparison.median, currency: result.product.price.currency })}</strong>
+              <strong>{money({ amount: result.comparison.median, currency: result.product.price.currency })}</strong>
               {result.product.price.amount === result.comparison.median
                 ? m.check.exactly
                 : m.check.diff(pct(result.product.price.amount, result.comparison.median), result.product.price.amount < result.comparison.median)}
@@ -91,7 +93,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
                     <a href={d.listing.url} target="_blank" rel="noopener noreferrer">
                       {d.listing.title}
                     </a>{" "}
-                    — {formatMoney(d.total)} ({d.group === "used" ? m.search.usedWord : m.search.newWord})
+                    — {money(d.total)} ({d.group === "used" ? m.search.usedWord : m.search.newWord})
                   </li>
                 ))}
               </ul>

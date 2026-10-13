@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { checkoutCandidates, quoteFresh, removeItem, setQuote, type CartItem } from "@/lib/cart/cart";
 import { readCart, writeCart } from "../../components/cart-store";
-import { useCheckText, useMessages } from "../../components/I18n";
+import { useCheckText, useLang, useMessages } from "../../components/I18n";
 import CheckoutForm from "../CheckoutForm";
 import Invoice, { usdc, type InvoiceData } from "../Invoice";
 
@@ -13,6 +13,7 @@ type NotReady = { item: CartItem; reason: string };
 
 export default function CartCheckout({ max, moonPay }: { max: number; moonPay: boolean }) {
   const m = useMessages();
+  const lang = useLang();
   const tc = useCheckText();
   const [state, setState] = useState<{ ready: Ready[]; notReady: NotReady[]; later: number } | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
@@ -122,7 +123,7 @@ export default function CartCheckout({ max, moonPay }: { max: number; moonPay: b
       {invoice && (
         <CheckoutForm
           quotes={state.ready.map((r) => r.token)}
-          usdcDisplay={usdc(invoice.totalUsdc)}
+          usdcDisplay={usdc(invoice.totalUsdc, lang)}
           moonPay={moonPay}
           onPaid={(orders, confirmed, wallet) => {
             // Paid items leave the cart; their order pages, and this invoice, are the record now.

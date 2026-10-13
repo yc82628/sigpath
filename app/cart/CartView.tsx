@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { canPayNow, checkoutCandidates, itemTotal, priceMoved, removeItem, setBought, totals, type CartItem, type Freshness } from "@/lib/cart/cart";
-import { formatMoney } from "@/lib/marketplace/types";
+import type { Money } from "@/lib/marketplace/types";
+import { moneyText } from "@/lib/i18n/money";
 import { readCart, useCart, writeCart } from "../components/cart-store";
-import { useCheckText, useMessages } from "../components/I18n";
+import { useCheckText, useLang, useMessages } from "../components/I18n";
 
 const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", aliexpress: "AliExpress", stub: "Demo", feed: "Partner feed" };
 export default function CartView({
@@ -20,6 +21,8 @@ export default function CartView({
 }) {
   const cart = useCart();
   const m = useMessages();
+  const lang = useLang();
+  const formatMoney = (x: Money) => moneyText(x, lang);
   const tc = useCheckText();
   const shipLabel = (s?: { amount: number }) => (!s ? m.cart.shippingNotIncluded : s.amount > 0 ? m.listing.inclShipping : m.listing.freeShipping);
   const [fresh, setFresh] = useState<Record<string, Freshness>>({});

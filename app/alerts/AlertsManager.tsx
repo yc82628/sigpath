@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { existingSubscription, pushSupported } from "../components/push";
-import { useMessages } from "../components/I18n";
+import { useLang, useMessages } from "../components/I18n";
+import { moneyText } from "@/lib/i18n/money";
 
 type Money = { amount: number; currency: string };
 type W = { id: string; query: string; group: "new" | "used"; target: Money; expiresAt: number; lastAlerted?: Money };
 
-const money = (m: Money) => `${(m.amount / 100).toFixed(2)} ${m.currency}`;
+
 
 /** This browser's alerts, found by its own push endpoint — there is nothing else to log in with. */
 export default function AlertsManager() {
   const m = useMessages();
+  const lang = useLang();
+  const money = (x: Money) => moneyText(x, lang);
   const [supported, setSupported] = useState(true);
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [watches, setWatches] = useState<W[] | null>(null);

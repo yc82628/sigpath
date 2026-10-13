@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import WalletButton from "../../components/WalletButton";
 import { waitForOrder, walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
+import { useLang } from "../../components/I18n";
 
 /**
  * Trigger the refund once the deadline has passed.
@@ -14,6 +15,7 @@ import { waitForOrder, walletErrorMessage, type ConnectedWallet } from "../../co
  */
 export default function RefundButton({ order }: { order: string }) {
   const router = useRouter();
+  const de = useLang() === "de";
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -26,12 +28,12 @@ export default function RefundButton({ order }: { order: string }) {
         body: JSON.stringify({ caller: wallet.address }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `Refund failed (${res.status}).`);
+      if (!res.ok) throw new Error(body.error ?? (de ? `Rückerstattung fehlgeschlagen (${res.status}).` : `Refund failed (${res.status}).`));
 
-      setMessage(`Approve the refund in ${wallet.name}.`);
+      setMessage(de ? `Bestätige die Rückerstattung in ${wallet.name}.` : `Approve the refund in ${wallet.name}.`);
       await wallet.signAndSend(body.transaction);
 
-      setMessage("Refund sent. Waiting for confirmation…");
+      setMessage(de ? "Rückerstattung gesendet. Warte auf die Bestätigung…" : "Refund sent. Waiting for confirmation…");
       await waitForOrder(order, (s) => s.status === "refunded");
       router.refresh();
     } catch (err) {
@@ -43,7 +45,12 @@ export default function RefundButton({ order }: { order: string }) {
 
   return (
     <div>
-      <WalletButton label={busy ? "Working…" : "Refund this order"} disabled={busy} onConnect={refund} onError={setMessage} />
+      <WalletButton
+        label={busy ? (de ? "Bitte warten…" : "Working…") : de ? "Diese Bestellung erstatten" : "Refund this order"}
+        disabled={busy}
+        onConnect={refund}
+        onError={setMessage}
+      />
       {message && <p className="hint">{message}</p>}
     </div>
   );

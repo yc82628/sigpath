@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { operator } from "@/lib/legal/site";
+import { getLang } from "@/lib/i18n/server";
 
 /**
  * app/impressum/page.tsx — the legal notice German law asks of a commercial
@@ -13,10 +14,12 @@ export const dynamic = "force-dynamic";
 
 export default function ImpressumPage() {
   const op = operator();
+  // The headings are German either way, as the law has them; the notes follow the page's language.
+  const de = getLang() === "de";
   return (
     <main className="container legal">
       <h1>Impressum</h1>
-      <p className="hint">Legal notice under § 5 DDG (Digitale-Dienste-Gesetz).</p>
+      <p className="hint">{de ? "Anbieterkennzeichnung nach § 5 DDG (Digitale-Dienste-Gesetz)." : "Legal notice under § 5 DDG (Digitale-Dienste-Gesetz)."}</p>
 
       {op ? (
         <>
@@ -50,11 +53,19 @@ export default function ImpressumPage() {
           )}
         </>
       ) : (
-        <p className="notice">The operator&apos;s details are being set up.</p>
+        <p className="notice">{de ? "Die Angaben zum Anbieter werden gerade eingerichtet." : "The operator's details are being set up."}</p>
       )}
 
       <p className="hint">
-        How SigPath handles data: <Link href="/privacy">Privacy policy (Datenschutzerklärung)</Link>.
+        {de ? (
+          <>
+            Wie SigPath mit Daten umgeht: <Link href="/privacy">Datenschutzerklärung</Link>.
+          </>
+        ) : (
+          <>
+            How SigPath handles data: <Link href="/privacy">Privacy policy (Datenschutzerklärung)</Link>.
+          </>
+        )}
       </p>
     </main>
   );

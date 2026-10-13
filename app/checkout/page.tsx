@@ -74,7 +74,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
           </section>
 
-          <CheckoutForm quote={token} usdcDisplay={usdc(invoice.totalUsdc)} moonPay={moonPayAvailable() !== null} />
+          <CheckoutForm quote={token} usdcDisplay={usdc(invoice.totalUsdc, lang)} moonPay={moonPayAvailable() !== null} />
         </>
       )}
     </main>

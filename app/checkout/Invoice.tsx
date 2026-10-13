@@ -1,6 +1,8 @@
 "use client";
 
-import { formatMoney } from "@/lib/marketplace/types";
+import type { Lang } from "@/lib/i18n/lang";
+import type { Money } from "@/lib/marketplace/types";
+import { decimalText, moneyText } from "@/lib/i18n/money";
 import { useLang, useMessages } from "../components/I18n";
 
 /**
@@ -37,9 +39,9 @@ export function usdcNumber(base: string): string {
   if (frac.length < 2) frac = frac.padEnd(2, "0");
   return `${whole}.${frac}`;
 }
-export const usdc = (base: string) => `${usdcNumber(base)} USDC`;
+export const usdc = (base: string, lang: Lang = "en") => `${decimalText(usdcNumber(base), lang)} USDC`;
 
-const pct = (bps: number) => `${(bps / 100).toLocaleString("en", { maximumFractionDigits: 2 })} %`;
+
 const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", aliexpress: "AliExpress", stub: "Demo", feed: "Partner feed" };
 
 export default function Invoice({
@@ -52,6 +54,9 @@ export default function Invoice({
 }) {
   const m = useMessages();
   const lang = useLang();
+  const formatMoney = (x: Money) => moneyText(x, lang);
+  const num = (base: string) => decimalText(usdcNumber(base), lang);
+  const pct = (bps: number) => `${(bps / 100).toLocaleString(lang === "de" ? "de-DE" : "en", { maximumFractionDigits: 2 })} %`;
   const currencies = [...new Set(data.lines.map((l) => l.currency))];
   const oneCurrency = currencies.length === 1 ? currencies[0] : null;
   const feeBps = data.lines[0]?.feeBps ?? 0;
@@ -132,10 +137,10 @@ export default function Invoice({
                     </span>
                   </th>
                   <td className="num" data-label={cols.price}>{formatMoney({ amount: l.amount, currency: l.currency })}</td>
-                  <td className="num" data-label={cols.item}>{usdcNumber(l.itemUsdc)}</td>
-                  <td className="num" data-label={cols.fee}>{usdcNumber(l.feeUsdc)}</td>
+                  <td className="num" data-label={cols.item}>{num(l.itemUsdc)}</td>
+                  <td className="num" data-label={cols.fee}>{num(l.feeUsdc)}</td>
                   <td className="num" data-label={cols.total}>
-                    <strong>{usdcNumber(l.totalUsdc)}</strong>
+                    <strong>{num(l.totalUsdc)}</strong>
                   </td>
                 </tr>
               );
@@ -145,16 +150,16 @@ export default function Invoice({
             <tr>
               <th scope="row">{m.invoice.subtotal}</th>
               <td className="num" data-label={cols.price}>{data.localTotals.map(formatMoney).join(" + ")}</td>
-              <td className="num" data-label={cols.item}>{usdcNumber(itemTotal.toString())}</td>
-              <td className="num" data-label={cols.fee}>{usdcNumber(feeTotal.toString())}</td>
-              <td className="num invoice-total" data-label={cols.total}>{usdcNumber(data.totalUsdc)}</td>
+              <td className="num" data-label={cols.item}>{num(itemTotal.toString())}</td>
+              <td className="num" data-label={cols.fee}>{num(feeTotal.toString())}</td>
+              <td className="num invoice-total" data-label={cols.total}>{num(data.totalUsdc)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
 
       <p className="invoice-pay">
-        <span>{m.invoice.totalUsdc}</span> <strong>{usdc(data.totalUsdc)}</strong>
+        <span>{m.invoice.totalUsdc}</span> <strong>{usdc(data.totalUsdc, lang)}</strong>
       </p>
       <p className="hint">{data.rate ? m.invoice.rate(data.rate.display, m.invoice.rateSource(data.rate.source)) : m.invoice.usdOnly}</p>
       {feeBps > 0 && <p className="hint">{m.invoice.fees}</p>}

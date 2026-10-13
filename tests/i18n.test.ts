@@ -53,6 +53,7 @@ test("the sentences that need a particular listing to appear are translated too"
     "Verified seller: proved control of this account and passed a live check. That vouches for the account, not this price.",
     "Verified business: registered as Muster GmbH in DE, owns muster.de. That vouches for who runs the account, not this price.",
     "Priced above most of the 12 used listings of the same model and configuration (Carbon, Gen 11, 512 GB storage) on eBay (median 450.00 EUR). You may find it cheaper.",
+    "Priced above most of the 5 listings of the same product across 2 marketplaces (median 125.19 EUR). You may find it cheaper.",
     "Price comparison is unavailable: ebay did not respond, so any median would be taken over a biased sample.",
     "Shipping cost isn't published, so the total can't be quoted.",
     "AliExpress items are bought on AliExpress, through its own checkout.",
@@ -77,7 +78,8 @@ test("German reads as German, keeps the numbers and names, and English is untouc
     "Preis im Marktrahmen: verglichen mit 18 Angeboten desselben Produkts auf eBay.",
   );
   assert.equal(translateCheck("Seller account is 1 day old.", "de"), "Das Verkäuferkonto ist 1 Tag alt.");
-  assert.equal(translateCheck("42.50 EUR below the typical new price", "de"), "42.50 EUR unter dem typischen Neupreis");
+  // Prices inside a sentence are written the German way too (with Intl's no-break space before the €).
+  assert.equal(translateCheck("42.50 EUR below the typical new price", "de"), "42,50 € unter dem typischen Neupreis");
   assert.equal(translateCheck("SigPath only buys what it could price-check. There weren't enough used listings to compare its price with.", "de"),
     "SigPath kauft nur, was es preislich prüfen konnte. Es gab nicht genug gebrauchte Angebote, um den Preis zu vergleichen.");
   assert.equal(translateWhere("on eBay", "de"), "auf eBay");
@@ -96,4 +98,57 @@ test("the language choice: German only when chosen, every key in both languages"
   assert.deepEqual(keys(MESSAGES.de).sort(), keys(MESSAGES.en).sort());
   assert.equal(MESSAGES.de.cart.proceed(2), "Zur Kasse · 2 Artikel in USDC →");
   assert.notEqual(MESSAGES.de.home.sub, MESSAGES.en.home.sub);
+});
+
+test("the supplier check's findings, headlines and errors all have German", async () => {
+  const { checkSupplier } = await import("../lib/suppliers/check");
+  const { translateSupplier } = await import("../lib/i18n/supplier");
+  const now = Date.UTC(2026, 9, 13);
+  const vies = (valid: boolean, name: string | null) =>
+    (async () => new Response(JSON.stringify({ valid, name: name ?? "---" }), { status: 200 })) as unknown as typeof fetch;
+  const base = { businesses: async () => ({}), badges: async () => ({}), upheld: async () => new Map<string, number>(), now: () => now };
+  const runs = [
+    checkSupplier({ vatCountry: "DE", vatNumber: "123456789", name: "Acme GmbH", domain: "acme.de", marketplace: "ebay", handle: "acme" }, {
+      ...base,
+      fetchImpl: vies(true, "ANDERE FIRMA GMBH"),
+      registration: async () => ({ status: "registered", registeredAt: now - 10 * 86400_000, registry: "rdap.denic.de" }),
+    }),
+    checkSupplier({ vatCountry: "ES", vatNumber: "B12345678", name: "Tienda SL", domain: "old-shop.com" }, {
+      ...base,
+      fetchImpl: vies(true, null),
+      registration: async () => ({ status: "registered", registeredAt: now - 3 * 365 * 86400_000, registry: "rdap.verisign.com" }),
+    }),
+    checkSupplier({ vatCountry: "FR", vatNumber: "12345678901", domain: "nowhere.com" }, {
+      ...base,
+      fetchImpl: vies(false, null),
+      registration: async () => ({ status: "not_registered", registry: "rdap.verisign.com" }),
+    }),
+    checkSupplier({ domain: "shop.io" }, { ...base, registration: async () => ({ status: "registered", registeredAt: null, registry: "rdap.nic.io" }) }),
+    checkSupplier({ domain: "shop.xyz" }, { ...base, registration: async () => ({ status: "unknown", reason: "The registry didn't answer in time." }) }),
+    checkSupplier({ vatCountry: "DE", vatNumber: "x" }, base),
+    checkSupplier({}, base),
+  ];
+  const sentences = new Set<string>();
+  for (const r of await Promise.all(runs)) {
+    if (!r.ok) sentences.add(r.error);
+    else {
+      sentences.add(r.report.summary.headline);
+      for (const f of r.report.findings) sentences.add(f.title), sentences.add(f.detail);
+    }
+  }
+  const missing = [...sentences].filter((t) => t && translateSupplier(t, "de") === t);
+  assert.deepEqual(missing, []);
+});
+
+test("German prices and photo instructions", async () => {
+  const { moneyText } = await import("../lib/i18n/money");
+  const { buildChallenge } = await import("../lib/challenge/generate");
+  assert.equal(moneyText({ amount: 22900, currency: "EUR" }, "de"), "229,00 €");
+  assert.equal(moneyText({ amount: 22900, currency: "EUR" }, "en"), "229.00 EUR");
+  for (let i = 0; i < 60; i++) {
+    for (const subject of ["item", "person"] as const) {
+      const c = buildChallenge(subject);
+      assert.notEqual(translateCheck(c.instruction, "de"), c.instruction, c.instruction);
+    }
+  }
 });

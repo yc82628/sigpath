@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCheckText, useLang } from "./I18n";
 import { inspectStream, measureFrameJitter, toRiskBand, type RiskBand } from "@/lib/liveness/injection";
 
 /**
@@ -76,6 +77,10 @@ export default function CameraCapture({
   const streamRef = useRef<MediaStream | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
+  // The camera's words in the page's language; the instruction comes from the server in English (lib/i18n/checks.ts).
+  const de = useLang() === "de";
+  const tc = useCheckText();
+  const T = (en: string, german: string) => (de ? german : en);
   const [error, setError] = useState("");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -109,7 +114,7 @@ export default function CameraCapture({
     video.srcObject = stream;
     void video.play().catch(() => {
       setPhase("error");
-      setError("Could not start the preview. Check that no other app is using the camera.");
+      setError(T("Could not start the preview. Check that no other app is using the camera.", "Die Vorschau konnte nicht starten. Prüfe, ob eine andere App die Kamera nutzt."));
     });
 
     // Heuristics run here, not in start(), for the same reason: measuring frame
@@ -135,7 +140,7 @@ export default function CameraCapture({
       setSecondsLeft(left);
       if (left === 0) {
         setPhase("error");
-        setError("Time expired. Start a new capture.");
+        setError(T("Time expired. Start a new capture.", "Die Zeit ist abgelaufen. Starte eine neue Aufnahme."));
         stopStream();
       }
     };
@@ -164,7 +169,7 @@ export default function CameraCapture({
           body: JSON.stringify({ action: "create" }),
         });
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error ?? "Could not start a capture.");
+        if (!res.ok) throw new Error(body.error ?? T("Could not start a capture.", "Die Aufnahme konnte nicht gestartet werden."));
         data = body;
       }
       if (!data.expiresAt) {
@@ -196,9 +201,9 @@ export default function CameraCapture({
       setError(
         e instanceof Error
           ? e.name === "NotAllowedError"
-            ? "Camera permission denied. This check cannot use an uploaded file."
+            ? T("Camera permission denied. This check cannot use an uploaded file.", "Kamerazugriff verweigert. Diese Prüfung kann keine hochgeladene Datei verwenden.")
             : e.message
-          : "Could not start the camera.",
+          : T("Could not start the camera.", "Die Kamera konnte nicht gestartet werden."),
       );
     }
   }
@@ -216,7 +221,7 @@ export default function CameraCapture({
       // here instead, where the actual cause is knowable.
       if (!video.videoWidth || !video.videoHeight) {
         setPhase("live");
-        setError("No camera frame yet — wait for the preview to appear, then try again.");
+        setError(T("No camera frame yet — wait for the preview to appear, then try again.", "Noch kein Kamerabild: Warte, bis die Vorschau erscheint, und versuche es dann erneut."));
         return;
       }
 
@@ -235,7 +240,7 @@ export default function CameraCapture({
         if (r.kind === "unavailable") {
           // The check did not run; the challenge is still alive — retry, don't burn it.
           setPhase("live");
-          setError(`Verification unavailable: ${r.detail}`);
+          setError(`${T("Verification unavailable", "Prüfung nicht verfügbar")}: ${r.detail}`);
           return;
         }
         stopStream();
@@ -262,10 +267,10 @@ export default function CameraCapture({
         // The check did not run. Not the user's fault, and their challenge is
         // still alive — let them retry rather than burning the attempt.
         setPhase("live");
-        setError(`Verification unavailable: ${data.detail ?? "try again"}`);
+        setError(`${T("Verification unavailable", "Prüfung nicht verfügbar")}: ${data.detail ?? T("try again", "versuche es erneut")}`);
         return;
       }
-      if (!res.ok) throw new Error(data.error ?? "Verification failed.");
+      if (!res.ok) throw new Error(data.error ?? T("Verification failed.", "Die Prüfung ist fehlgeschlagen."));
 
       stopStream();
       setOutcome(data);
@@ -273,7 +278,7 @@ export default function CameraCapture({
       if (data.passed) onComplete?.(challenge.sessionId);
     } catch (e) {
       setPhase("error");
-      setError(e instanceof Error ? e.message : "Capture failed.");
+      setError(e instanceof Error ? e.message : T("Capture failed.", "Die Aufnahme ist fehlgeschlagen."));
       stopStream();
     }
   }
@@ -286,21 +291,24 @@ export default function CameraCapture({
         <>
           {intro ?? (
             <p>
-              You will be given a one-time instruction and <strong>90 seconds</strong> to
-              photograph yourself following it. The photo must come from your camera —
-              there is no upload option.
+              {T("You will be given a one-time instruction and ", "Du bekommst eine einmalige Anweisung und ")}
+              <strong>{T("90 seconds", "90 Sekunden")}</strong>
+              {T(
+                " to photograph yourself following it. The photo must come from your camera — there is no upload option.",
+                ", um dich dabei zu fotografieren. Das Foto muss von deiner Kamera kommen; Hochladen ist nicht möglich.",
+              )}
             </p>
           )}
-          <button onClick={start}>Start camera</button>
+          <button onClick={start}>{T("Start camera", "Kamera starten")}</button>
         </>
       )}
 
-      {phase === "starting" && <p>Requesting camera…</p>}
+      {phase === "starting" && <p>{T("Requesting camera…", "Kamera wird angefragt…")}</p>}
 
       {(phase === "live" || phase === "submitting") && challenge && (
         <>
-          <p className="instruction">{challenge.instruction}</p>
-          <p className={`timer ${urgent ? "urgent" : ""}`}>{secondsLeft}s remaining</p>
+          <p className="instruction">{tc(challenge.instruction)}</p>
+          <p className={`timer ${urgent ? "urgent" : ""}`}>{T(`${secondsLeft}s remaining`, `noch ${secondsLeft} s`)}</p>
           <video
             ref={videoRef}
             playsInline
@@ -312,26 +320,30 @@ export default function CameraCapture({
             onLoadedMetadata={() => setStreaming(true)}
           />
           <button onClick={capture} disabled={phase === "submitting" || !streaming}>
-            {phase === "submitting" ? "Checking…" : streaming ? "Take photo" : "Waiting for camera…"}
+            {phase === "submitting"
+              ? T("Checking…", "Wird geprüft…")
+              : streaming
+                ? T("Take photo", "Foto aufnehmen")
+                : T("Waiting for camera…", "Warte auf die Kamera…")}
           </button>
           {risk === "review" && (
-            <p className="hint">This capture will be flagged for manual review.</p>
+            <p className="hint">{T("This capture will be flagged for manual review.", "Diese Aufnahme wird zur manuellen Prüfung markiert.")}</p>
           )}
         </>
       )}
 
       {phase === "done" && outcome && (
         <div className={outcome.passed ? "ok" : "bad"}>
-          <p className="verdict">{outcome.passed ? "CAPTURE VERIFIED" : "DID NOT PASS"}</p>
+          <p className="verdict">{outcome.passed ? T("CAPTURE VERIFIED", "AUFNAHME BESTÄTIGT") : T("DID NOT PASS", "NICHT BESTANDEN")}</p>
           {!outcome.passed && outcome.reason && <p>{outcome.reason}</p>}
-          {!outcome.passed && <button onClick={start}>Try again</button>}
+          {!outcome.passed && <button onClick={start}>{T("Try again", "Erneut versuchen")}</button>}
         </div>
       )}
 
       {phase === "error" && (
         <>
           <p className="bad">{error}</p>
-          <button onClick={start}>Try again</button>
+          <button onClick={start}>{T("Try again", "Erneut versuchen")}</button>
         </>
       )}
 

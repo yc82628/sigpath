@@ -9,9 +9,9 @@
 import Link from "next/link";
 import { hotDeals } from "@/lib/hot/hot-deals";
 import { AliExpressSource } from "@/lib/marketplace/sources/aliexpress";
-import { formatMoney } from "@/lib/marketplace/types";
+import { moneyText } from "@/lib/i18n/money";
 import { shortQuery } from "@/lib/marketplace/price-check";
-import { getMessages } from "@/lib/i18n/server";
+import { getLang, getMessages } from "@/lib/i18n/server";
 import { categoryHref } from "./catalog";
 
 export function PopularSearches({ label, queries }: { label: string; queries: string[] }) {
@@ -56,7 +56,7 @@ export default async function HotDeals({ fallback }: { fallback: React.ReactNode
                 </span>
                 <span className="hot-text">
                   <span className="hot-title">{d.title}</span>
-                  <span className="hot-price">{formatMoney(d.price)}</span>
+                  <span className="hot-price">{moneyText(d.price, getLang())}</span>
                   <span className="hot-sold">{m.home.hotSold(d.sold)}</span>
                 </span>
               </Link>
