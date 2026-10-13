@@ -8,7 +8,7 @@ import PopIcon, { TONES } from "./components/PopIcon";
 import type { IconName } from "./components/icon-paths";
 import { getMessages } from "@/lib/i18n/server";
 import { CATEGORIES, categoryHref } from "./components/catalog";
-import { MARKET_LOGOS, type Market } from "./components/market-logos";
+import { MARKET_LOGOS, type Logo, type Market } from "./components/market-logos";
 
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
 
@@ -33,6 +33,8 @@ export default function Home() {
       <section className="hero">
         <div className="hero-inner">
           <Badge className="hero-badge" />
+          {/* The slogan on its own backing, so the smoke behind it never washes the words out. */}
+          <div className="hero-plate">
           <h1 className="hero-title">
             {/* Wraps between the two halves, never inside one. */}
             {SLOGAN.split(" – ").map((half, i) => (
@@ -44,6 +46,7 @@ export default function Home() {
             ))}
           </h1>
           <p className="hero-sub">{m.home.sub}</p>
+          </div>
           <form className="searchbar hero-search" method="GET" action="/search">
             <input type="search" name="q" placeholder={m.home.placeholder} aria-label={m.home.searchLabel} />
             <button type="submit">{m.home.searchButton}</button>
@@ -59,7 +62,8 @@ export default function Home() {
           )}
           <ul className="market-row" aria-label={m.home.markets}>
             {markets.map((k) => {
-              const logo = MARKET_LOGOS[k.name];
+              const logo: Logo = MARKET_LOGOS[k.name];
+              const paintId = `logo-${k.name.toLowerCase()}`;
               const body = (
                 <>
                   {/* A logo that is the name itself leaves the written name to screen readers. */}
@@ -70,7 +74,18 @@ export default function Home() {
                       aria-hidden="true"
                       focusable="false"
                     >
-                      <path d={logo.d} fill={logo.hex} />
+                      {logo.letters && (
+                        // One colour per letter: hard stops where each letter ends.
+                        <defs>
+                          <linearGradient id={paintId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="24" y2="0">
+                            {logo.letters.flatMap(([colour, end], i) => [
+                              <stop key={`${i}a`} offset={(i ? logo.letters![i - 1][1] : 0) / 24} stopColor={colour} />,
+                              <stop key={`${i}b`} offset={end / 24} stopColor={colour} />,
+                            ])}
+                          </linearGradient>
+                        </defs>
+                      )}
+                      <path d={logo.d} fill={logo.letters ? `url(#${paintId})` : logo.hex} />
                     </svg>
                     <span className={logo.wordmark ? "sr-only" : "market-name"}>{k.name}</span>
                   </span>

@@ -294,7 +294,19 @@ body:has(.catalog[open]) { overflow: hidden; }
 }
 .nowrap { white-space: nowrap; }
 .hero-title { font-size: clamp(2.1rem, 6vw, 3.4rem); font-weight: 700; letter-spacing: -0.01em; line-height: 1.08; margin: 0 0 8px; }
-.hero-sub { font-size: 1.05rem; font-weight: 600; margin: 0 0 28px; opacity: 0.85; }
+.hero-sub { font-size: 1.05rem; font-weight: 600; margin: 0; opacity: 0.85; }
+/* The slogan's backing: a frosted panel the smoke passes behind, dark on the dark theme, light on the light one. */
+.hero-plate {
+  display: inline-block; max-width: 100%; margin: 0 0 24px; padding: 14px 28px 16px; border-radius: 22px;
+  background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.7);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(22, 19, 43, 0.08);
+}
+.hero-plate .hero-sub { opacity: 0.9; }
+@media (prefers-color-scheme: dark) {
+  .hero-plate { background: rgba(8, 7, 20, 0.62); border-color: rgba(255, 255, 255, 0.08); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35); }
+}
+@media (max-width: 560px) { .hero-plate { padding: 12px 16px 14px; border-radius: 18px; } }
 .hero-accent { color: var(--brand); }
 .hero-search { max-width: 640px; margin: 0 auto; padding: 8px; border-color: transparent; box-shadow: 0 2px 4px rgba(17, 17, 17, 0.1), 0 14px 32px rgba(17, 17, 17, 0.18); }
 .hero-search input { font-size: 1.08rem; padding: 12px 16px; }

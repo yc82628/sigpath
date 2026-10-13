@@ -58,7 +58,7 @@ const en = {
   },
   home: {
     sub: "Every deal compared and checked.",
-    placeholder: "Search any product, or paste a link",
+    placeholder: "Product name or link",
     searchLabel: "Search all marketplaces",
     searchButton: "Search",
     popular: "Popular searches",
@@ -388,7 +388,7 @@ const de: Messages = {
   },
   home: {
     sub: "Jedes Angebot verglichen und geprüft.",
-    placeholder: "Produkt suchen oder Link einfügen",
+    placeholder: "Produkt oder Link",
     searchLabel: "Alle Marktplätze durchsuchen",
     searchButton: "Suchen",
     popular: "Beliebte Suchen",
