@@ -391,40 +391,129 @@ a.market:hover .market-name, a.market:focus-visible .market-name { text-decorati
 }
 
 /* --- Home: SigPath on a laptop and a phone --------------------------------- */
-.devices { position: relative; max-width: 880px; margin: 8px auto 0; padding: 24px 16px 8px; }
-.laptop { width: 82%; margin: 0 auto 0 0; animation: float 9s ease-in-out infinite alternate; }
+.devices { position: relative; max-width: 900px; margin: 8px auto 0; padding: 28px 16px 8px; perspective: 1800px; }
+
+/* The laptop: a thin black bezel in an aluminium rim, a camera, a hinge, a base
+   with its front lip, a soft shadow on the "desk". It turns slowly in 3D. */
+.laptop { position: relative; width: 80%; margin: 0 auto 0 1%; }
+.laptop-body { transform-style: preserve-3d; transform-origin: 50% 90%; animation: laptop-turn 16s ease-in-out infinite alternate; }
 .laptop-lid {
-  padding: 2.2% 2.2% 3%; border-radius: 18px 18px 6px 6px;
-  background: linear-gradient(160deg, #2b2650, #12102a); border: 1px solid #3b3475;
-  box-shadow: 0 30px 60px -20px rgba(11, 10, 26, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  position: relative; padding: 2.4% 2.4% 2.6%; border-radius: 16px 16px 4px 4px;
+  background: #07060f;
+  box-shadow: 0 0 0 1.5px #c9c6d6, 0 0 0 3px #8c88a3, 0 40px 70px -30px rgba(11, 10, 26, 0.65);
 }
-.laptop-screen { aspect-ratio: 16 / 10; overflow: hidden; border-radius: 6px; background: #0b0a1a; }
-.laptop-screen img, .phone-screen img { display: block; width: 100%; height: auto; }
+.laptop-camera {
+  position: absolute; top: 0.9%; left: 50%; width: 1%; aspect-ratio: 1; transform: translateX(-50%);
+  border-radius: 50%; background: radial-gradient(circle at 35% 35%, #3a4a7a, #0b0d1c 70%);
+}
+.laptop-screen { position: relative; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 4px; background: #0e0c1f; container-type: inline-size; }
+/* The glass: a faint diagonal sheen over the display. */
+.laptop-screen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 28%, transparent 42%);
+}
+.laptop-hinge { height: 1.1%; min-height: 5px; margin: 0 3%; border-radius: 0 0 6px 6px; background: linear-gradient(#1e1c2b, #5b5772); }
 .laptop-base {
-  position: relative; height: 14px; margin: 0 -6%; border-radius: 0 0 16px 16px;
-  background: linear-gradient(#cfcbe4, #8f8aae); box-shadow: 0 18px 30px -12px rgba(11, 10, 26, 0.45);
+  position: relative; height: 2.6%; min-height: 12px; margin: 0 -7%; border-radius: 2px 2px 18px 18px / 2px 2px 100% 100%;
+  background: linear-gradient(#f1eff7 0%, #cdcad9 45%, #8e8aa5 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
 }
-.laptop-base::before { content: ""; position: absolute; left: 42%; right: 42%; top: 0; height: 5px; border-radius: 0 0 8px 8px; background: #7d789e; }
+/* The thumb notch in the front edge, for opening the lid. */
+.laptop-base::before { content: ""; position: absolute; left: 43%; right: 43%; top: 0; height: 38%; border-radius: 0 0 10px 10px; background: linear-gradient(#a7a3bb, #c7c4d4); }
+.laptop-shadow { height: 26px; margin: -4px -4% 0; background: radial-gradient(50% 50% at 50% 30%, rgba(11, 10, 26, 0.38), transparent 75%); filter: blur(2px); }
+@keyframes laptop-turn {
+  from { transform: rotateX(7deg) rotateY(-11deg) rotateZ(0.4deg); }
+  to { transform: rotateX(3deg) rotateY(-3deg) rotateZ(0deg) translateY(-6px); }
+}
+
+/* The phone: a titanium frame, the island, side buttons. It floats, and its screen scrolls. */
 .phone {
-  position: absolute; right: 4%; bottom: -4%; width: 25%; min-width: 120px; max-width: 220px;
-  padding: 3.2% 1.6%; border-radius: 34px; background: #12102a; border: 1px solid #3b3475;
-  box-shadow: 0 30px 60px -18px rgba(11, 10, 26, 0.6), 0 0 0 4px rgba(153, 69, 255, 0.18);
+  position: absolute; right: 3%; bottom: -3%; width: 24%; min-width: 120px; max-width: 220px;
+  padding: 2.2% 1.4%; border-radius: 36px; background: #07060f;
+  box-shadow: 0 0 0 2px #9d99b3, 0 0 0 3.5px #4b4766, 0 34px 60px -22px rgba(11, 10, 26, 0.7);
   animation: float 7s ease-in-out -2s infinite alternate;
 }
-.phone::before { content: ""; position: absolute; top: 1.6%; left: 38%; right: 38%; height: 1.2%; min-height: 5px; border-radius: 99px; background: #2b2650; z-index: 1; }
-.phone-screen { aspect-ratio: 390 / 844; overflow: hidden; border-radius: 24px; background: #0b0a1a; }
-/* Scroll from the top of the search to near its end and back: 67.5% is the
-   screenshot's height (390 x 2600) less one screen (390 x 844). */
-.phone-scroll { animation: phone-scroll 22s ease-in-out 1.5s infinite alternate; }
-/* Under the laptop, clear of the phone in front of it. */
-.devices-caption { width: 66%; margin: 34px 0 0; text-align: center; font-size: 0.82rem; color: var(--muted); }
+.phone::before, .phone::after { content: ""; position: absolute; width: 3px; border-radius: 2px; background: #8c88a3; }
+.phone::before { left: -5px; top: 22%; height: 9%; box-shadow: 0 14px 0 #8c88a3; }
+.phone::after { right: -5px; top: 28%; height: 13%; }
+.phone-island { position: absolute; top: 3.2%; left: 50%; width: 30%; height: 2.6%; min-height: 8px; transform: translateX(-50%); border-radius: 99px; background: #000; z-index: 2; }
+.phone-screen { position: relative; aspect-ratio: 390 / 844; overflow: hidden; border-radius: 26px; background: #0e0c1f; container-type: inline-size; }
+.phone-scroll { animation: phone-scroll 18s ease-in-out 1s infinite alternate; }
 @keyframes float { from { transform: translateY(0); } to { transform: translateY(-10px); } }
-@keyframes phone-scroll { 0%, 8% { transform: translateY(0); } 92%, 100% { transform: translateY(-67.5%); } }
+@keyframes phone-scroll { 0%, 12% { transform: translateY(0); } 88%, 100% { transform: translateY(-34%); } }
+
+/* --- The SigPath search on the screens ---------------------------------------
+   Sized from the screen's width (container units), so it is the same picture
+   on any device. One loop of 12s: the query types, the results arrive one by
+   one, their verdicts pop, the best deal lights up, and it starts again. */
+.ds { color: #f4f3fb; font-family: var(--font-sans); background: radial-gradient(120% 60% at 20% -10%, #2a1b5c, #0e0c1f 60%); min-height: 100%; }
+.ds-bar { display: flex; align-items: center; justify-content: space-between; padding: 1.6cqw 3cqw; background: #07060f; border-bottom: 0.35cqw solid; border-image: var(--gradient) 1; }
+.ds-logo { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.04em; background: var(--gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ds-icons { display: flex; gap: 1.4cqw; }
+.ds-icons i { display: block; width: 1.8cqw; aspect-ratio: 1; border-radius: 50%; background: #3b3475; }
+.ds-body { padding: 2.4cqw 3cqw 3cqw; }
+.ds-h1 { display: block; font-family: var(--font-display); font-weight: 700; }
+.ds-search { display: flex; align-items: center; gap: 1cqw; margin: 1.4cqw 0; padding: 0.9cqw 0.9cqw 0.9cqw 2cqw; border-radius: 99px; background: #17142f; border: 1px solid #3b3475; }
+.ds-typed { overflow: hidden; white-space: nowrap; border-right: 0.3cqw solid #b48cff; max-width: 0; animation: ds-type 12s steps(13, end) infinite, ds-caret 0.8s step-end infinite; }
+.ds-search::after { content: ""; flex: 1; }
+.ds-go { flex: none; order: 2; width: 12cqw; height: 3.6cqw; border-radius: 99px; background: #7c3aed; }
+.ds-chips { display: flex; gap: 1cqw; flex-wrap: wrap; margin-bottom: 1.4cqw; }
+.ds-chip { padding: 0.3cqw 1.2cqw; border-radius: 99px; border: 1px solid #14f195; color: #8af5c6; }
+.ds-best { display: flex; flex-direction: column; gap: 0.2cqw; margin-bottom: 1.6cqw; padding: 1.4cqw 2cqw; border-radius: 1.6cqw; background: rgba(20, 241, 149, 0.08); border: 1px solid rgba(20, 241, 149, 0.45); animation: ds-best 12s ease-out infinite both; }
+.ds-best-label { color: #8af5c6; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.ds-rows { display: flex; flex-direction: column; gap: 1.2cqw; margin: 0; padding: 0; list-style: none; }
+.ds-row {
+  display: flex; align-items: center; gap: 2cqw; padding: 1.4cqw; border-radius: 1.6cqw; background: #17142f; border: 1px solid #2a2550;
+  animation: ds-row 12s ease-out infinite both; animation-delay: calc(var(--i) * 0.45s);
+}
+.ds-photo { flex: none; display: grid; place-items: center; width: 6.4cqw; aspect-ratio: 1; border-radius: 1.2cqw; background: #221d45; }
+.ds-photo .pop-icon { width: 60%; height: auto; }
+.ds-text { display: flex; flex-direction: column; gap: 0.3cqw; min-width: 0; flex: 1; }
+.ds-title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-meta { display: flex; align-items: center; gap: 1cqw; }
+.ds-market { padding: 0 1cqw; border-radius: 99px; background: #2a2550; color: #b9b5d6; }
+.ds-verdict { padding: 0.1cqw 1.2cqw; border-radius: 99px; font-weight: 700; transform-origin: left center; animation: ds-pop 12s ease-out infinite both; animation-delay: calc(var(--i) * 0.45s); }
+.ds-verdict.checked { background: #14f195; color: #062a1a; }
+.ds-verdict.caution { background: #fbbf24; color: #2a1a00; }
+.ds-verdict.unchecked { background: #3b3475; color: #d8d4f0; }
+.ds-reason { color: #b9b5d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-price { flex: none; font-weight: 800; }
+/* Type sizes, per screen. */
+.ds-laptop { font-size: 1.4cqw; }
+.ds-laptop .ds-h1 { font-size: 2.5cqw; }
+.ds-laptop .ds-best b { font-size: 1.9cqw; }
+.ds-laptop .ds-price { font-size: 2cqw; }
+.ds-phone { font-size: 3.6cqw; }
+.ds-phone .ds-bar { padding: 13cqw 5cqw 3cqw; }
+.ds-phone .ds-body { padding: 4cqw 4cqw 6cqw; }
+.ds-phone .ds-h1 { font-size: 6.4cqw; }
+.ds-phone .ds-search { margin: 3cqw 0; padding: 2cqw 2cqw 2cqw 4cqw; }
+.ds-phone .ds-go { width: 18cqw; height: 7cqw; }
+.ds-phone .ds-chips { gap: 2cqw; margin-bottom: 3cqw; }
+.ds-phone .ds-chip { padding: 0.6cqw 2.4cqw; }
+.ds-phone .ds-best { padding: 3cqw 4cqw; margin-bottom: 3cqw; border-radius: 3cqw; }
+.ds-phone .ds-rows { gap: 2.6cqw; }
+.ds-phone .ds-row { flex-wrap: wrap; gap: 3cqw; padding: 3cqw; border-radius: 3cqw; }
+.ds-phone .ds-photo { width: 14cqw; border-radius: 2.4cqw; }
+.ds-phone .ds-text { flex-basis: 60%; }
+.ds-phone .ds-meta { flex-wrap: wrap; gap: 1.6cqw; }
+.ds-phone .ds-market, .ds-phone .ds-verdict { padding: 0.2cqw 2cqw; }
+.ds-phone .ds-price { font-size: 4.4cqw; }
+.ds-phone .ds-icons i { width: 3.6cqw; }
+.ds-phone .ds-icons { gap: 2.4cqw; }
+@keyframes ds-type { 0%, 4% { max-width: 0; } 16%, 92% { max-width: 60cqw; } 100% { max-width: 0; } }
+@keyframes ds-caret { 50% { border-color: transparent; } }
+@keyframes ds-row { 0%, 18% { opacity: 0; transform: translateY(1.2cqw); } 24%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+@keyframes ds-pop { 0%, 24% { opacity: 0; transform: scale(0.6); } 28% { opacity: 1; transform: scale(1.12); } 31%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+@keyframes ds-best { 0%, 34% { opacity: 0; transform: scale(0.97); } 40% { opacity: 1; transform: scale(1.015); box-shadow: 0 0 0 0.6cqw rgba(20, 241, 149, 0.25); } 46%, 90% { opacity: 1; transform: none; box-shadow: none; } 97%, 100% { opacity: 0; } }
+
+/* Under the laptop, clear of the phone in front of it. */
+.devices-caption { width: 66%; margin: 18px 0 0; text-align: center; font-size: 0.82rem; color: var(--muted); }
 @media (max-width: 640px) {
-  .devices { padding: 12px 12px 0; }
-  .laptop { width: 88%; }
+  .devices { padding: 14px 12px 0; }
+  .laptop { width: 86%; }
   .phone { right: 0; width: 30%; border-radius: 22px; }
-  .phone-screen { border-radius: 15px; }
+  .phone-screen { border-radius: 16px; }
 }
 
 /* --- Home: smoke behind the page --------------------------------------------
@@ -447,7 +536,9 @@ body { isolation: isolate; }
 @media (prefers-color-scheme: dark) { :root { --smoke-opacity: 0.6; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .laptop, .phone, .phone-scroll, .smoke span { animation: none; }
+  .laptop-body, .phone, .phone-scroll, .smoke span, .ds-typed, .ds-row, .ds-verdict, .ds-best { animation: none; }
+  .ds-typed { max-width: none; border-right-color: transparent; }
+  .laptop-body { transform: rotateX(4deg) rotateY(-7deg); }
 }
 
 /* --- Icons: Flex Pop (PopIcon.tsx) ------------------------------------------

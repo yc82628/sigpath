@@ -6,7 +6,7 @@ import { aliexpressOn } from "@/lib/legal/site";
 import HeroDevices, { Smoke } from "./components/HeroDevices";
 import PopIcon, { TONES } from "./components/PopIcon";
 import type { IconName } from "./components/icon-paths";
-import { getMessages } from "@/lib/i18n/server";
+import { getLang, getMessages } from "@/lib/i18n/server";
 import { CATEGORIES, categoryHref } from "./components/catalog";
 import { MARKET_LOGOS, type Logo, type Market } from "./components/market-logos";
 
@@ -123,7 +123,7 @@ export default function Home() {
             {m.home.foundElsewhere} <Link href="/check">{m.home.checkThatPrice}</Link>
           </p>
         </div>
-        <HeroDevices label={m.home.devices} caption={m.home.devicesCaption} />
+        <HeroDevices label={m.home.devices} caption={m.home.devicesCaption} lang={getLang()} />
       </section>
 
       <section className="container wide home-section" aria-labelledby="browse">

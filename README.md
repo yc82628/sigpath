@@ -683,6 +683,12 @@ other shop only when the shopper clicks "Check this page" in its menu
   owners.
 - **The checkout pages** read a size up: the invoice table, the totals and
   the small print.
+- **The laptop and phone** under the homepage's search are drawn in HTML and
+  CSS (`app/components/HeroDevices.tsx`), no screenshots: a small SigPath
+  search plays on both screens, the query typing itself and the results and
+  verdicts arriving one by one, while the laptop turns slowly in 3D and the
+  phone scrolls. The rows are an illustration with icons for photos, captioned
+  as one, not listings from any marketplace. "Reduce motion" holds it still.
 - **The fonts** are Fredoka for headings and Nunito for text, rounded like
   the Flex Pop icons' outlines; next/font builds them into the site, so a
   shopper's browser never asks Google for them.

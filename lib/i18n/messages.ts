@@ -90,7 +90,7 @@ const en = {
     ],
     howFakes: "How we keep fakes out →",
     devices: "SigPath on a laptop and a phone: every listing gets one verdict, with the reasons",
-    devicesCaption: "Demo listings shown.",
+    devicesCaption: "Illustration: how SigPath marks the listings in a search.",
   },
   search: {
     title: "Compare every marketplace",
@@ -428,7 +428,7 @@ const de: Messages = {
     ],
     howFakes: "So halten wir Fälschungen fern →",
     devices: "SigPath auf Laptop und Handy: jedes Angebot bekommt ein Urteil, mit den Gründen",
-    devicesCaption: "Demo-Angebote abgebildet.",
+    devicesCaption: "Illustration: So markiert SigPath die Angebote einer Suche.",
   },
   search: {
     title: "Alle Marktplätze vergleichen",
