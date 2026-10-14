@@ -21,9 +21,21 @@ export const dynamic = "force-dynamic";
 // settings are missing (names only, never values).
 export async function GET() {
   const config = assistantConfig();
-  return NextResponse.json(config ? { available: true, provider: config.provider, model: config.model } : { available: false, missing: assistantSetupGaps() }, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  return NextResponse.json(
+    config
+      ? { available: true, provider: config.provider, model: config.model, backup: config.backup ? config.backup.model : null }
+      : { available: false, missing: assistantSetupGaps() },
+    {
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
+}
+
+/** Status and code only: an error message could echo the conversation. */
+function errorReason(err: unknown): string {
+  return err instanceof ModelApiError ? `${err.status}${err.code ? ` ${err.code}` : ""}`
+    : err instanceof Anthropic.APIError ? String(err.status)
+    : err instanceof Error ? err.name : "unknown";
 }
 
 export async function POST(req: NextRequest) {
@@ -46,16 +58,13 @@ export async function POST(req: NextRequest) {
       const emit = (e: AssistantEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         await runAssistant(parsed.data, emit, {
-          model: modelFromConfig(config),
+          // The backup answers when the main model can't; the log says why, for whoever runs the site.
+          model: modelFromConfig(config, (err) => console.warn("assistant: main model failed, using the backup", config.provider, errorReason(err))),
           // No Etsy or AliExpress content reaches the AI model (lib/marketplace/site-only.ts).
           search: async (q, currency) => withoutSiteOnly(await labelledSearch(q, { limit: 20, currency })),
         });
       } catch (err) {
-        // Status and code only: an error message could echo the conversation.
-        const reason =
-          err instanceof ModelApiError ? `${err.status}${err.code ? ` ${err.code}` : ""}`
-          : err instanceof Anthropic.APIError ? String(err.status)
-          : err instanceof Error ? err.name : "unknown";
+        const reason = errorReason(err);
         console.error("assistant: turn failed", config.provider, reason);
         // The code helps whoever runs the site; it says nothing about the shopper.
         emit({ type: "error", message: `Sorry, something went wrong on our side. Please try again. (model error ${reason})` });

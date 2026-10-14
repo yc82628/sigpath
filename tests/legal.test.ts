@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { AMAZON_PRICE_DISCLAIMER, amazonTag, assistantProvider, hasPriceAlerts, operator, photoCheckProvider, providerFor, solanaRpcProvider } from "../lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, amazonTag, assistantBackupProvider, assistantProvider, hasPriceAlerts, operator, photoCheckProvider, providerFor, solanaRpcProvider } from "../lib/legal/site";
 
 test("the Impressum shows the operator only once name, address and email are all set", () => {
   assert.equal(operator({}), null);
@@ -35,4 +35,10 @@ test("with a tag, every page carries Amazon.de's three price statements for comp
   assert.match(AMAZON_PRICE_DISCLAIMER, /may have risen since they were last updated/);
   assert.match(AMAZON_PRICE_DISCLAIMER, /price at the time of purchase applies/);
   assert.match(AMAZON_PRICE_DISCLAIMER, /can't be updated in real time/);
+});
+
+test("privacy: Ai-chan's backup is named when there is one", () => {
+  const gemini = { ASSISTANT_PROVIDER: "openai", ASSISTANT_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai", ASSISTANT_MODEL: "gemini-3.5-flash" };
+  assert.equal(assistantBackupProvider(gemini), null);
+  assert.equal(assistantBackupProvider({ ...gemini, GROQ_API_KEY: "gsk_x" }), "Groq, Inc., USA");
 });

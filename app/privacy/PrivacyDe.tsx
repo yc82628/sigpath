@@ -4,6 +4,7 @@ import {
   aliexpressOn,
   amazonTag,
   assistantProvider,
+  assistantBackupProvider,
   hasCheckout,
   hasDatabase,
   hasPriceAlerts,
@@ -44,6 +45,7 @@ const rpcDe = (s: string) =>
 export default function PrivacyDe() {
   const op = operator();
   const ai = assistantProvider();
+  const aiBackup = assistantBackupProvider();
   const photos = photoCheckProvider();
   const checkout = hasCheckout();
   const alerts = hasPriceAlerts();
@@ -195,7 +197,8 @@ export default function PrivacyDe() {
         <>
           <Part title="Ai-chan, die Einkaufsassistentin">
             <p>
-              Wenn du mit Ai-chan chattest, werden deine Nachrichten an {modelDe(ai)} gesendet, um die Antwort zu schreiben.
+              Wenn du mit Ai-chan chattest, werden deine Nachrichten an {modelDe(ai)} gesendet, um die Antwort zu schreiben
+              {aiBackup && aiBackup !== ai && <>, oder, wenn dieses nicht verfügbar ist, an {modelDe(aiBackup)}</>}.
               SigPath speichert deine Chats nicht. Bitte teile darin keine persönlichen Daten (Rechtsgrundlage: Art. 6 Abs. 1
               lit. f DSGVO).
             </p>

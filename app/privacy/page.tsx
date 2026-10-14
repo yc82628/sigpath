@@ -9,6 +9,7 @@ import {
   aliexpressOn,
   amazonTag,
   assistantProvider,
+  assistantBackupProvider,
   hasCheckout,
   hasDatabase,
   hasPriceAlerts,
@@ -55,6 +56,7 @@ export default function PrivacyPage() {
 function PrivacyEn() {
   const op = operator();
   const ai = assistantProvider();
+  const aiBackup = assistantBackupProvider();
   const photos = photoCheckProvider();
   const checkout = hasCheckout();
   const alerts = hasPriceAlerts();
@@ -198,7 +200,8 @@ function PrivacyEn() {
         <>
           <Part title="Ai-chan, the shopping assistant">
             <p>
-              When you chat with Ai-chan, your messages are sent to {modelPhrase(ai)} to write the answer. SigPath does not save your chats.
+              When you chat with Ai-chan, your messages are sent to {modelPhrase(ai)} to write the answer
+              {aiBackup && aiBackup !== ai && <>, or, when that one is unavailable, to {modelPhrase(aiBackup)}</>}. SigPath does not save your chats.
               Please don&apos;t share personal details in them (legal basis: Art. 6(1)(f) GDPR).
             </p>
           </Part>

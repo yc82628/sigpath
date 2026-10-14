@@ -75,6 +75,12 @@ export function assistantProvider(env: Env = process.env): string | null {
   return config.provider === "anthropic" ? "Anthropic PBC, USA" : providerFor(config.baseUrl);
 }
 
+/** Who answers Ai-chan when the main model can't, if a backup is set up (assistantBackup). */
+export function assistantBackupProvider(env: Env = process.env): string | null {
+  const backup = assistantConfig(env)?.backup;
+  return backup ? providerFor(backup.baseUrl) : null;
+}
+
 /** Who looks at live photos (reports, seller badges), when photo checks can run (lib/liveness/vision.ts). */
 export function photoCheckProvider(env: Env = process.env): string | null {
   const b = (clean(env.VISION_BACKEND) ?? "anthropic").toLowerCase();

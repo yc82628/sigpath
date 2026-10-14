@@ -154,7 +154,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 580 tests, as of 2026-10-13
+npm test                                   # 588 tests, as of 2026-10-15
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -820,6 +820,20 @@ answers in a few sentences, with the results as cards in the chat.
   - `anthropic`: Claude, with `ANTHROPIC_API_KEY`. It needs API credit, which is separate from a Claude app plan. Default `claude-opus-5-5`.
 
   The chat button is hidden when no model is configured, and the chat says which kind of model answers.
+- **A backup model, free:** when the main model can't answer (Gemini busy with
+  `503`, out of free quota with `429`, down, or misconfigured), the same turn goes
+  to a second OpenAI-compatible API instead of showing an error. Set
+  `GROQ_API_KEY` (Sensitive) and Groq's free tier answers with
+  `openai/gpt-oss-120b`; `ASSISTANT_BACKUP_MODEL` picks another Groq model, and
+  `ASSISTANT_BACKUP_BASE_URL` / `ASSISTANT_BACKUP_API_KEY` /
+  `ASSISTANT_BACKUP_MODEL` point at any other host (OpenRouter, Together…).
+  `withBackup` (models.ts) switches only if the main model failed **before
+  writing a word**, so no shopper sees half an answer and then another; once
+  switched, the rest of that turn stays on the backup. Gemini's thought
+  signatures are not sent to the backup. The server log says when and why
+  (status and code only), `GET /api/assistant` names the backup model, and
+  `/privacy` names both providers. As before, no AliExpress or Etsy listing
+  reaches either model (`withoutSiteOnly`).
 
 ```bash
 ollama pull qwen2.5:7b

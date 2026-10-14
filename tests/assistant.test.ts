@@ -2,7 +2,19 @@ import { test } from "node:test";
 import assert from "node:assert";
 import type Anthropic from "@anthropic-ai/sdk";
 import { ChatRequest, runAssistant, type AssistantEvent } from "../lib/assistant/assistant";
-import { anthropicModel, assistantConfig, assistantSetupGaps, ModelApiError, openAICompatModel, type StreamingClient } from "../lib/assistant/models";
+import {
+  anthropicModel,
+  assistantBackup,
+  assistantConfig,
+  assistantSetupGaps,
+  GROQ_BASE_URL,
+  GROQ_DEFAULT_MODEL,
+  ModelApiError,
+  openAICompatModel,
+  withBackup,
+  type ChatModel,
+  type StreamingClient,
+} from "../lib/assistant/models";
 import { SearchInput, filterResults } from "../lib/assistant/search-tool";
 import { RateLimiter } from "../lib/assistant/rate-limit";
 import { withLabels } from "../lib/marketplace/label";
@@ -382,4 +394,109 @@ test("search tool: accessories and for-parts units are never picks", async () =>
   const r = filterResults(SearchInput.parse({ query: "ThinkPad X1", condition: "used" }), await demoSearch("ThinkPad X1"));
   assert.ok(!r.shown.some((c) => /for parts|Charger for/.test(c.title)), JSON.stringify(r.shown.map((c) => c.title)));
   assert.ok(r.shown.some((c) => c.verdict === "checked"));
+});
+
+// --- the backup model -------------------------------------------------------------
+
+/** A model that answers with `text`, or throws `fail`, and counts its turns. */
+function scripted(label: string, script: ({ text: string } | { fail: unknown; after?: string })[]): ChatModel & { turns: () => number } {
+  let n = 0;
+  return {
+    label,
+    turns: () => n,
+    async turn({ onText }) {
+      const step = script[Math.min(n++, script.length - 1)];
+      if ("fail" in step) {
+        if (step.after) onText(step.after);
+        throw step.fail;
+      }
+      onText(step.text);
+      return { text: step.text, toolCalls: [], refused: false };
+    },
+  };
+}
+const oneTurn = (onText: (t: string) => void = () => {}) => ({ system: "s", messages: [{ role: "user" as const, content: "hi" }], tools: [], allowTools: true, onText });
+
+test("backup: answers when the main model fails before writing, and the failure is reported", async () => {
+  const main = scripted("main", [{ fail: new ModelApiError(503, "UNAVAILABLE") }]);
+  const backup = scripted("backup", [{ text: "from the backup" }]);
+  const seen: unknown[] = [];
+  let shown = "";
+  const reply = await withBackup(main, backup, (e) => seen.push(e)).turn(oneTurn((t) => (shown += t)));
+  assert.strictEqual(reply.text, "from the backup");
+  assert.strictEqual(shown, "from the backup", "the shopper sees only the backup's words");
+  assert.ok(seen[0] instanceof ModelApiError && seen[0].status === 503);
+});
+
+test("backup: unused while the main model works", async () => {
+  const main = scripted("main", [{ text: "fine" }]);
+  const backup = scripted("backup", [{ text: "never" }]);
+  const model = withBackup(main, backup);
+  await model.turn(oneTurn());
+  await model.turn(oneTurn());
+  assert.strictEqual(main.turns(), 2);
+  assert.strictEqual(backup.turns(), 0);
+});
+
+test("backup: never takes over half an answer", async () => {
+  const main = scripted("main", [{ fail: new Error("stream cut"), after: "Half an ans" }]);
+  const backup = scripted("backup", [{ text: "whole answer" }]);
+  await assert.rejects(withBackup(main, backup).turn(oneTurn()), /stream cut/);
+  assert.strictEqual(backup.turns(), 0);
+});
+
+test("backup: once it has taken over, the rest of the conversation turn stays on it", async () => {
+  const main = scripted("main", [{ fail: new ModelApiError(429, "RESOURCE_EXHAUSTED") }, { text: "main again" }]);
+  const backup = scripted("backup", [{ text: "one" }, { text: "two" }]);
+  const model = withBackup(main, backup);
+  await model.turn(oneTurn());
+  const second = await model.turn(oneTurn());
+  assert.strictEqual(second.text, "two");
+  assert.strictEqual(main.turns(), 1, "the failing model isn't asked again");
+});
+
+test("backup: a full conversation with a search still ends in words when the main model is down", async () => {
+  const main = scripted("main", [{ fail: new ModelApiError(503) }]);
+  const backup = scripted("backup", [{ text: "Here are some deals." }]);
+  const events: AssistantEvent[] = [];
+  await runAssistant(ask("AirPods Pro"), (e) => events.push(e), { model: withBackup(main, backup), search: demoSearch });
+  assert.ok(events.some((e) => e.type === "text" && e.text.includes("Here are some deals.")));
+  assert.ok(!events.some((e) => e.type === "error"));
+  assert.strictEqual(events[events.length - 1].type, "done");
+});
+
+test("backup config: GROQ_API_KEY alone adds Groq behind the main model; nothing without a main model", () => {
+  const gemini = { ASSISTANT_PROVIDER: "openai", ASSISTANT_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai", ASSISTANT_MODEL: "gemini-3.5-flash" };
+  assert.strictEqual(assistantConfig(gemini)?.backup, undefined, "no backup unless one is set up");
+  assert.deepStrictEqual(assistantConfig({ ...gemini, GROQ_API_KEY: " gsk_x " })?.backup, { baseUrl: GROQ_BASE_URL, model: GROQ_DEFAULT_MODEL, apiKey: "gsk_x" });
+  assert.strictEqual(assistantConfig({ ...gemini, GROQ_API_KEY: "gsk_x", ASSISTANT_BACKUP_MODEL: "llama-3.3-70b-versatile" })?.backup?.model, "llama-3.3-70b-versatile");
+  assert.deepStrictEqual(
+    assistantBackup({ ASSISTANT_BACKUP_BASE_URL: "https://openrouter.ai/api/v1", ASSISTANT_BACKUP_MODEL: "x/y:free", ASSISTANT_BACKUP_API_KEY: "k" }),
+    { baseUrl: "https://openrouter.ai/api/v1", model: "x/y:free", apiKey: "k" },
+  );
+  assert.strictEqual(assistantBackup({ ASSISTANT_BACKUP_BASE_URL: "https://openrouter.ai/api/v1" }), null, "another API needs its model named");
+  assert.strictEqual(assistantConfig({ GROQ_API_KEY: "gsk_x" }), null, "a backup alone doesn't switch Ai-chan on");
+});
+
+test("backup: Gemini's thought signatures go back only to the model that made them", async () => {
+  const sent: { messages: { role: string; tool_calls?: Record<string, unknown>[] }[] }[] = [];
+  const capture = (async (_url: string, init: RequestInit) => {
+    sent.push(JSON.parse(String(init.body)));
+    return new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n');
+  }) as unknown as typeof fetch;
+  const call = { id: "c1", name: "search_deals", input: { query: "x" }, extra: { google: { thought_signature: "c2ln" } }, by: "main:gemini" };
+  const history = {
+    ...oneTurn(),
+    messages: [
+      { role: "user" as const, content: "hi" },
+      { role: "assistant" as const, content: "", toolCalls: [call] },
+      { role: "tool" as const, toolCallId: "c1", content: "{}" },
+    ],
+  };
+  await openAICompatModel({ baseUrl: "http://x/v1", model: "b", label: "backup:b", fetchImpl: capture }).turn(history);
+  await openAICompatModel({ baseUrl: "http://x/v1", model: "gemini", label: "main:gemini", fetchImpl: capture }).turn(history);
+  const toBackup = sent[0].messages.find((m) => m.role === "assistant");
+  const toGemini = sent[1].messages.find((m) => m.role === "assistant");
+  assert.ok(toBackup?.tool_calls?.[0] && !("extra_content" in toBackup.tool_calls[0]), "not to another API");
+  assert.deepStrictEqual(toGemini?.tool_calls?.[0].extra_content, call.extra, "but still to Gemini itself");
 });

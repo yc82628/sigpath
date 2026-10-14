@@ -24,6 +24,13 @@ export interface ToolCall {
    * next turn without it.
    */
   extra?: unknown;
+  /**
+   * The model that made the call (its label), when it came with `extra`. The
+   * provider data goes back only to that model: with a backup in play, the
+   * next round may be answered by another API, to which a Gemini signature
+   * means nothing, and a strict one rejects the unknown field.
+   */
+  by?: string;
 }
 
 export type ChatMsg =
@@ -124,7 +131,7 @@ type OpenAIMessage =
   | { role: "assistant"; content: string | null; tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string }; extra_content?: unknown }[] }
   | { role: "tool"; tool_call_id: string; content: string };
 
-function toOpenAI(system: string, messages: ChatMsg[]): OpenAIMessage[] {
+function toOpenAI(system: string, messages: ChatMsg[], self: string): OpenAIMessage[] {
   return [
     { role: "system", content: system },
     ...messages.map((m): OpenAIMessage => {
@@ -139,7 +146,7 @@ function toOpenAI(system: string, messages: ChatMsg[]): OpenAIMessage[] {
                 id: c.id,
                 type: "function" as const,
                 function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) },
-                ...(c.extra !== undefined ? { extra_content: c.extra } : {}),
+                ...(c.extra !== undefined && (c.by ?? self) === self ? { extra_content: c.extra } : {}),
               })),
             }
           : {}),
@@ -206,15 +213,16 @@ async function errorCode(res: Response): Promise<string | undefined> {
 export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
   const doFetch = opts.fetchImpl ?? fetch;
   const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const label = opts.label ?? `openai:${opts.model}`;
   return {
-    label: opts.label ?? `openai:${opts.model}`,
+    label,
     async turn({ system, messages, tools, allowTools, onText }) {
       const body = JSON.stringify({
         model: opts.model,
         stream: true,
         max_tokens: opts.maxTokens ?? 1024,
         ...(opts.reasoningEffort ? { reasoning_effort: opts.reasoningEffort } : {}),
-        messages: toOpenAI(system, messages),
+        messages: toOpenAI(system, messages, label),
         tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
         tool_choice: allowTools ? "auto" : "none",
       });
@@ -278,7 +286,7 @@ export function openAICompatModel(opts: OpenAICompatOptions): ChatModel {
       }
       const toolCalls = [...calls.entries()]
         .sort(([a], [b]) => a - b)
-        .map(([i, c]) => ({ id: c.id || `call_${i}`, name: c.name, input: parseArgs(c.args), ...(c.extra !== undefined ? { extra: c.extra } : {}) }));
+        .map(([i, c]) => ({ id: c.id || `call_${i}`, name: c.name, input: parseArgs(c.args), ...(c.extra !== undefined ? { extra: c.extra, by: label } : {}) }));
       return { text, toolCalls, refused };
     },
   };
@@ -291,6 +299,36 @@ export interface AssistantConfig {
   model: string;
   baseUrl?: string;
   apiKey?: string;
+  /** A second OpenAI-compatible API that answers when the first one can't (assistantBackup). */
+  backup?: BackupConfig;
+}
+
+export interface BackupConfig {
+  model: string;
+  baseUrl: string;
+  apiKey?: string;
+}
+
+/** Groq's free tier, OpenAI-compatible, with tool calling: the backup when only GROQ_API_KEY is set. */
+export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+export const GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b";
+
+/**
+ * The backup model, from the environment:
+ *
+ *   GROQ_API_KEY                   Groq, with GROQ_DEFAULT_MODEL
+ *   ASSISTANT_BACKUP_BASE_URL      any OpenAI-compatible API instead, with
+ *   ASSISTANT_BACKUP_MODEL         ASSISTANT_BACKUP_API_KEY (or GROQ_API_KEY)
+ *
+ * ASSISTANT_BACKUP_MODEL alone picks another Groq model.
+ */
+export function assistantBackup(raw: Record<string, string | undefined> = process.env): BackupConfig | null {
+  const env = cleanEnv(raw);
+  const baseUrl = env.ASSISTANT_BACKUP_BASE_URL ?? (env.GROQ_API_KEY ? GROQ_BASE_URL : undefined);
+  if (!baseUrl) return null;
+  const model = env.ASSISTANT_BACKUP_MODEL ?? (baseUrl === GROQ_BASE_URL ? GROQ_DEFAULT_MODEL : undefined);
+  if (!model) return null;
+  return { baseUrl, model, apiKey: env.ASSISTANT_BACKUP_API_KEY ?? env.GROQ_API_KEY };
 }
 
 /**
@@ -303,6 +341,12 @@ export interface AssistantConfig {
  *   unset                         anthropic if ANTHROPIC_API_KEY is set
  */
 export function assistantConfig(raw: Record<string, string | undefined> = process.env): AssistantConfig | null {
+  const main = mainConfig(raw);
+  const backup = main && assistantBackup(raw);
+  return main && backup ? { ...main, backup } : main;
+}
+
+function mainConfig(raw: Record<string, string | undefined>): AssistantConfig | null {
   const env = cleanEnv(raw);
   const provider = (env.ASSISTANT_PROVIDER || (env.ANTHROPIC_API_KEY ? "anthropic" : "")).toLowerCase();
   if (provider === "ollama") {
@@ -319,7 +363,18 @@ export function assistantConfig(raw: Record<string, string | undefined> = proces
   return null;
 }
 
-const SETTINGS = ["ASSISTANT_PROVIDER", "ASSISTANT_BASE_URL", "ASSISTANT_MODEL", "ASSISTANT_API_KEY", "OLLAMA_HOST", "ANTHROPIC_API_KEY"] as const;
+const SETTINGS = [
+  "ASSISTANT_PROVIDER",
+  "ASSISTANT_BASE_URL",
+  "ASSISTANT_MODEL",
+  "ASSISTANT_API_KEY",
+  "OLLAMA_HOST",
+  "ANTHROPIC_API_KEY",
+  "ASSISTANT_BACKUP_BASE_URL",
+  "ASSISTANT_BACKUP_MODEL",
+  "ASSISTANT_BACKUP_API_KEY",
+  "GROQ_API_KEY",
+] as const;
 
 /**
  * Values pasted into a hosting dashboard often carry a stray space, newline or
@@ -348,7 +403,58 @@ export function assistantSetupGaps(raw: Record<string, string | undefined> = pro
   return [`ASSISTANT_PROVIDER (unknown value; use ollama, openai or anthropic)`];
 }
 
-export function modelFromConfig(c: AssistantConfig): ChatModel {
+export function modelFromConfig(c: AssistantConfig, onFallback?: (primaryError: unknown) => void): ChatModel {
+  const main = mainModel(c);
+  return c.backup ? withBackup(main, backupModel(c.backup), onFallback) : main;
+}
+
+function backupModel(b: BackupConfig): ChatModel {
+  return openAICompatModel({
+    baseUrl: b.baseUrl,
+    model: b.model,
+    apiKey: b.apiKey,
+    label: `backup:${b.model}`,
+    // gpt-oss thinks before it answers; low keeps the chat quick, and the budget covers both.
+    ...(/gpt-oss/.test(b.model) ? { reasoningEffort: "low" as const, maxTokens: 2048 } : {}),
+    timeoutMs: 45_000,
+  });
+}
+
+/**
+ * The main model, and a backup that answers when it can't: busy, out of free
+ * quota, down, or misconfigured. A turn moves to the backup only if the main
+ * model failed before writing a word, so a shopper never sees half an answer
+ * followed by another. Once it has moved, the rest of this conversation turn
+ * stays on the backup: a model that just failed is likely to fail again.
+ * Provider data in earlier tool calls goes back only to the model that made
+ * it (ToolCall.by).
+ */
+export function withBackup(main: ChatModel, backup: ChatModel, onFallback?: (primaryError: unknown) => void): ChatModel {
+  let current = main;
+  return {
+    label: `${main.label}+${backup.label}`,
+    async turn(params) {
+      if (current === backup) return backup.turn(params);
+      let wrote = false;
+      try {
+        return await main.turn({
+          ...params,
+          onText: (t) => {
+            wrote = true;
+            params.onText(t);
+          },
+        });
+      } catch (err) {
+        if (wrote) throw err;
+        onFallback?.(err);
+        current = backup;
+        return backup.turn(params);
+      }
+    },
+  };
+}
+
+function mainModel(c: AssistantConfig): ChatModel {
   if (c.provider === "anthropic") return anthropicModel(new Anthropic(), c.model);
   const gemini = /generativelanguage\.googleapis\.com/.test(c.baseUrl!);
   return openAICompatModel({
