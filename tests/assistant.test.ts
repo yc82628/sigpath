@@ -15,6 +15,7 @@ import {
   type ChatModel,
   type StreamingClient,
 } from "../lib/assistant/models";
+import { NOT_A_GUARANTEE } from "../lib/assistant/assistant";
 import { SearchInput, filterResults } from "../lib/assistant/search-tool";
 import { RateLimiter } from "../lib/assistant/rate-limit";
 import { withLabels } from "../lib/marketplace/label";
@@ -100,7 +101,9 @@ test("assistant: searches with the shopper's preferences, shows cards, then answ
   const events: AssistantEvent[] = [];
   await runAssistant(ask("used ThinkPad X1 under 200"), (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
 
-  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "text", "done"]);
+  // The reply, the "not a guarantee" line it left out, then the warning.
+  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "text", "text", "done"]);
+  assert.strictEqual((events[3] as { text: string }).text, NOT_A_GUARANTEE.en);
   // The stand-in reply never mentions the flagged bait, so the server adds the warning itself.
   const warned = events.at(-2);
   assert.ok(warned && warned.type === "text" && warned.text.includes("Heads up") && warned.text.includes("Look closer"));
@@ -203,7 +206,7 @@ test("openai adapter: assembles a streamed tool call, runs the search, then stre
   const events: AssistantEvent[] = [];
   await runAssistant(ask("used ThinkPad X1 under 200"), (e) => events.push(e), { model, search: demoSearch });
 
-  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "text", "text", "done"]);
+  assert.deepStrictEqual(events.map((e) => e.type), ["searching", "results", "text", "text", "text", "text", "done"]);
   const results = events.find((e) => e.type === "results");
   assert.ok(results && results.type === "results");
   for (const c of results.results.shown) assert.ok(c.condition === "used" && total(c.total) <= 200);
@@ -499,4 +502,37 @@ test("backup: Gemini's thought signatures go back only to the model that made th
   const toGemini = sent[1].messages.find((m) => m.role === "assistant");
   assert.ok(toBackup?.tool_calls?.[0] && !("extra_content" in toBackup.tool_calls[0]), "not to another API");
   assert.deepStrictEqual(toGemini?.tool_calls?.[0].extra_content, call.extra, "but still to Gemini itself");
+});
+
+// --- "checked" is not a guarantee, whatever the model says ------------------------
+
+test("assistant: a reply that shows checked listings without the disclaimer gets it added, once", async () => {
+  const run = async (reply: string, lang?: "de") => {
+    const { client } = fakeClient([toolUse({ query: "AirPods Pro" }), say(reply)]);
+    const events: AssistantEvent[] = [];
+    await runAssistant({ ...ask("cheapest AirPods Pro"), ...(lang ? { lang } : {}) }, (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
+    return events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join("");
+  };
+  const plain = await run("The cheapest checked pair is on eBay.");
+  assert.ok(plain.includes(NOT_A_GUARANTEE.en));
+  const already = await run("Checked means the checks passed, not a guarantee. The cheapest is on eBay.");
+  assert.ok(!already.includes(NOT_A_GUARANTEE.en), "not repeated when the model said it");
+  const german = await run("Das günstigste geprüfte Paar ist auf eBay.", "de");
+  assert.ok(german.includes(NOT_A_GUARANTEE.de) && !german.includes(NOT_A_GUARANTEE.en));
+});
+
+test("assistant: no disclaimer when nothing checked was shown", async () => {
+  const { client } = fakeClient([say("What kind of laptop are you after?")]);
+  const events: AssistantEvent[] = [];
+  await runAssistant(ask("a laptop"), (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
+  assert.ok(!events.some((e) => e.type === "text" && e.text.includes("guarantee")));
+});
+
+test("assistant: on German pages the added warning is German too", async () => {
+  const { client } = fakeClient([toolUse({ query: "ThinkPad X1", condition: "used" }), say("Nimm das gebrauchte.")]);
+  const events: AssistantEvent[] = [];
+  await runAssistant({ ...ask("gebrauchtes ThinkPad X1"), lang: "de" }, (e) => events.push(e), { model: anthropicModel(client), search: demoSearch });
+  const text = events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join("");
+  assert.ok(text.includes("Achtung:") && text.includes("Genauer hinsehen"));
+  assert.ok(!text.includes("Heads up"));
 });

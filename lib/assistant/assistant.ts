@@ -17,11 +17,18 @@
  */
 
 import { z } from "zod";
+import { translateCheck } from "../i18n/checks";
 import { SEARCH_TOOL, SearchInput, filterResults, type AssistantCard, type AssistantResults } from "./search-tool";
 import type { LabelledSearch } from "../marketplace/labelled-search";
 import type { ChatModel, ChatMsg } from "./models";
 
 const MAX_SEARCH_ROUNDS = 3;
+
+/** Added after a reply that showed checked listings without saying what "checked" doesn't mean. */
+export const NOT_A_GUARANTEE = {
+  en: "\n\n(SigPath-checked means the price and seller checks passed. It isn't a guarantee.)",
+  de: "\n\n(„SigPath-geprüft“ heißt: Preis- und Verkäuferprüfung bestanden. Es ist keine Garantie.)",
+};
 
 export const SYSTEM = `You are Ai-chan, SigPath's shopping assistant: warm, upbeat and to the point, like a friend who is great at finding deals. Keep it natural; no emoji, no baby talk. When it comes to warnings, be clear and serious. You search eBay and Amazon through SigPath, which gives every listing a verdict: "checked" (SigPath-checked: the price is in line with the market for its condition and nothing about the seller or photos raised a flag), "caution" (look closer, with the reasons) or "unchecked" (nothing to compare it with, e.g. handmade items; not a bad sign on its own).
 
@@ -29,7 +36,7 @@ How to help:
 - Find the product that fits what the shopper asked for, using the search_deals tool. Put only the product in "query"; turn preferences into the other fields: a budget into max_price, "second-hand" into condition "used", a named marketplace into marketplaces. Set checked_only only when the shopper explicitly asks for only safe, trusted or checked deals; otherwise leave it off, because warning about flagged listings is part of your job.
 - Search straight away when you can. A named product is enough to search; asking for the cheapest or best one never needs a budget first. Only if the request is too vague to search (e.g. just "a laptop"), ask ONE short question about what matters most (budget, use, new or used), then search.
 - The results appear to the shopper as cards under your message, so do not list every listing. In 2 to 4 short sentences: name your top pick and why it fits, mention a cheaper or alternative option if useful, and say what was traded off.
-- Recommend only "checked" listings. If the search result has a "warning", pass it on in one sentence with its price and reason, especially when that listing is the cheapest. Do not say all listings are checked when one is flagged. Never call a listing safe, genuine or guaranteed: say "SigPath-checked" and, when you first use it, that checked means the price and seller checks passed, not a guarantee.
+- Recommend only "checked" listings. If the search result has a "warning", pass it on in one sentence with its price and reason, especially when that listing is the cheapest. Do not say all listings are checked when one is flagged. Never call a listing safe, genuine, guaranteed or risk-free, and never tell the shopper they can buy without worry: say "SigPath-checked" and, when you first use it, that checked means the price and seller checks passed, not a guarantee.
 - If no checked or unchecked listing matches every preference, say which preference ruled things out, and never present a flagged listing as an option. If "closest" has listings, offer them as the nearest real options with their prices; if it is empty, offer to search with the preference relaxed.
 - Mention only listings and prices that appear in the search results. Never invent a listing, a price or a verdict.
 - Quote prices exactly as the tool gives them. Call one option cheaper than another only if its total is a lower number. If some marketplaces were not searched, say the results come from those that were.
@@ -69,8 +76,9 @@ export interface AssistantDeps {
 
 export async function runAssistant(req: ChatRequest, emit: (e: AssistantEvent) => void, deps: AssistantDeps): Promise<void> {
   const messages: ChatMsg[] = req.messages.map((m) => ({ role: m.role, content: m.content }));
-  // Flagged listings shown this turn, and everything said this turn.
+  // Flagged listings shown this turn, whether any checked one was, and everything said this turn.
   const flagged = new Map<string, AssistantCard>();
+  let checkedShown = false;
   let said = "";
   const say = (text: string) => {
     said += text;
@@ -109,16 +117,27 @@ export async function runAssistant(req: ChatRequest, emit: (e: AssistantEvent) =
       const results = filterResults(parsed.data, await deps.search(parsed.data.query, parsed.data.currency));
       emit({ type: "results", results });
       for (const c of results.shown) if (c.verdict === "caution") flagged.set(c.id, c);
+      if (results.shown.some((c) => c.verdict === "checked")) checkedShown = true;
       messages.push({ role: "tool", toolCallId: call.id, content: JSON.stringify(results) });
     }
   }
-  // The warning must not depend on the model remembering it: a flagged
-  // listing the reply never mentioned gets one plain line.
+  const de = req.lang === "de";
+  // "Checked" is never a promise, and that must not depend on the model saying
+  // so either: some models (the Groq backup among them) leave it out.
+  if (checkedShown && !/guarantee|garantie/i.test(said)) {
+    say(de ? NOT_A_GUARANTEE.de : NOT_A_GUARANTEE.en);
+  }
+  // Nor may the warning: a flagged listing the reply never mentioned gets one plain line.
   for (const c of flagged.values()) {
     const amount = c.total.split(" ")[0];
-    if (!said.includes(amount)) say(`
-
-Heads up: "${c.title}" (${c.total}) is flagged "Look closer". ${c.reasons[0] ?? ""}`.trimEnd());
+    if (said.includes(amount)) continue;
+    const reason = c.reasons[0] ? translateCheck(c.reasons[0], de ? "de" : "en") : "";
+    say(
+      (de
+        ? `\n\nAchtung: „${c.title}“ (${c.total}) ist mit „Genauer hinsehen“ markiert. ${reason}`
+        : `\n\nHeads up: "${c.title}" (${c.total}) is flagged "Look closer". ${reason}`
+      ).trimEnd(),
+    );
   }
   emit({ type: "done" });
 }
