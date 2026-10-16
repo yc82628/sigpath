@@ -86,6 +86,11 @@ const RULES: Rule[] = [
     (n, used, on) => `Deutlich unter dem Median von ${n} vergleichbaren ${used ? "gebrauchten " : ""}Angeboten ${where(on)}.`,
   ],
   [
+    /^The seller has no ratings yet, and the price is (\d+)% below the median of (\d+) comparable (used )?listings ((?:on|across) .+)\.$/,
+    (pct, n, used, on) =>
+      `Der Verkäufer hat noch keine Bewertungen, und der Preis liegt ${pct} % unter dem Median von ${n} vergleichbaren ${used ? "gebrauchten " : ""}Angeboten ${where(on)}.`,
+  ],
+  [
     /^Its title doesn't state model details like generation or storage, so it was compared with every version\.$/,
     () => "Der Titel nennt keine Modelldetails wie Generation oder Speicher, daher wurde mit allen Versionen verglichen.",
   ],

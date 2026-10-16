@@ -66,6 +66,16 @@ export const MIN_SAMPLE = 5;
 /** A listing this new from an account this new is worth saying out loud. */
 export const NEW_ACCOUNT_DAYS = 30;
 
+/**
+ * A seller with no ratings at all, below this fraction of the median, is
+ * flagged even though the price alone wouldn't be (UNDERPRICED_RATIO is 0.5).
+ * A brand-new account selling a console a third under the market is the most
+ * common scam shape on eBay; most marketplaces don't publish account age, so
+ * the rating count is the sign SigPath can see. Everyone starts at 0 ratings,
+ * so it takes both: no ratings AND a price clearly below the market.
+ */
+export const UNRATED_RATIO = 0.75;
+
 export type AnalysisStatus =
   | "ok"
   /** Some source failed, so the sample is biased. No verdict is issued. */
@@ -79,7 +89,13 @@ export type AnalysisStatus =
  * `photo_of_verified_business` (lib/sellers/business.ts), which needs to know
  * which accounts a verified business has linked.
  */
-export type FlagKind = "underpriced" | "duplicate_image" | "new_account" | "upheld_reports" | "photo_of_verified_business";
+export type FlagKind =
+  | "underpriced"
+  | "unrated_seller"
+  | "duplicate_image"
+  | "new_account"
+  | "upheld_reports"
+  | "photo_of_verified_business";
 
 export interface Flag {
   /**
@@ -443,6 +459,14 @@ export function analyse(
             g.label === "used"
               ? `Priced well below the median of ${same.length} comparable used listings ${scope}.`
               : `Priced well below the median of ${same.length} comparable listings ${scope}.`,
+        });
+      } else if (l.seller.feedbackScore === 0 && totalPrice(l).amount < m * UNRATED_RATIO) {
+        const below = Math.round((1 - totalPrice(l).amount / m) * 100);
+        flags.push({
+          source: l.source,
+          listingId: l.id,
+          kind: "unrated_seller",
+          message: `The seller has no ratings yet, and the price is ${below}% below the median of ${same.length} comparable ${g.label === "used" ? "used " : ""}listings ${scope}.`,
         });
       }
     }

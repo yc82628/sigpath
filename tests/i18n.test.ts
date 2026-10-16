@@ -152,3 +152,10 @@ test("German prices and photo instructions", async () => {
     }
   }
 });
+
+test("the unrated-seller warning reads in German", () => {
+  assert.strictEqual(
+    translateCheck("The seller has no ratings yet, and the price is 37% below the median of 29 comparable used listings on eBay.", "de"),
+    "Der Verkäufer hat noch keine Bewertungen, und der Preis liegt 37 % unter dem Median von 29 vergleichbaren gebrauchten Angeboten auf eBay.",
+  );
+});

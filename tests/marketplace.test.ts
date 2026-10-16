@@ -1273,3 +1273,35 @@ test("Etsy listing proof names the shop the way search does, and needs an active
   assert.deepEqual(ok, { ok: true, handle: "shop:777", text: "Mug\nSIGPATH-ABCD-EFGH" });
   assert.equal((await new EtsySource(ETSY_ENV, listing("sold_out")).listingForProof("1012345")).ok, false);
 });
+
+// ---------------------------------------------------------------------------
+// A seller with no ratings, clearly below the market
+// ---------------------------------------------------------------------------
+
+test("no ratings and a price well below the market: flagged, with the gap in words", () => {
+  const unrated = listing({ id: "cheap", price: { amount: 6300, currency: "EUR" }, seller: { handle: "new_one", feedbackScore: 0 } });
+  const a = analyse([ok([...honest(MIN_SAMPLE), unrated])]);
+  const f = a.flags.filter((x) => x.listingId === "cheap");
+  assert.deepStrictEqual(f.map((x) => x.kind), ["unrated_seller"]);
+  assert.match(f[0].message, /^The seller has no ratings yet, and the price is 37% below the median of \d+ comparable listings on /);
+});
+
+test("no ratings is not flagged on its own: everyone starts at 0, and a fair price is fair", () => {
+  for (const amount of [10000, 8000, 7600]) {
+    const fair = listing({ id: "fair", price: { amount, currency: "EUR" }, seller: { handle: "new_one", feedbackScore: 0 } });
+    assert.ok(!analyse([ok([...honest(MIN_SAMPLE), fair])]).flags.some((x) => x.listingId === "fair"), `${amount / 100} EUR`);
+  }
+});
+
+test("a rated seller at the same price isn't flagged, nor one whose rating count isn't published", () => {
+  for (const seller of [{ handle: "old", feedbackScore: 250 }, { handle: "unknown" }]) {
+    const l = listing({ id: "x", price: { amount: 6300, currency: "EUR" }, seller });
+    assert.ok(!analyse([ok([...honest(MIN_SAMPLE), l])]).flags.some((f) => f.listingId === "x"), seller.handle);
+  }
+});
+
+test("far below the market is the price flag, not both", () => {
+  const l = listing({ id: "bait", price: { amount: Math.floor(10000 * UNDERPRICED_RATIO) - 100, currency: "EUR" }, seller: { handle: "n", feedbackScore: 0 } });
+  const kinds = analyse([ok([...honest(MIN_SAMPLE), l])]).flags.filter((f) => f.listingId === "bait").map((f) => f.kind);
+  assert.deepStrictEqual(kinds, ["underpriced"]);
+});
