@@ -17,7 +17,7 @@ export default async function ProofStrip() {
         <i aria-hidden="true" />
         {m.home.proofLive}
         {/* Test numbers say so: never taken for real sales. */}
-        {ON_DEVNET && " · devnet"}
+        {ON_DEVNET && ` · ${m.home.devnet}`}
       </span>
       <span>{m.home.proofLine(p.orders.fulfilled, p.orders.refunded, p.findings.length)}</span>
       <Link href="/proof">{m.home.proofLink}</Link>

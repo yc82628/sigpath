@@ -76,6 +76,7 @@ const en = {
     foundElsewhere: "Found it on Amazon or AliExpress?",
     checkThatPrice: "Check that price →",
     proofLive: "Live on Solana",
+    devnet: "devnet",
     proofLine: (paid: number, refunded: number, findings: number) =>
       `${paid} order${paid === 1 ? "" : "s"} paid out · ${refunded} refunded · ${findings} seller finding${findings === 1 ? "" : "s"} on record`,
     proofLink: "See the proof →",
@@ -439,6 +440,7 @@ const de: Messages = {
     foundElsewhere: "Bei Amazon oder AliExpress gefunden?",
     checkThatPrice: "Diesen Preis prüfen →",
     proofLive: "Live auf Solana",
+    devnet: "Devnet",
     proofLine: (paid, refunded, findings) =>
       `${paid} ${paid === 1 ? "Bestellung" : "Bestellungen"} ausgezahlt · ${refunded} erstattet · ${findings} ${findings === 1 ? "Befund" : "Befunde"} gegen Verkäufer`,
     proofLink: "Zum Nachweis →",
@@ -451,7 +453,7 @@ const de: Messages = {
       },
       {
         title: "Dein Geld, verwahrt von Code",
-        line: "Zahl in USDC, und ein Treuhandprogramm hält das Geld, bis deine Bestellung aufgegeben ist, oder schickt es dir von selbst zurück.",
+        line: "Zahle in USDC, und ein Treuhandprogramm hält das Geld, bis deine Bestellung aufgegeben ist, oder schickt es dir von selbst zurück.",
       },
       {
         title: "Nur echte Käufer können melden",
