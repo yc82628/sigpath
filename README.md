@@ -76,6 +76,15 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   "new" AirPods Pro 3 at €79.99 from a 0-rating seller, 36% below; both had
   been shown as best checked deals. The 6 other 0-rating sellers across five
   searches priced fairly and weren't flagged.
+- **A title that says used is read as used.** Sellers mark a console "new"
+  and title it "Zustand gut" or "TOP Zustand"; compared with new ones it looked
+  like the best new deal. "gebraucht", "wie neu", "Zustand gut", "used",
+  "pre-owned" and the like now make a listing sold as new (or of unknown
+  condition) count as used, with a note saying why (`usedFromTitle`,
+  identity.ts). Negations don't count ("nicht gebraucht", "never used",
+  "ungebraucht"), and refurbished stays refurbished: "wie neu" is how
+  refurbishers grade. On live eBay searches (2026-10-16) it moved 4 of 50 Switch
+  OLEDs, 6 of 50 iPhone 15s and 2 of 50 AirPods Pro.
 - **SigPath-checked first.** Every checked listing comes before any other;
   the rest follow in the order below (`checkedFirst`, label.ts), on the
   search page, in the API and for Ai-chan. Nothing is hidden.
@@ -186,7 +195,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 610 tests, as of 2026-10-16
+npm test                                   # 614 tests, as of 2026-10-16
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

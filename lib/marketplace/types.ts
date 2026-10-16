@@ -95,6 +95,12 @@ export interface Listing {
   /** Shipping, when the source separates it. Added before comparison. */
   shipping?: Money;
   condition: Condition;
+  /**
+   * The words in the title that made SigPath treat a listing sold as new (or
+   * of unknown condition) as used: "Zustand gut", "wie neu", "gebraucht".
+   * Set by search (usedFromTitle), shown to the shopper with the reason.
+   */
+  conditionFromTitle?: string;
   imageUrl?: string;
   /**
    * Perceptual or exact hash of the primary image, when we have one. Equal

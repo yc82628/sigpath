@@ -159,3 +159,10 @@ test("the unrated-seller warning reads in German", () => {
     "Der Verkäufer hat noch keine Bewertungen, und der Preis liegt 37 % unter dem Median von 29 vergleichbaren gebrauchten Angeboten auf eBay.",
   );
 });
+
+test("the used-from-title note reads in German", () => {
+  assert.strictEqual(
+    translateCheck(`Its title says "zustand gut", so it's treated as used, whatever the listing's condition says.`, "de"),
+    "Im Titel steht „zustand gut“, daher gilt es als gebraucht, egal welcher Zustand im Angebot steht.",
+  );
+});

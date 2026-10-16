@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { identify, sameProduct, describeSpecs } from "../lib/marketplace/identity";
+import { identify, sameProduct, describeSpecs, usedFromTitle } from "../lib/marketplace/identity";
 import { analyse } from "../lib/marketplace/anomaly";
 import { priceCheckFor } from "../lib/checkout/eligibility";
 import { withLabels } from "../lib/marketplace/label";
@@ -208,4 +208,20 @@ test("spare parts taken out of a phone are accessories, the phone isn't", () => 
     assert.strictEqual(identify(title, "iPhone 13").kind, "accessory", title);
   }
   assert.strictEqual(identify("Apple iPhone 13 mini 128GB 81% Midnight 12 Monate Gewährleistung", "iPhone 13").kind, "product");
+});
+
+test("a title that says used is read as used, whatever the condition field says", () => {
+  for (const [title, phrase] of [
+    ['Nintendo Switch OLED | V1/V2 | verschiedene Farben | Auswahl | Zustand "gut"', "zustand gut"],
+    ["Nintendo Switch OLED | Auswahl | TOP Zustand!", "top zustand"],
+    ["iPhone 15 128GB wie neu", "wie neu"],
+    ["AirPods Pro 2 gebraucht, funktioniert", "gebraucht"],
+    ["Sony WH-1000XM5 pre-owned black", "pre-owned"],
+    ["PS5 Digital Edition, leichte Gebrauchsspuren", "gebrauchsspuren"],
+  ]) {
+    assert.strictEqual(usedFromTitle(title), phrase, title);
+  }
+  for (const title of ["Apple AirPods Pro 2 ungebraucht OVP", "iPhone 15 nicht gebraucht, versiegelt", "Sony WH-1000XM5 never used", "Nintendo Switch OLED unused, sealed", "Apple iPhone 15 128GB Neu"]) {
+    assert.strictEqual(usedFromTitle(title), undefined, title);
+  }
 });

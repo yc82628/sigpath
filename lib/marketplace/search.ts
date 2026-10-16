@@ -14,6 +14,7 @@ import { listingKey, sellerKey, totalPrice } from "./types";
 import type { MarketplaceSource } from "./sources/types";
 import { analyse, type Analysis, type Flag } from "./anomaly";
 import { linkOutTargets, type LinkOut } from "./registry";
+import { usedFromTitle } from "./identity";
 
 export interface SearchResponse {
   query: string;
@@ -36,6 +37,17 @@ export interface SearchResponse {
 /** Cheapest first, by what the buyer actually pays. */
 function byTotalAscending(a: Listing, b: Listing): number {
   return totalPrice(a).amount - totalPrice(b).amount;
+}
+
+/**
+ * The condition the title states, when it says used and the listing says new
+ * (or nothing). Refurbished stays refurbished: "Wie neu" and "Sehr gut" are
+ * how refurbishers grade their stock.
+ */
+function readCondition(l: Listing): Listing {
+  if (l.condition === "used" || l.condition === "refurbished") return l;
+  const phrase = usedFromTitle(l.title);
+  return phrase ? { ...l, condition: "used", conditionFromTitle: phrase } : l;
 }
 
 /**
@@ -121,6 +133,8 @@ export function assembleSearch(
   context: { upheldReports?: ReadonlyMap<string, number> } = {},
 ): SearchResponse {
   const q = query.trim();
+  // A listing sold as new whose title says it's used ("Zustand gut") is compared with used ones.
+  results = results.map((r) => ({ ...r, listings: r.listings.map(readCondition) }));
   const listings = results.flatMap((r) => r.listings).sort(byTotalAscending);
   // A snapshot source with nothing to show (no Amazon prices shared yet) wasn't
   // really searched: it isn't listed as a marketplace, nor named as left out of

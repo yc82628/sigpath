@@ -159,6 +159,24 @@ const INCLUDED_AFTER = /^\s*(included|incl\b|inclusive|inklusive|dabei)/i;
 /** "not cracked", "no broken", "never water damaged", "isn't faulty", "nicht defekt" */
 const NEGATED_BEFORE = /(not|no|never|isn'?t|wasn'?t|without|zero|free of|nicht|kein|keine|keinen|ohne|nie)\s+(been\s+|any\s+)?$/i;
 
+/**
+ * Words in a title that say the item is used, whatever the marketplace's
+ * condition field says: sellers mark a console "new" and title it "Zustand
+ * gut". Compared with new ones, it then looks like a bargain.
+ */
+const USED_PHRASES = [
+  "gebraucht", "gebrauchte", "gebrauchter", "gebrauchtes", "gebrauchsspuren", "wie neu", "neuwertig",
+  "zustand gut", "zustand sehr gut", "zustand: gut", "zustand: sehr gut", "guter zustand", "sehr guter zustand",
+  "top zustand", "akzeptabler zustand", "used", "pre-owned", "preowned", "pre owned", "second hand", "secondhand",
+  "2nd hand", "like new", "very good condition", "good condition",
+];
+
+/** The used phrase in a title, unless negated ("nicht gebraucht", "never used"); "ungebraucht" never matches. */
+export function usedFromTitle(title: string): string | undefined {
+  const t = title.toLowerCase().replace(/["„“”'‚‘’]/g, " ");
+  return USED_PHRASES.find((p) => countsAs(t, p, NEGATED_BEFORE));
+}
+
 export function identify(title: string, query: string): Identity {
   const t = title.toLowerCase();
   const q = query.toLowerCase();

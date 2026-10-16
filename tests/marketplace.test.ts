@@ -1319,3 +1319,26 @@ test("results: SigPath-checked first, the rest after in the search's own order",
   assert.deepEqual(rest, order(raw.listings.map((l) => l.id).filter((id) => rest.includes(id))), "the rest keep their order");
   assert.equal(r.listings.length, raw.listings.length, "nothing is hidden");
 });
+
+test("results: a listing sold as new but titled used is compared, and shown, as used, with the reason", () => {
+  const used = Array.from({ length: MIN_SAMPLE }, (_, i) =>
+    listing({ id: `u${i}`, title: "Nintendo Switch OLED", condition: "used", price: { amount: 15000, currency: "EUR" }, seller: { handle: `u${i}` } }),
+  );
+  const fresh = Array.from({ length: MIN_SAMPLE }, (_, i) =>
+    listing({ id: `n${i}`, title: "Nintendo Switch OLED", condition: "new", price: { amount: 30000, currency: "EUR" }, seller: { handle: `n${i}` } }),
+  );
+  const mislabelled = listing({ id: "x", title: 'Nintendo Switch OLED Zustand "gut"', condition: "new", price: { amount: 14800, currency: "EUR" }, seller: { handle: "x" } });
+  const r = withLabels(assembleSearch("Nintendo Switch OLED", [ok([...used, ...fresh, mislabelled])]));
+  const x = r.listings.find((l) => l.id === "x")!;
+  assert.strictEqual(x.condition, "used");
+  assert.strictEqual(x.conditionFromTitle, "zustand gut");
+  assert.ok(x.check.points.some((p) => p.text.includes("treated as used")), "the shopper is told why");
+  const bestNew = r.bestCheckedDeals.find((d) => d.group === "new");
+  assert.ok(!bestNew || !bestNew.listing.endsWith(":x"), "never the best NEW deal");
+});
+
+test("results: a refurbished listing graded \"wie neu\" stays refurbished", () => {
+  const r = assembleSearch("iPhone 15", [ok([listing({ id: "r", title: "Apple iPhone 15 128GB Wie Neu", condition: "refurbished" })])]);
+  assert.strictEqual(r.listings[0].condition, "refurbished");
+  assert.strictEqual(r.listings[0].conditionFromTitle, undefined);
+});
