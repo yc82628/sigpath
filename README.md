@@ -85,6 +85,15 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   "ungebraucht"), and refurbished stays refurbished: "wie neu" is how
   refurbishers grade. On live eBay searches (2026-10-16) it moved 4 of 50 Switch
   OLEDs, 6 of 50 iPhone 15s and 2 of 50 AirPods Pro.
+- **The market right now, and a deal score.** Each search opens with what the
+  product costs: per condition, the typical price, the range most offers fall
+  in (the middle 80%), how many were compared, and a small chart of where the
+  prices sit, the typical price marked (`marketSnapshot`,
+  lib/marketplace/market.ts). Every SigPath-checked listing shows how far it is
+  from the typical price of the listings it was compared with ("−20% vs
+  typical", green from 10% below). Only compared listings count, so a charging
+  case never drags the range down, and a flagged listing gets no score: its
+  "−60%" is bait, not a deal.
 - **Filter and sort.** Above the results: condition (new, refurbished, used),
   marketplace, a price range, SigPath-checked only, hide accessories and parts,
   and sort by best match or price either way. A plain GET form, so the choices
@@ -203,7 +212,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 620 tests, as of 2026-10-16
+npm test                                   # 624 tests, as of 2026-10-17
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

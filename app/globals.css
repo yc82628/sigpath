@@ -1394,3 +1394,26 @@ a.chat-card-title:hover { text-decoration: underline; }
   .filter-bar button { flex: 1 1 100%; }
   .filter-bar .filter-note { display: none; }
 }
+
+/* The market right now: per condition, the typical price, the usual range, and where prices sit. */
+.market-now { margin: 14px 0 10px; }
+.market-now h2 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 8px; }
+.market-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.market-group {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.market-label { font-size: 0.78rem; font-weight: 800; color: var(--brand); text-transform: uppercase; letter-spacing: 0.04em; }
+.market-typical { color: var(--muted); }
+.market-typical b { font-family: var(--font-display); font-size: 1.6rem; color: var(--fg); }
+.market-bars { display: flex; align-items: flex-end; gap: 3px; height: 44px; margin-top: 8px; }
+.market-bars i { flex: 1; min-height: 3px; border-radius: 3px 3px 0 0; background: var(--brand-soft); }
+.market-bars i.typical { background: var(--brand); }
+.market-ends { display: flex; justify-content: space-between; font-size: 0.75rem; }
+.market-scope { margin: 4px 0 12px; }
+
+/* A checked listing's distance from the typical price. */
+.deal-chip { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; white-space: nowrap; }
+.deal-chip.good { background: var(--ok-soft); color: var(--ok); }
+.deal-chip.fair { background: var(--surface-2); color: var(--muted); }
+.deal-chip.high { background: var(--warn-soft); color: var(--warn); }

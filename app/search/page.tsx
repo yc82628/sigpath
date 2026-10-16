@@ -28,6 +28,7 @@ import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 import { applyFilters, filterHref, isFiltered, parseFilters, type Filters } from "@/lib/marketplace/filters";
+import { dealScore, dealTone, marketSnapshot, type MarketGroup } from "@/lib/marketplace/market";
 
 const marketLabel = (id: string) =>
   MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id === "feed" ? "Partner feeds" : id);
@@ -79,6 +80,7 @@ function ListingRow({
   badge,
   business,
   label,
+  deal = null,
 }: {
   listing: Listing;
   flags: Flag[];
@@ -86,6 +88,8 @@ function ListingRow({
   badge: BadgeView | null;
   business: BusinessBadge | null;
   label: CheckLabel;
+  /** How far from the typical price of what it was compared with; checked listings only. */
+  deal?: { pct: number; typical: Money } | null;
 }) {
   const total = totalPrice(listing);
   const shipping = listing.shipping?.amount ?? 0;
@@ -235,6 +239,11 @@ function ListingRow({
         {money(total)}
         {/* No shipping from the marketplace (AliExpress, Amazon sightings) is unknown shipping, not free shipping. */}
         <span className="ship">{!listing.shipping ? m.listing.plusShipping : shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
+        {deal && (
+          <span className={`deal-chip ${dealTone(deal.pct)}`} title={m.listing.dealTitle(money(deal.typical))}>
+            {m.listing.deal(deal.pct)}
+          </span>
+        )}
       </div>
     </article>
   );
@@ -373,6 +382,52 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
 }
 
 /**
+ * What the product costs right now (lib/marketplace/market.ts): per condition,
+ * the typical price, the range most offers fall in, how many were compared,
+ * and a small histogram of where the prices sit, the typical price marked.
+ */
+function MarketOverview({ groups, currency }: { groups: MarketGroup[]; currency: string }) {
+  const { m } = i18n();
+  if (!groups.length) return null;
+  const at = (amount: number) => money({ amount, currency });
+  return (
+    <section className="market-now" aria-labelledby="market-title">
+      <h2 id="market-title">{m.search.market.title}</h2>
+      <div className="market-groups">
+        {groups.map((g) => {
+          const peak = Math.max(...g.bins);
+          return (
+            <div key={g.group} className="market-group">
+              <span className="market-label">{g.group === "used" ? m.search.market.usedLabel : m.search.market.newLabel}</span>
+              <span className="market-typical">
+                <b>{at(g.typical)}</b> {m.search.market.typical}
+              </span>
+              <span className="hint">
+                {m.search.market.range(at(g.low), at(g.high))} · {m.search.market.offers(g.count)}
+              </span>
+              <div className="market-bars" role="img" aria-label={m.search.market.chart(at(g.min), at(g.max))}>
+                {g.bins.map((n, i) => (
+                  <i
+                    key={i}
+                    className={i === g.typicalBin ? "typical" : undefined}
+                    style={{ height: `${Math.max(6, Math.round((n / peak) * 100))}%`, opacity: n ? 1 : 0.25 }}
+                    title={i === g.typicalBin ? m.search.market.typicalMark : undefined}
+                  />
+                ))}
+              </div>
+              <span className="market-ends hint" aria-hidden="true">
+                <span>{at(g.min)}</span>
+                <span>{at(g.max)}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
  * Filters and sort, as a plain GET form: the choices land in the address, so
  * they can be shared and work without JavaScript (lib/marketplace/filters.ts).
  */
@@ -473,6 +528,12 @@ async function SearchResults({
   // SigPath-checked first; the rest follows in the search's own order (checkedFirst). Then the
   // shopper's filters and sort (lib/marketplace/filters.ts), which never change a verdict.
   const shown = applyFilters(checkedFirst(result?.listings ?? [], labelOf), filters, labelOf, a.identities ?? {});
+  const dealOf = (l: Listing) => {
+    if (labelOf(l).verdict !== "checked") return null;
+    const pct = dealScore(l, a);
+    const median = a.comparisons[listingKey(l)]?.median;
+    return pct === null || median === undefined ? null : { pct, typical: { amount: median, currency: totalPrice(l).currency } };
+  };
   const checkedCount = (result?.listings ?? []).filter((l) => labelOf(l).verdict === "checked").length;
 
   // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
@@ -524,8 +585,9 @@ async function SearchResults({
         ))}
       </ul>
 
+      {a?.status === "ok" && <MarketOverview groups={marketSnapshot(result.listings, a)} currency={a.currency!} />}
       {a?.status === "ok" ? (
-        <p className="notice">
+        <p className="hint market-scope">
           {/* New and used are compared separately, each against its own
               median — so both are shown when both could be computed. */}
           {m.search.median(
@@ -620,6 +682,8 @@ async function SearchResults({
               badge={badgeOf(l)}
               business={businessOf(l)}
               label={labelOf(l)}
+              // A score only where SigPath vouches for the price: a flagged "−60%" is bait, not a deal.
+              deal={dealOf(l)}
             />
           ))}
         </>
