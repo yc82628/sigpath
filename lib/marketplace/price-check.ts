@@ -14,8 +14,9 @@
 import { searchAll } from "./search";
 import { defaultSources } from "./sources";
 import type { MarketplaceSource } from "./sources/types";
-import { withLabels } from "./label";
+import { bestCheckedDeals, withLabels } from "./label";
 import { listingKey, type Listing, type MarketplaceId, type Money } from "./types";
+import { sameProduct, VARIANT_WORDS } from "./identity";
 import { DecisionLog } from "../reports/reports";
 
 const SYMBOLS: [RegExp, string][] = [
@@ -48,19 +49,40 @@ const GENERIC = new Set([
   "with", "mit", "for", "für", "and", "und", "inkl", "inkl.", "including", "new", "neu", "original", "genuine",
 ]);
 
+/** Words after a dash or in brackets that change which model it is: "Nintendo Switch – OLED-Modell". */
+const QUALIFIERS = new Set([...VARIANT_WORDS, "digital"]);
+
 /**
  * A shop's title -> an eBay search. Shop titles run long ("Apple AirPods Pro 2
  * Wireless Earbuds, Up to 2x More..."), and SigPath only compares listings
  * whose titles name every searched word, so the search must be just the model:
  * the name before the first comma, bracket or dash, cut at the first word that
  * describes rather than names (never the first two), at most six words.
+ *
+ * Shops put model words after a dash or in brackets too: "Nintendo Switch –
+ * OLED-Modell", "PlayStation 5 Konsole – Digital Edition (Slim)". Searched
+ * without them, an OLED was priced against the cheaper plain Switch. So the
+ * first such word (VARIANT_WORDS, or "digital") joins the search, from the
+ * part before the first comma only. One word, not all: eBay titles name a
+ * "PlayStation 5 Digital Edition Slim" in any order, and a longer search
+ * names fewer of them.
  */
 export function shortQuery(title: string): string {
-  const head = title.replace(/[®™©]/g, " ").split(/,|\(|\[|\s[-–—|]\s/)[0];
-  const words = head.trim().split(/\s+/).filter(Boolean);
+  const clean = title.replace(/[®™©]/g, " ");
+  const [first, ...rest] = clean.split(",")[0].split(/\(|\)|\[|\]|\s[-–—|]\s/);
+  const words = first.trim().split(/\s+/).filter(Boolean);
   const cut = words.findIndex((w, i) => i >= 2 && GENERIC.has(w.toLowerCase()));
-  return (cut >= 0 ? words.slice(0, cut) : words).slice(0, 6).join(" ");
+  const base = (cut >= 0 ? words.slice(0, cut) : words).slice(0, 6);
+  const has = new Set(base.flatMap((w) => w.toLowerCase().split("-")));
+  const extra = rest
+    .flatMap((seg) => seg.split(/[\s-]+/))
+    .filter((w) => QUALIFIERS.has(w.toLowerCase()) && !has.has(w.toLowerCase()) && (has.add(w.toLowerCase()), true));
+  return [...base, ...extra.slice(0, 1)].slice(0, 6).join(" ");
 }
+
+/** What a product is, said in passing in a shop's title ("PlayStation 5 Konsole – Digital Edition"). */
+const CATEGORY_NOUNS =
+  /(^|\s)(konsole|console|spielkonsole|smartphone|handy|laptop|notebook|tablet|kopfhörer|kopfhorer|kopfhoerer|ohrhörer|ohrhorer|headphones|earbuds|earphones|headset)(?=\s|$)/gi;
 
 export const SHOPS: Record<string, { source: MarketplaceId; label: string }> = {
   amazon: { source: "amazon", label: "Amazon" },
@@ -89,7 +111,9 @@ export async function checkPrice(
   const product: Listing = {
     id: "checked-price",
     source: shop.source,
-    title: input.title,
+    // Compared without the category nouns shops add, so "PlayStation 5 Konsole – Digital Edition"
+    // still names the "PlayStation 5 Digital" it is searched as. Shown with its own title.
+    title: input.title.replace(CATEGORY_NOUNS, "$1").replace(/\s+/g, " ").trim(),
     url: input.url ?? "",
     price: input.price,
     condition: "new",
@@ -109,11 +133,20 @@ export async function checkPrice(
   return {
     query,
     shop: shop.label,
-    product: labelled.listings.find((l) => listingKey(l) === key)!,
+    product: { ...labelled.listings.find((l) => listingKey(l) === key)!, title: input.title },
     comparison: raw.analysis.comparisons[key] ?? null,
     ebay: { status: ebayStatus?.status ?? "error", count: ebayStatus?.count ?? 0 },
-    bestEbay: labelled.bestCheckedDeals
-      .filter((d) => d.listing.startsWith("ebay:"))
-      .map((d) => ({ ...d, listing: labelled.listings.find((l) => listingKey(l) === d.listing)! })),
+    // The cheapest checked eBay deal per condition on the same product as the one checked: same
+    // model, variant, generation and size. Taken from the whole search, a Kindle Paperwhite check
+    // offered a 5th-generation one and a 256 GB phone a 512 GB one.
+    bestEbay: bestCheckedDeals(
+      labelled.listings.filter((l) => {
+        const mine = raw.analysis.identities[key];
+        const theirs = raw.analysis.identities[listingKey(l)];
+        return l.source === "ebay" && !!mine && !!theirs && sameProduct(mine, theirs);
+      }),
+      (l) => (l as (typeof labelled.listings)[number]).check,
+      raw.analysis,
+    ).map((d) => ({ ...d, listing: d.listing as (typeof labelled.listings)[number], belowMedian: d.belowMedian ?? null })),
   };
 }

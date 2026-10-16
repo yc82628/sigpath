@@ -74,7 +74,7 @@ const PARTS_PHRASES = [
   "faulty", "defective", "cracked", "smashed", "water damaged", "won't turn on", "no power", "icloud locked", "activation locked",
   "blacklisted", "bad esn", "as is, untested", "untested",
   "defekt", "kaputt", "für bastler", "bastlerware", "funktioniert nicht", "nicht funktionsfähig", "ersatzteil",
-  "als ersatzteil", "gesperrt", "icloud gesperrt", "displaybruch", "wasserschaden",
+  "als ersatzteil", "gesperrt", "icloud gesperrt", "displaybruch", "wasserschaden", "scharnierbruch", "gehäusebruch",
   "gesprungen", "glasbruch", "riss", "risse", "gerissen", "beschädigt", "beschaedigt", "displayschaden",
   "defekte", "defekter", "defektes", "defektem", "beschädigte", "beschädigter", "beschädigtes",
   // Locked to someone else's Apple account: it can't be set up, so it isn't the working product.
@@ -105,7 +105,7 @@ const COMES_WITH = /(^|[^a-z0-9])(mit|inkl\.?|inklusive|und|samt|with|incl\.?|in
  * Model words that change what the product is. "Pro" is not a "Pro Max";
  * an "X1 Carbon" is not an "X1 Yoga"; a Switch OLED is not a Switch.
  */
-const VARIANT_WORDS = [
+export const VARIANT_WORDS = [
   "pro", "max", "plus", "mini", "ultra", "lite", "air", "se", "fe", "xl", "slim", "carbon", "yoga", "nano", "fold", "flip",
   "oled", "studio", "edge", "neo", "go",
 ];
@@ -173,7 +173,9 @@ export function identify(title: string, query: string): Identity {
     PART_ALONE_WORDS.find((p) => {
       if (hasPhrase(q, p) || !hasPhrase(t, p)) return false;
       const at = t.search(phraseRegex(p));
-      return !COMES_WITH.test(t.slice(Math.max(0, at - 30), at));
+      // A shop's feature list ("AirPods Pro 2 Kabellose Ohrhörer, …, USB‑C Ladecase") names the
+      // part after a comma: one feature of the product, not the part alone.
+      return !COMES_WITH.test(t.slice(Math.max(0, at - 30), at)) && !t.slice(0, at).includes(",");
     });
   if (parts) {
     kind = "parts";

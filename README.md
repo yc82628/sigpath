@@ -183,7 +183,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 605 tests, as of 2026-10-16
+npm test                                   # 609 tests, as of 2026-10-16
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -578,6 +578,27 @@ product** (`/check`, [lib/marketplace/price-check.ts](lib/marketplace/price-chec
    verdict an eBay listing would: compared only with the same model,
    configuration and condition, and flagged if it's far below them. The page
    also shows the best checked eBay deals for it.
+
+**Fixed 2026-10-16, after noise in the extension's panel** (eight real Amazon.de
+titles against live eBay):
+
+- Model words after a dash or in brackets were dropped: "Nintendo Switch –
+  OLED-Modell" searched as "Nintendo Switch" and was priced against the
+  cheaper plain Switch. The first such word (`VARIANT_WORDS`, or "digital")
+  now joins the search: "Nintendo Switch OLED", "PlayStation 5 Digital".
+- The "best eBay deals" came from the whole search: a Kindle Paperwhite check
+  offered a 5th-generation one, a 256 GB phone a 512 GB one. Now only the same
+  product counts (`sameProduct`: model, variant, generation, size). A title
+  that doesn't say its generation still can't be told apart.
+- "…, USB‑C Ladecase" in a feature list read as the charging case alone, so
+  AirPods Pro 2 weren't compared at all; a part named after a comma is a
+  feature now. Category nouns a shop adds ("PlayStation 5 Konsole – Digital
+  Edition") no longer stop the shop's own title naming its model.
+- "Scharnierbruch" (broken hinge) counts as for parts; one was a "best used"
+  deal.
+
+All of it is on the server: the extension itself didn't change, so no new
+store upload.
 
 Prices parse as shops print them: "1.249,00 €", "€1,249.00", "US $23.50",
 "RM 99" (`parsePrice`). With eBay not answering, there's no comparison and the

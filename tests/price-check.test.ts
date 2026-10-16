@@ -71,3 +71,62 @@ test("with eBay not answering there's no comparison, and no verdict pretends oth
   assert.equal(r.comparison, null);
   assert.notEqual(r.product.check.verdict, "checked");
 });
+
+test("model words after a dash or in brackets stay in the search, one of them", () => {
+  assert.equal(shortQuery("Nintendo Switch – OLED-Modell, Weiß"), "Nintendo Switch OLED", "an OLED was priced against the plain Switch");
+  assert.equal(shortQuery("PlayStation 5 Konsole – Digital Edition (Slim)"), "PlayStation 5 Digital");
+  assert.equal(shortQuery("Apple iPhone 15 (128 GB) - Schwarz"), "Apple iPhone 15", "a colour or a size isn't a model word");
+  assert.equal(shortQuery("Kindle Paperwhite (16 GB) – Jetzt mit 7-Zoll-Display"), "Kindle Paperwhite");
+  assert.equal(shortQuery("Apple Watch Series 9 – GPS, 45 mm"), "Apple Watch Series 9");
+});
+
+const titled = (items: [string, number][]): MarketplaceSource => ({
+  id: "ebay",
+  search: async () => ({
+    source: "ebay",
+    status: "ok",
+    listings: items.map(
+      ([title, amount], i): Listing => ({
+        id: String(i), source: "ebay", title, url: `https://ebay.de/${i}`, condition: "new",
+        price: { amount, currency: "EUR" }, shipping: { amount: 0, currency: "EUR" }, seller: { handle: `s${i}`, feedbackScore: 100 },
+      }),
+    ),
+  }),
+});
+
+test("a shop's feature list naming the charging case is the product, not the case alone", async () => {
+  const r = await checkPrice(
+    { title: "Apple AirPods Pro 2 Kabellose Ohrhörer, Aktive Geräuschunterdrückung, Hörgerätfunktion, USB‑C Ladecase", price: { amount: 22900, currency: "EUR" }, from: "amazon" },
+    {},
+    [ebaySource([24000, 24500, 25000, 25500, 26000, 23500])],
+  );
+  assert.equal(r.product.check.verdict, "checked");
+  assert.ok(r.comparison, "compared with the eBay listings");
+});
+
+test("the best eBay deals shown are the same product: never another size, nor another model", async () => {
+  const r = await checkPrice(
+    { title: "Apple iPhone 15 (128 GB) - Schwarz", price: { amount: 69900, currency: "EUR" }, from: "amazon" },
+    {},
+    [
+      titled([
+        ...Array.from({ length: 6 }, (_, i): [string, number] => [`Apple iPhone 15 128GB Schwarz ${i}`, 60000 + i * 1000]),
+        ...Array.from({ length: 6 }, (_, i): [string, number] => [`Apple iPhone 15 512GB Blau ${i}`, 50000 + i * 1000]),
+      ]),
+    ],
+  );
+  assert.ok(r.bestEbay.length > 0);
+  assert.ok(r.bestEbay.every((d) => /128GB/.test(d.listing.title)), r.bestEbay.map((d) => d.listing.title).join(" | "));
+  assert.equal(r.product.title, "Apple iPhone 15 (128 GB) - Schwarz", "shown with the shop's own title");
+});
+
+test("a console checked as \"PlayStation 5 Konsole – Digital Edition\" is still compared", async () => {
+  const r = await checkPrice(
+    { title: "PlayStation 5 Konsole – Digital Edition (Slim)", price: { amount: 39999, currency: "EUR" }, from: "amazon" },
+    {},
+    [titled(Array.from({ length: 6 }, (_, i): [string, number] => [`Sony PlayStation 5 Digital Edition Slim ${i}`, 40000 + i * 1000]))],
+  );
+  assert.equal(r.query, "PlayStation 5 Digital");
+  assert.equal(r.product.title, "PlayStation 5 Konsole – Digital Edition (Slim)");
+  assert.ok(r.comparison, "compared, though the shop says \"Konsole\" in between");
+});
