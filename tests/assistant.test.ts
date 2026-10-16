@@ -11,6 +11,7 @@ import {
   GROQ_DEFAULT_MODEL,
   ModelApiError,
   openAICompatModel,
+  tuning,
   withBackup,
   type ChatModel,
   type StreamingClient,
@@ -535,4 +536,24 @@ test("assistant: on German pages the added warning is German too", async () => {
   const text = events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join("");
   assert.ok(text.includes("Achtung:") && text.includes("Genauer hinsehen"));
   assert.ok(!text.includes("Heads up"));
+});
+
+test("config: Gemini and gpt-oss get their settings whether they lead or back up", () => {
+  const GEMINI = "https://generativelanguage.googleapis.com/v1beta/openai";
+  assert.deepStrictEqual(tuning(GEMINI, "gemini-3.5-flash"), { reasoningEffort: "low", maxTokens: 4096 });
+  assert.deepStrictEqual(tuning(GROQ_BASE_URL, GROQ_DEFAULT_MODEL), { reasoningEffort: "low", maxTokens: 2048 });
+  assert.deepStrictEqual(tuning("http://localhost:11434/v1", "qwen2.5:7b"), {});
+  // Groq leading, Gemini behind it: both found from the configuration alone.
+  const swapped = assistantConfig({
+    ASSISTANT_PROVIDER: "openai",
+    ASSISTANT_BASE_URL: GROQ_BASE_URL,
+    ASSISTANT_MODEL: GROQ_DEFAULT_MODEL,
+    ASSISTANT_API_KEY: "gsk_x",
+    ASSISTANT_BACKUP_BASE_URL: GEMINI,
+    ASSISTANT_BACKUP_MODEL: "gemini-3.5-flash",
+    ASSISTANT_BACKUP_API_KEY: "g",
+    GROQ_API_KEY: "gsk_x",
+  });
+  assert.strictEqual(swapped?.baseUrl, GROQ_BASE_URL);
+  assert.deepStrictEqual(swapped?.backup, { baseUrl: GEMINI, model: "gemini-3.5-flash", apiKey: "g" }, "the explicit backup wins over GROQ_API_KEY");
 });

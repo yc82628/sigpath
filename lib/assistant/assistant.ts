@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { translateCheck } from "../i18n/checks";
+import { mentionsAmount } from "./plain";
 import { SEARCH_TOOL, SearchInput, filterResults, type AssistantCard, type AssistantResults } from "./search-tool";
 import type { LabelledSearch } from "../marketplace/labelled-search";
 import type { ChatModel, ChatMsg } from "./models";
@@ -129,8 +130,7 @@ export async function runAssistant(req: ChatRequest, emit: (e: AssistantEvent) =
   }
   // Nor may the warning: a flagged listing the reply never mentioned gets one plain line.
   for (const c of flagged.values()) {
-    const amount = c.total.split(" ")[0];
-    if (said.includes(amount)) continue;
+    if (mentionsAmount(said, c.total)) continue;
     const reason = c.reasons[0] ? translateCheck(c.reasons[0], de ? "de" : "en") : "";
     say(
       (de

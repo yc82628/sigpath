@@ -154,7 +154,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 591 tests, as of 2026-10-15
+npm test                                   # 594 tests, as of 2026-10-16
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -809,7 +809,7 @@ checked-only, verified sellers), runs SigPath's real search and verdicts, and
 answers in a few sentences, with the results as cards in the chat.
 
 - **One tool, the real pipeline:** `search_deals` ([lib/assistant/search-tool.ts](lib/assistant/search-tool.ts)) filters the same labelled search as the results page, so the assistant cannot give a verdict the site would not.
-- **Honest by construction:** its picks are checked listings only. The cheapest "look closer" listing is always shown last as a warning, with its reason. The prompt forbids "safe", "genuine", "guaranteed", "risk-free" and "buy without worry". Neither the warning nor the disclaimer depends on the model: a reply that never names a flagged listing gets the warning added by the server, and one that showed checked listings without saying "not a guarantee" gets that line added, in German on German pages (`NOT_A_GUARANTEE`, assistant.ts). The Groq backup, for one, tends to leave it out.
+- **Honest by construction:** its picks are checked listings only. The cheapest "look closer" listing is always shown last as a warning, with its reason. The prompt forbids "safe", "genuine", "guaranteed", "risk-free" and "buy without worry". Neither the warning nor the disclaimer depends on the model: a reply that never names a flagged listing gets the warning added by the server, and one that showed checked listings without saying "not a guarantee" gets that line added, in German on German pages (`NOT_A_GUARANTEE`, assistant.ts). The Groq backup, for one, tends to leave it out. Whether a reply already named a flagged price is read the way models write prices (26.00 EUR, 26,00 €, €26; a number without a currency doesn't count), and bold or bullet markers some models add anyway are dropped when the chat shows the reply (`lib/assistant/plain.ts`).
 - **Listing text is data:** titles come from marketplaces, and the prompt says to ignore any instructions inside them.
 - **Streaming:** `/api/assistant` streams newline-delimited JSON events (words, "searching", result cards). At most 3 searches per turn; the last round must answer in words.
 - **No memory, no log:** the conversation lives in the browser and is sent each turn. Nothing is stored. Errors are logged by status only.
@@ -834,6 +834,13 @@ answers in a few sentences, with the results as cards in the chat.
   (status and code only), `GET /api/assistant` names the backup model, and
   `/privacy` names both providers. As before, no AliExpress or Etsy listing
   reaches either model (`withoutSiteOnly`).
+  Which model leads is configuration only: Gemini's and gpt-oss's settings
+  (`tuning`) follow the model wherever it sits. Measured on 2026-10-15/16,
+  Gemini `gemini-3.5-flash` took 19–60 s per answer while Groq's
+  `openai/gpt-oss-120b` took 1–2 s, so the live site leads with Groq
+  (`ASSISTANT_BASE_URL=https://api.groq.com/openai/v1`,
+  `ASSISTANT_MODEL=openai/gpt-oss-120b`, the Groq key in `ASSISTANT_API_KEY`)
+  and keeps Gemini as the backup (`ASSISTANT_BACKUP_*`).
 
 ```bash
 ollama pull qwen2.5:7b

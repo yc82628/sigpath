@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { plainText } from "@/lib/assistant/plain";
 import { useCheckText, useLang, useMessages } from "./I18n";
 import type { AssistantEvent } from "@/lib/assistant/assistant";
 import type { AssistantCard, AssistantResults } from "@/lib/assistant/search-tool";
@@ -222,7 +223,7 @@ export default function Assistant({ poweredBy }: { poweredBy: string }) {
         )}
         {turns.map((t, i) => (
           <div key={i} className={`chat-turn ${t.role}`}>
-            {t.content && <p className="chat-bubble">{t.content}</p>}
+            {t.content && <p className="chat-bubble">{plainText(t.content)}</p>}
             {t.searching && <p className="chat-note">{m.ai.searchingFor(t.searching)}</p>}
             {t.results?.map((r, j) => <Results key={j} r={r} />)}
             {t.role === "assistant" && busy && i === turns.length - 1 && !t.content && !t.searching && !t.results && (

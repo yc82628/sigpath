@@ -414,10 +414,21 @@ function backupModel(b: BackupConfig): ChatModel {
     model: b.model,
     apiKey: b.apiKey,
     label: `backup:${b.model}`,
-    // gpt-oss thinks before it answers; low keeps the chat quick, and the budget covers both.
-    ...(/gpt-oss/.test(b.model) ? { reasoningEffort: "low" as const, maxTokens: 2048 } : {}),
+    ...tuning(b.baseUrl, b.model),
     timeoutMs: 45_000,
   });
+}
+
+/**
+ * Settings some models need, wherever they sit (main or backup), so swapping
+ * which one leads is configuration only.
+ */
+export function tuning(baseUrl: string, model: string): Pick<OpenAICompatOptions, "reasoningEffort" | "maxTokens"> {
+  // Gemini 3 always thinks, by default at length; low keeps the chat responsive.
+  if (/generativelanguage\.googleapis\.com/.test(baseUrl)) return { reasoningEffort: "low", maxTokens: 4096 };
+  // gpt-oss thinks before it answers too; the budget covers both.
+  if (/gpt-oss/.test(model)) return { reasoningEffort: "low", maxTokens: 2048 };
+  return {};
 }
 
 /**
@@ -456,14 +467,12 @@ export function withBackup(main: ChatModel, backup: ChatModel, onFallback?: (pri
 
 function mainModel(c: AssistantConfig): ChatModel {
   if (c.provider === "anthropic") return anthropicModel(new Anthropic(), c.model);
-  const gemini = /generativelanguage\.googleapis\.com/.test(c.baseUrl!);
   return openAICompatModel({
     baseUrl: c.baseUrl!,
     model: c.model,
     apiKey: c.apiKey,
     label: `${c.provider}:${c.model}`,
-    // Gemini 3 always thinks, by default at length; low keeps the chat responsive.
-    ...(gemini ? { reasoningEffort: "low" as const, maxTokens: 4096 } : {}),
+    ...tuning(c.baseUrl!, c.model),
     // A hosted API should answer well within this; a local model may still be loading.
     ...(c.provider === "openai" ? { timeoutMs: 45_000 } : {}),
   });
