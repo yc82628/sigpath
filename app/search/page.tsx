@@ -5,6 +5,7 @@ import { looksLikeLink, queryFromLink } from "@/lib/marketplace/link-query";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
 import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
+import { cachedSources } from "@/lib/marketplace/search-cache";
 import { totalPrice, type Listing, type Money, type SourceResult } from "@/lib/marketplace/types";
 import { decimalText, moneyText } from "@/lib/i18n/money";
 import type { Flag } from "@/lib/marketplace/anomaly";
@@ -26,6 +27,7 @@ import { getLang } from "@/lib/i18n/server";
 import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
+import { applyFilters, filterHref, isFiltered, parseFilters, type Filters } from "@/lib/marketplace/filters";
 
 const marketLabel = (id: string) =>
   MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id === "feed" ? "Partner feeds" : id);
@@ -241,7 +243,7 @@ function ListingRow({
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: { q?: string; checked?: string; link?: string };
+  searchParams: { q?: string; checked?: string; link?: string; cond?: string; market?: string; min?: string; max?: string; products?: string; sort?: string };
 }) {
   // A pasted product link: search for the product named in it (lib/marketplace/link-query.ts). The shop's page is
   // never fetched. A link with no name in it is said so, rather than searched for as text.
@@ -251,7 +253,8 @@ export default async function SearchPage({
   const unreadableLink = looksLikeLink(raw);
   const q = unreadableLink ? "" : raw.slice(0, 120);
   const linkShop = (searchParams.link ?? "").trim().slice(0, 40);
-  const checkedOnly = searchParams.checked === "1";
+  const filters = parseFilters(searchParams);
+  const checkedOnly = filters.checkedOnly;
   const { m } = i18n();
   // Public by design: browsers need it to subscribe. Alerts are offered only when it's set.
   const vapidKey = process.env.VAPID_PUBLIC_KEY?.trim() || null;
@@ -264,7 +267,8 @@ export default async function SearchPage({
   // refuses — so nothing streamed early carries a verdict or a pay button.
   // Every search is an eBay call against the site's daily quota: a script gets a pause, not the quota.
   const tooMany = q && (await limitedMessage(headers(), RULES.search)) ? m.search.tooMany : null;
-  const sources = q && !tooMany ? defaultSources() : [];
+  // Kept three minutes (search-cache.ts): changing a filter re-asks nobody.
+  const sources = q && !tooMany ? cachedSources(defaultSources()) : [];
   const pending = q && !tooMany ? startSearch(q, sources, { limit: 20 }) : [];
 
   return (
@@ -290,8 +294,8 @@ export default async function SearchPage({
 
       {tooMany && <p className="notice withheld">{tooMany}</p>}
       {q && !tooMany && (
-        <Suspense key={`${q}|${checkedOnly}`} fallback={<SearchProgress ids={sources.map((s) => s.id)} pending={pending} />}>
-          <SearchResults q={q} checkedOnly={checkedOnly} vapidKey={vapidKey} pending={pending} />
+        <Suspense key={filterHref(q, filters)} fallback={<SearchProgress ids={sources.map((s) => s.id)} pending={pending} />}>
+          <SearchResults q={q} filters={filters} vapidKey={vapidKey} pending={pending} />
         </Suspense>
       )}
     </main>
@@ -368,15 +372,78 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
   );
 }
 
+/**
+ * Filters and sort, as a plain GET form: the choices land in the address, so
+ * they can be shared and work without JavaScript (lib/marketplace/filters.ts).
+ */
+function FilterBar({ q, filters, markets }: { q: string; filters: Filters; markets: string[] }) {
+  const { m } = i18n();
+  const f = m.search.filters;
+  const eur = (cents: number | null) => (cents === null ? "" : String(cents / 100));
+  return (
+    <form className="filter-bar" method="GET" action="/search" aria-label={f.title}>
+      <input type="hidden" name="q" value={q} />
+      <label>
+        <span>{f.condition}</span>
+        <select name="cond" aria-label={f.condition} defaultValue={filters.condition}>
+          <option value="any">{f.any}</option>
+          <option value="new">{f.new}</option>
+          <option value="refurbished">{f.refurbished}</option>
+          <option value="used">{f.used}</option>
+        </select>
+      </label>
+      {markets.length > 1 && (
+        <label>
+          <span>{f.market}</span>
+          <select name="market" aria-label={f.market} defaultValue={filters.market ?? ""}>
+            <option value="">{f.allMarkets}</option>
+            {markets.map((id) => (
+              <option key={id} value={id}>
+                {marketLabel(id)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <fieldset>
+        <legend>{f.price}</legend>
+        <input name="min" inputMode="decimal" placeholder={f.min} aria-label={`${f.price} ${f.min}`} defaultValue={eur(filters.min)} />
+        <span aria-hidden="true">–</span>
+        <input name="max" inputMode="decimal" placeholder={f.max} aria-label={`${f.price} ${f.max}`} defaultValue={eur(filters.max)} />
+      </fieldset>
+      <label>
+        <span>{f.sort}</span>
+        <select name="sort" aria-label={f.sort} defaultValue={filters.sort}>
+          <option value="best">{f.best}</option>
+          <option value="price">{f.priceUp}</option>
+          <option value="price-desc">{f.priceDown}</option>
+        </select>
+      </label>
+      <label className="filter-check">
+        <input type="checkbox" name="checked" value="1" aria-label={f.checkedOnly} defaultChecked={filters.checkedOnly} />
+        <span>{f.checkedOnly}</span>
+      </label>
+      <label className="filter-check">
+        <input type="checkbox" name="products" value="1" aria-label={f.productsOnly} defaultChecked={filters.productsOnly} />
+        <span>{f.productsOnly}</span>
+      </label>
+      <button type="submit" className="primary">
+        {f.apply}
+      </button>
+      <p className="hint filter-note">{f.note}</p>
+    </form>
+  );
+}
+
 /** Once EVERY marketplace has answered: the checked results. */
 async function SearchResults({
   q,
-  checkedOnly,
+  filters,
   vapidKey,
   pending,
 }: {
   q: string;
-  checkedOnly: boolean;
+  filters: Filters;
   vapidKey: string | null;
   pending: Promise<SourceResult>[];
 }) {
@@ -402,9 +469,10 @@ async function SearchResults({
   const flagsOf = (l: Listing) => labelled?.flagsOf(l) ?? [];
   const labelOf = (l: Listing) => labelled!.labelOf(l);
   const deals = labelled?.deals ?? [];
-  // SigPath-checked first; the rest follows in the search's own order (checkedFirst).
-  const shown = checkedFirst(result?.listings ?? [], labelOf).filter((l) => !checkedOnly || labelOf(l).verdict === "checked");
-  const hiddenCount = (result?.listings.length ?? 0) - shown.length;
+  const checkedOnly = filters.checkedOnly;
+  // SigPath-checked first; the rest follows in the search's own order (checkedFirst). Then the
+  // shopper's filters and sort (lib/marketplace/filters.ts), which never change a verdict.
+  const shown = applyFilters(checkedFirst(result?.listings ?? [], labelOf), filters, labelOf, a.identities ?? {});
   const checkedCount = (result?.listings ?? []).filter((l) => labelOf(l).verdict === "checked").length;
 
   // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
@@ -513,10 +581,10 @@ async function SearchResults({
           {/* The full definition is in the API (CHECKED_MEANS); one line here. */}
           {m.search.checkedLine}{" "}
           {checkedOnly ? (
-            <a href={`/search?q=${encodeURIComponent(q)}`}>{m.search.showAll(result.listings.length)}</a>
+            <a href={filterHref(q, filters, { checked: "" })}>{m.search.showAll(result.listings.length)}</a>
           ) : (
             checkedCount > 0 && (
-              <a href={`/search?q=${encodeURIComponent(q)}&checked=1`}>{m.search.showChecked(checkedCount)}</a>
+              <a href={filterHref(q, filters, { checked: "1" })}>{m.search.showChecked(checkedCount)}</a>
             )
           )}
         </p>
@@ -524,6 +592,18 @@ async function SearchResults({
       {checkoutReady && rate && result.listings.length > 0 && (
         <p className="hint">
           {m.search.usdcRate(rate.display, rate.source, formatFeeRate(feeBps))}
+        </p>
+      )}
+
+      {result.listings.length > 0 && (
+        <FilterBar q={q} filters={filters} markets={result.sources.filter((s) => s.status === "ok" && s.count > 0).map((s) => s.source)} />
+      )}
+      {result.listings.length > 0 && isFiltered(filters) && (
+        <p className="hint">
+          {shown.length ? m.search.filters.showing(shown.length, result.listings.length) : m.search.filters.none}{" "}
+          <a href={filterHref(q, { ...filters, condition: "any", market: null, min: null, max: null, checkedOnly: false, productsOnly: false, sort: "best" })}>
+            {m.search.filters.reset}
+          </a>
         </p>
       )}
 
@@ -542,11 +622,6 @@ async function SearchResults({
               label={labelOf(l)}
             />
           ))}
-          {checkedOnly && hiddenCount > 0 && (
-            <p className="hint">
-              {m.search.hidden(hiddenCount)}
-            </p>
-          )}
         </>
       )}
 

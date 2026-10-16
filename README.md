@@ -85,6 +85,14 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   "ungebraucht"), and refurbished stays refurbished: "wie neu" is how
   refurbishers grade. On live eBay searches (2026-10-16) it moved 4 of 50 Switch
   OLEDs, 6 of 50 iPhone 15s and 2 of 50 AirPods Pro.
+- **Filter and sort.** Above the results: condition (new, refurbished, used),
+  marketplace, a price range, SigPath-checked only, hide accessories and parts,
+  and sort by best match or price either way. A plain GET form, so the choices
+  are in the address (shareable, no JavaScript needed) and read by
+  `lib/marketplace/filters.ts`. Filters change only what is shown: every
+  verdict, median and best deal still comes from all the listings found. Each
+  marketplace's answer is kept three minutes (`search-cache.ts`, search page
+  only), so narrowing a search five ways asks eBay once.
 - **SigPath-checked first.** Every checked listing comes before any other;
   the rest follow in the order below (`checkedFirst`, label.ts), on the
   search page, in the API and for Ai-chan. Nothing is hidden.
@@ -195,7 +203,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 614 tests, as of 2026-10-16
+npm test                                   # 620 tests, as of 2026-10-16
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
