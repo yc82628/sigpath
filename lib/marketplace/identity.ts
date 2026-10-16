@@ -71,6 +71,11 @@ const PARTS_PHRASES = [
   "als ersatzteil", "gesperrt", "icloud gesperrt", "displaybruch", "wasserschaden",
   "gesprungen", "glasbruch", "riss", "risse", "gerissen", "beschädigt", "beschaedigt", "displayschaden",
   "defekte", "defekter", "defektes", "defektem", "beschädigte", "beschädigter", "beschädigtes",
+  // Locked to someone else's Apple account: it can't be set up, so it isn't the working product.
+  "icloud lock", "activation lock", "icloud sperre", "icloud-sperre", "icloudsperre", "aktivierungssperre",
+  // Faults sellers name in passing ("ANC / Transparenz rauscht"): it doesn't work as it should.
+  "rauscht", "rauschen", "knistert", "knistern", "knackt", "wackelkontakt", "tonaussetzer", "kein ton", "ohne ton",
+  "crackling", "static noise", "buzzing", "no sound",
 ];
 
 /** Phrases that say only part of the product is sold (a Dyson "Hauptgerät" is the motor unit alone). */

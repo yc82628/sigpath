@@ -66,6 +66,17 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   such as a photo on two seller accounts, a three-day-old account, or a price far
   below the median. **Not price-checked**: neutral, for listings with nothing to
   compare against. "Checked" means checked, not guaranteed, and the page says so.
+- **What you searched for comes first.** Results open with the product itself,
+  cheapest first; listings whose title doesn't name the model, then
+  accessories (a charging case in an "AirPods Pro" search), then items sold for
+  parts follow, each cheapest first (`shopperOrder`, `lib/marketplace/search.ts`).
+  Nothing is hidden. On a live eBay "AirPods Pro" search (2026-10-16) the first
+  accessory moved from 1st place to 31st of 50.
+  "For parts" also covers units locked to someone else's Apple account
+  ("iCloud Lock", "iCloud-Sperre", "Aktivierungssperre") and faults named in
+  passing ("rauscht", "knistert", "Wackelkontakt", "crackling"), unless the
+  title says it's free of them ("kein Rauschen", "ohne iCloud-Sperre"); they
+  are neither compared with working units nor listed among them.
 - **The best checked deal**, for new and for used, with how far below the typical
   price it is. A flagged bargain never wins, and neither does an invented demo
   listing next to real ones.
@@ -154,7 +165,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 594 tests, as of 2026-10-16
+npm test                                   # 597 tests, as of 2026-10-16
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

@@ -146,3 +146,29 @@ test("identity: one earbud of a pair is a part, not a cheap pair", () => {
   assert.strictEqual(identify("AirPods Pro 2nd gen right AirPod only", "AirPods Pro 2").kind, "parts");
   assert.strictEqual(identify("Apple AirPods Pro 2 mit MagSafe Ladecase USB-C", "AirPods Pro 2").kind, "product");
 });
+
+test("iCloud-locked and faulty units are for parts, not the working product", () => {
+  for (const [title, query] of [
+    ["Apple AirPods Pro 3 In-Ear Bluetooth Kopfhörer ANC Weiß iCloud Lock", "AirPods Pro 3"],
+    ["iPhone 13 128GB iCloud-Sperre", "iPhone 13"],
+    ["iPad Air 5 mit Aktivierungssperre", "iPad Air 5"],
+    ["Apple Watch 8 activation lock", "Apple Watch 8"],
+    ["Apple AirPods Pro (1. Gen) OVP + Zubehör – ANC / Transparenz rauscht", "AirPods Pro"],
+    ["AirPods Pro 2 Ohrhörer knistert", "AirPods Pro 2"],
+    ["Sony WH-1000XM4 Wackelkontakt", "Sony WH-1000XM4"],
+    ["Bose QC45 crackling left side", "Bose QC45"],
+  ]) {
+    assert.strictEqual(identify(title, query).kind, "parts", title);
+  }
+});
+
+test("...but saying it is free of those faults, or noise cancelling, isn't one", () => {
+  for (const [title, query] of [
+    ["Apple AirPods Pro 2 kein Rauschen, wie neu", "AirPods Pro 2"],
+    ["AirPods Pro 2 mit aktiver Rauschunterdrückung", "AirPods Pro 2"],
+    ["iPhone 13 128GB ohne iCloud-Sperre, entsperrt", "iPhone 13"],
+    ["Sony WH-1000XM4 no crackling, perfect condition", "Sony WH-1000XM4"],
+  ]) {
+    assert.strictEqual(identify(title, query).kind, "product", title);
+  }
+});

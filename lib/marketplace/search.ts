@@ -10,7 +10,7 @@
  */
 
 import type { Listing, SearchOptions, SourceResult } from "./types";
-import { sellerKey, totalPrice } from "./types";
+import { listingKey, sellerKey, totalPrice } from "./types";
 import type { MarketplaceSource } from "./sources/types";
 import { analyse, type Analysis, type Flag } from "./anomaly";
 import { linkOutTargets, type LinkOut } from "./registry";
@@ -36,6 +36,24 @@ export interface SearchResponse {
 /** Cheapest first, by what the buyer actually pays. */
 function byTotalAscending(a: Listing, b: Listing): number {
   return totalPrice(a).amount - totalPrice(b).amount;
+}
+
+/**
+ * What the shopper came for comes first. A search for "AirPods Pro" sorted by
+ * price alone opens with charging cases and broken units, the cheapest things
+ * that mention the name. So: the product itself, then listings whose title
+ * doesn't name the searched model, then accessories, then items sold for
+ * parts; cheapest first within each. Nothing is hidden, only moved down.
+ */
+export function shopperOrder(listings: Listing[], identities: Analysis["identities"]): Listing[] {
+  const rank = (l: Listing) => {
+    const id = identities[listingKey(l)];
+    if (!id) return 1;
+    if (id.kind === "parts") return 3;
+    if (id.kind === "accessory") return 2;
+    return id.named === false ? 1 : 0;
+  };
+  return [...listings].sort((a, b) => rank(a) - rank(b) || byTotalAscending(a, b));
 }
 
 /**
@@ -108,18 +126,19 @@ export function assembleSearch(
   // really searched: it isn't listed as a marketplace, nor named as left out of
   // the comparison. It never counts towards the median either way.
   const shown = results.filter((r) => !(r.snapshot && r.status === "ok" && r.listings.length === 0));
+  // Pass the FULL results, failures included. Passing only the ok ones would
+  // silently re-enable the biased comparison this design exists to prevent.
+  const analysis = withReportFlags(analyse(shown, { currency: opts.currency, query: q }), listings, context.upheldReports);
   return {
     query: q,
-    listings,
+    listings: shopperOrder(listings, analysis.identities),
     sources: shown.map((r) => ({
       source: r.source,
       status: r.status,
       count: r.listings.length,
       detail: r.detail,
     })),
-    // Pass the FULL results, failures included. Passing only the ok ones would
-    // silently re-enable the biased comparison this design exists to prevent.
-    analysis: withReportFlags(analyse(shown, { currency: opts.currency, query: q }), listings, context.upheldReports),
+    analysis,
     // Amazon gets a search link only while it isn't answering as a live source.
     linkOut: linkOutTargets(q, { amazon: !results.some((r) => r.source === "amazon" && r.status === "ok" && !r.snapshot) }),
   };

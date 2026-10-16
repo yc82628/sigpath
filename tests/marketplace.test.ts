@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { analyse, median, MIN_SAMPLE, UNDERPRICED_RATIO } from "../lib/marketplace/anomaly";
-import { searchAll } from "../lib/marketplace/search";
+import { assembleSearch, searchAll } from "../lib/marketplace/search";
 import { StubSource } from "../lib/marketplace/sources/stub";
 import { EBAY_MIN_RESULTS, EbaySource, mapCondition, toMinorUnits } from "../lib/marketplace/sources/ebay";
 import { listingKey, totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
@@ -301,10 +301,31 @@ test("a source that throws becomes a typed failure, not a crash", async () => {
   assert.equal(r.analysis.status, "incomplete_coverage");
 });
 
-test("results are ordered by what the buyer actually pays", async () => {
+test("results: the product first, then accessories and parts, each cheapest first by what the buyer pays", async () => {
   const r = await searchAll("camera", [new StubSource()]);
-  const totals = r.listings.map((l) => totalPrice(l).amount);
-  assert.deepEqual(totals, [...totals].sort((a, b) => a - b));
+  const rank = (l: Listing) => {
+    const id = r.analysis.identities[listingKey(l)];
+    return !id ? 1 : id.kind === "parts" ? 3 : id.kind === "accessory" ? 2 : id.named === false ? 1 : 0;
+  };
+  const ranks = r.listings.map(rank);
+  assert.deepEqual(ranks, [...ranks].sort((a, b) => a - b), "groups in order");
+  for (let i = 1; i < r.listings.length; i++) {
+    if (ranks[i] === ranks[i - 1]) assert.ok(totalPrice(r.listings[i]).amount >= totalPrice(r.listings[i - 1]).amount, "cheapest first within a group");
+  }
+});
+
+test("results: a charging case or a broken unit never opens a search for the product", () => {
+  const at = (id: string, title: string, euros: number) =>
+    listing({ id, source: "ebay", title, condition: "used", price: { amount: Math.round(euros * 100), currency: "EUR" }, seller: { handle: `s${id}` } });
+  const listings = [
+    at("1", "Ladecase für AirPods Pro A2190", 24.95),
+    at("2", "Apple AirPods Pro mit defektem Ladecase", 30),
+    at("3", "Apple AirPods Pro 2 mit Ladecase", 79.99),
+    at("4", "Apple AirPods Pro 1. Generation", 55),
+  ];
+  const r = assembleSearch("AirPods Pro", [{ source: "ebay", status: "ok", comparable: true, listings }]);
+  assert.deepEqual(r.listings.map((l) => l.id).slice(0, 2), ["4", "3"], "the AirPods themselves first, cheapest first");
+  assert.deepEqual(new Set(r.listings.map((l) => l.id)), new Set(["1", "2", "3", "4"]), "nothing is hidden");
 });
 
 test("the stub feed is deterministic", async () => {
