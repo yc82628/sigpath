@@ -77,6 +77,14 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   passing ("rauscht", "knistert", "Wackelkontakt", "crackling"), unless the
   title says it's free of them ("kein Rauschen", "ohne iCloud-Sperre"); they
   are neither compared with working units nor listed among them.
+  With AliExpress answering (keys tested 2026-10-16), its results for a
+  product name are mostly add-ons, so these count as accessories too: cleaning
+  kits, ear hooks, repair parts, replacement joysticks, multipacks ("10/20PCS",
+  "3 Stück"), titles that open with "For …" or say "for" and then the
+  product's first word ("… Covers for Nintendo Switch/OLED"), and spare parts
+  pulled from a phone ("Housing … pulled", "Ladebuchse"). On live "AirPods Pro",
+  "Nintendo Switch OLED", "ThinkPad X1" and "iPhone 13" searches no AliExpress
+  add-on ranks with the product.
 - **The best checked deal**, for new and for used, with how far below the typical
   price it is. A flagged bargain never wins, and neither does an invented demo
   listing next to real ones.
@@ -165,7 +173,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 597 tests, as of 2026-10-16
+npm test                                   # 600 tests, as of 2026-10-16
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

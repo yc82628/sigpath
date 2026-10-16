@@ -57,6 +57,12 @@ const ACCESSORY_WORDS = [
   // or "Kabel" in a console's title usually lists what comes with it.
   "ladegerät", "ladegeraet", "ladekabel", "netzteil", "hülle", "schutzhülle", "handyhülle", "schutzfolie",
   "displayschutz", "displayschutzfolie", "panzerglas", "schutzglas", "halterung",
+  // Cleaning kits and small add-ons, common on AliExpress: "Cleaning Pen For … AirPods Pro".
+  "cleaning kit", "cleaning pen", "cleaning tool", "cleaner", "brush", "ear hook", "ear hooks", "earhook", "earhooks",
+  "lanyard", "anti-lost", "keycap", "reinigungsset", "reinigungsstift", "reinigungsbürste",
+  "repair parts", "replacement", "covers", "joystick", "joysticks", "thumb grips", "rubber feet",
+  // Spare parts taken out of a device ("Housing … pulled", "Ladebuchse Mikrofon Dock").
+  "housing", "pulled", "ladebuchse", "flexkabel", "flex cable", "dock flex", "charging port",
 ];
 
 /** Words that make a listing a service, not the product. */
@@ -103,6 +109,15 @@ const VARIANT_WORDS = [
   "pro", "max", "plus", "mini", "ultra", "lite", "air", "se", "fe", "xl", "slim", "carbon", "yoga", "nano", "fold", "flip",
   "oled", "studio", "edge", "neo", "go",
 ];
+
+/** The query's words in order, letters and digits only ("Nintendo Switch OLED" -> nintendo, switch, oled). */
+function allWords(s: string): string[] {
+  return s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function words(s: string): string[] {
   return s.toLowerCase().match(/[a-z0-9]+/g) ?? [];
@@ -175,10 +190,18 @@ export function identify(title: string, query: string): Identity {
     // "… for ThinkPad X1", "fits ThinkPad X1", "für PlayStation 5": the searched product comes right after.
     const at = q ? t.indexOf(q) : -1;
     const soldForUseWith =
-      at > 0 &&
-      /(^|[^a-z0-9])(for|fits|compatible with|für|fuer|passend für|kompatibel mit)\s+(the\s+|your\s+|all\s+|die\s+|den\s+|das\s+)?$/i.test(
-        t.slice(0, at),
-      );
+      (at > 0 &&
+        /(^|[^a-z0-9])(for|fits|compatible with|für|fuer|passend für|kompatibel mit)\s+(the\s+|your\s+|all\s+|die\s+|den\s+|das\s+)?$/i.test(
+          t.slice(0, at),
+        )) ||
+      // A title that opens with "For …" ("For Apple AirPods 1 2 3 Pro Ear Hook") sells something for it.
+      /^\s*(for|für|fuer)\s/i.test(t) ||
+      // "… Joystick Covers for Nintendo Switch/OLED": "for" and then the product's first word, a brand
+      // word ("Apple") at most in between, without the exact name having to follow.
+      (allWords(q)[0] !== undefined &&
+        new RegExp(String.raw`(^|[^a-z0-9])(for|fits|für|fuer|compatible with|kompatibel mit|passend für)\s+(\S+\s+)?${escapeRe(allWords(q)[0])}([^a-z0-9]|$)`, "i").test(t));
+    // Sold by the piece or in packs ("10/20PCS", "2 Stück"): parts, not the product.
+    const pack = /(^|[^a-z0-9])\d+\s*(pcs|pc|stück|stk)\.?([^a-z0-9]|$)/i.test(t) && !/(pcs|stück|stk)/i.test(q);
     if (service) {
       kind = "accessory";
       kindReason = `It looks like a service ("${service}"), not a ${query.trim()}, so it isn't compared with one.`;
@@ -188,6 +211,9 @@ export function identify(title: string, query: string): Identity {
     } else if (soldForUseWith) {
       kind = "accessory";
       kindReason = `It's sold for use with a ${query.trim()}, not as one, so it isn't compared with it.`;
+    } else if (pack) {
+      kind = "accessory";
+      kindReason = `It's sold by the piece or in a pack, not as a ${query.trim()}, so it isn't compared with one.`;
     }
   }
 

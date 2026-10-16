@@ -172,3 +172,40 @@ test("...but saying it is free of those faults, or noise cancelling, isn't one",
     assert.strictEqual(identify(title, query).kind, "product", title);
   }
 });
+
+test("AliExpress-style add-ons are accessories: cleaning kits, ear hooks, and titles that open with \"For\"", () => {
+  for (const title of [
+    "Multifunctional Cleaning Kit Keycap Puller Brush Earbuds Cleaning Pen For Keyboard AirPods Pro 1 2 3 Bluetooth Earphones",
+    "For Apple AirPods 1 2 3 Pro Earphone Ear Hook Portable Silicone Anti-lost Earhooks",
+    "Für AirPods Pro 2 Silikon Hülle Schwarz",
+    "AirPods Pro Reinigungsset 3 in 1",
+  ]) {
+    assert.strictEqual(identify(title, "AirPods Pro").kind, "accessory", title);
+  }
+  // The product itself, even with an extra thrown in, or brushed metal, stays the product.
+  for (const title of ["Apple AirPods Pro 2 mit Ladecase und Reinigungsstift", "MacBook Air M2 brushed silver"]) {
+    assert.strictEqual(identify(title, title.startsWith("Apple") ? "AirPods Pro" : "MacBook Air").kind, "product", title);
+  }
+});
+
+test("repair parts, packs and \"… for <product>\" add-ons are accessories, the console itself isn't", () => {
+  const q = "Nintendo Switch OLED";
+  for (const title of [
+    "Skull & Co. JoyCon Replacement Joystick Covers Repair Parts for Nintendo Switch/ OLED/ Lite",
+    "10/20PCS 5.0 6.0 GINFULL TMR Joysticks for Nintendo Switch / OLED / Lite Joy-Con",
+    "2pcs=1pair For Switch OLED Game Console Host Anti-slip Rubber Feet Pad",
+    "Schutzfolie 3 Stück für Nintendo Switch OLED",
+  ]) {
+    assert.strictEqual(identify(title, q).kind, "accessory", title);
+  }
+  for (const title of ["Nintendo Switch OLED-Modell HEG-001 + USB Kabel + Joy-Con (Weiß)", "nintendo switch oled", "Nintendo Switch OLED weiß, top Zustand, 2 Spiele"]) {
+    assert.strictEqual(identify(title, q).kind, "product", title);
+  }
+});
+
+test("spare parts taken out of a phone are accessories, the phone isn't", () => {
+  for (const title of ["✅100%Original Apple iPhone 13 Pro Ladebuchse Mikrofon DockFlex", "Apple IPhone 13 Pro 100% Original Housing Rahmen grau pulled", "iPhone 13 Flexkabel Lautstärke"]) {
+    assert.strictEqual(identify(title, "iPhone 13").kind, "accessory", title);
+  }
+  assert.strictEqual(identify("Apple iPhone 13 mini 128GB 81% Midnight 12 Monate Gewährleistung", "iPhone 13").kind, "product");
+});
