@@ -17,7 +17,7 @@ import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
 import { BusinessLog, businessIndex, verifiedPhotoFlags } from "@/lib/sellers/business";
 import { listingKey, sellerKey } from "@/lib/marketplace/types";
-import { describeSaving, labelSearch, type BusinessBadge, type CheckLabel } from "@/lib/marketplace/label";
+import { checkedFirst, describeSaving, labelSearch, type BusinessBadge, type CheckLabel } from "@/lib/marketplace/label";
 import AlertButton from "../components/AlertButton";
 import AddToCart from "../components/AddToCart";
 import PopIcon from "../components/PopIcon";
@@ -402,7 +402,8 @@ async function SearchResults({
   const flagsOf = (l: Listing) => labelled?.flagsOf(l) ?? [];
   const labelOf = (l: Listing) => labelled!.labelOf(l);
   const deals = labelled?.deals ?? [];
-  const shown = (result?.listings ?? []).filter((l) => !checkedOnly || labelOf(l).verdict === "checked");
+  // SigPath-checked first; the rest follows in the search's own order (checkedFirst).
+  const shown = checkedFirst(result?.listings ?? [], labelOf).filter((l) => !checkedOnly || labelOf(l).verdict === "checked");
   const hiddenCount = (result?.listings.length ?? 0) - shown.length;
   const checkedCount = (result?.listings ?? []).filter((l) => labelOf(l).verdict === "checked").length;
 

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { analyse, median, MIN_SAMPLE, UNDERPRICED_RATIO } from "../lib/marketplace/anomaly";
 import { assembleSearch, searchAll } from "../lib/marketplace/search";
+import { withLabels } from "../lib/marketplace/label";
 import { StubSource } from "../lib/marketplace/sources/stub";
 import { EBAY_MIN_RESULTS, EbaySource, mapCondition, toMinorUnits } from "../lib/marketplace/sources/ebay";
 import { listingKey, totalPrice, type Listing, type SourceResult } from "../lib/marketplace/types";
@@ -1304,4 +1305,17 @@ test("far below the market is the price flag, not both", () => {
   const l = listing({ id: "bait", price: { amount: Math.floor(10000 * UNDERPRICED_RATIO) - 100, currency: "EUR" }, seller: { handle: "n", feedbackScore: 0 } });
   const kinds = analyse([ok([...honest(MIN_SAMPLE), l])]).flags.filter((f) => f.listingId === "bait").map((f) => f.kind);
   assert.deepStrictEqual(kinds, ["underpriced"]);
+});
+
+test("results: SigPath-checked first, the rest after in the search's own order", async () => {
+  const r = withLabels(await searchAll("ThinkPad X1", [new StubSource()], { limit: 50 }));
+  const verdicts = r.listings.map((l) => l.check.verdict);
+  const firstOther = verdicts.findIndex((v) => v !== "checked");
+  assert.ok(firstOther > 0, "some checked listings lead");
+  assert.ok(verdicts.slice(firstOther).every((v) => v !== "checked"), "no checked listing after the others start");
+  const raw = await searchAll("ThinkPad X1", [new StubSource()], { limit: 50 });
+  const order = (ids: string[]) => ids.filter((id) => raw.listings.some((l) => l.id === id));
+  const rest = r.listings.filter((l) => l.check.verdict !== "checked").map((l) => l.id);
+  assert.deepEqual(rest, order(raw.listings.map((l) => l.id).filter((id) => rest.includes(id))), "the rest keep their order");
+  assert.equal(r.listings.length, raw.listings.length, "nothing is hidden");
 });

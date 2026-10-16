@@ -228,6 +228,17 @@ export function bestCheckedDeals(
   return (["new", "used"] as const).flatMap((g) => (best.has(g) ? [best.get(g)!] : []));
 }
 
+/**
+ * SigPath-checked listings first, then everything else, each in the order it
+ * came (shopperOrder: the product before accessories and parts, cheapest
+ * first). A shopper sees the deals SigPath could vouch for before the ones it
+ * couldn't compare; nothing is hidden, the rest simply follows.
+ */
+export function checkedFirst<L extends Listing>(listings: L[], labelOf: (l: L) => CheckLabel): L[] {
+  // Array.prototype.sort is stable, so each group keeps its own order.
+  return [...listings].sort((a, b) => Number(labelOf(a).verdict !== "checked") - Number(labelOf(b).verdict !== "checked"));
+}
+
 export function describeSaving(d: BestDeal): string | null {
   return d.belowMedian ? `${formatMoney(d.belowMedian)} below the typical ${d.group} price` : null;
 }
@@ -276,7 +287,7 @@ export function withLabels<R extends { listings: Listing[]; analysis: Analysis }
   const { labelOf, deals } = labelSearch(result, isVerified, businessOf);
   return {
     ...result,
-    listings: result.listings.map((l) => ({ ...l, check: labelOf(l), verifiedSeller: isVerified(l) || businessOf(l) !== null, verifiedBusiness: businessOf(l) })),
+    listings: checkedFirst(result.listings, labelOf).map((l) => ({ ...l, check: labelOf(l), verifiedSeller: isVerified(l) || businessOf(l) !== null, verifiedBusiness: businessOf(l) })),
     /** Cheapest SigPath-checked listing per condition, referenced by listingKey. */
     bestCheckedDeals: deals.map((d) => ({ listing: listingKey(d.listing), group: d.group, total: d.total, belowMedian: d.belowMedian ?? null })),
     /** What "checked" means — shown wherever the label is, including in other apps. */
