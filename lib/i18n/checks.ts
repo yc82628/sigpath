@@ -77,6 +77,10 @@ const RULES: Rule[] = [
     (n, used, w, on) => `Preis im Marktrahmen: verglichen mit ${n} ${used ? "gebrauchten " : ""}Angeboten ${what(w)} ${where(on)}.`,
   ],
   [
+    /^Above the market: (\d+)% over the median of (\d+) (used )?listings of (.+?) ((?:on|across) .+)\.$/,
+    (pct, n, used, w, on) => `Über dem Markt: ${pct} % über dem Median von ${n} ${used ? "gebrauchten " : ""}Angeboten ${what(w)} ${where(on)}.`,
+  ],
+  [
     /^Below the market: (\d+)% under the median of (\d+) (used )?listings of (.+?) ((?:on|across) .+)\.$/,
     (pct, n, used, w, on) => `Unter dem Markt: ${pct} % unter dem Median von ${n} ${used ? "gebrauchten " : ""}Angeboten ${what(w)} ${where(on)}.`,
   ],

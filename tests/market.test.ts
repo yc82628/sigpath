@@ -108,3 +108,15 @@ test("a narrower search is suggested only when the search has no number in it ye
   assert.ok(!suggestNarrower([wide], "iPhone 15 128GB"));
   assert.ok(!suggestNarrower([narrow], "Nintendo Switch OLED"));
 });
+
+test("over the market reads as such: above, then above most", async () => {
+  const { withLabels } = await import("../lib/marketplace/label");
+  const { translateCheck } = await import("../lib/i18n/checks");
+  const listings = [200, 200, 200, 200, 200, 200, 288, 206, 320].map((p, i) => at(`n${i}`, p));
+  const r = withLabels({ listings, analysis: analyse([ok(listings)], { query: "Nintendo Switch OLED" }) });
+  const text = (id: string) => r.listings.find((l) => l.id === id)!.check.points[0].text;
+  assert.strictEqual(text("n6"), "Above the market: 44% over the median of 9 listings of the same product on eBay.");
+  assert.match(text("n7"), /^Price in line with the market/, "3% over is in line");
+  assert.match(text("n8"), /^Priced above most of the 9 listings/, "60% over: you may find it cheaper");
+  assert.strictEqual(translateCheck(text("n6"), "de"), "Über dem Markt: 44 % über dem Median von 9 Angeboten desselben Produkts auf eBay.");
+});

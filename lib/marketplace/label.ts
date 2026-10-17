@@ -174,10 +174,13 @@ export function checkLabel(
     const under = Math.round((1 - totalPrice(listing).amount / comparison.median) * 100);
     const wellBelow = under >= WELL_BELOW_PCT;
     const below = !wellBelow && under >= BELOW_PCT;
+    // The mirror image: over the market by as much as the score turns orange (+10%).
+    const over = -under;
+    const someAbove = !above && over >= BELOW_PCT;
     // What it was actually compared with: real marketplaces and the demo feed are never pooled.
     const where = comparison.scope ?? `on ${marketplaces(analysis)}`;
     points.push({
-      tone: above || wellBelow ? "info" : "good",
+      tone: above || wellBelow || someAbove ? "info" : "good",
       // Checked: "Below the market: 21% under …". Well below: said, with why it isn't flagged.
       text: above
         ? `Priced above most of the ${comparison.sampleSize} ${group}listings of ${what} ${where} (median ${formatMoney({ amount: comparison.median, currency: listing.price.currency })}). You may find it cheaper.`
@@ -185,7 +188,9 @@ export function checkLabel(
           ? `Well below the market: ${under}% under the median of ${comparison.sampleSize} ${group}listings of ${what} ${where}, though not low enough to be flagged.`
           : below
             ? `Below the market: ${under}% under the median of ${comparison.sampleSize} ${group}listings of ${what} ${where}.`
-            : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
+            : someAbove
+              ? `Above the market: ${over}% over the median of ${comparison.sampleSize} ${group}listings of ${what} ${where}.`
+              : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
     });
     // A title that names no model details was compared with every version, and says so.
     const othersSpecified = Object.values(analysis.identities ?? {}).some((i) => i.kind === "product" && describeSpecs(i) !== null);

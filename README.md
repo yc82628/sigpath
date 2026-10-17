@@ -97,7 +97,8 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   The words follow the score: a checked price 10% or more under the median says
   "Below the market", 25% or more "Well below the market … though not low
   enough to be flagged", never "in line" (`BELOW_PCT`, `WELL_BELOW_PCT`,
-  label.ts). When the usual range spans more than double (`isWide`) and the
+  label.ts); 10% or more over says "Above the market", and from 50% over
+  "Priced above most … You may find it cheaper". When the usual range spans more than double (`isWide`) and the
   search names no generation or size yet (`suggestNarrower`), the overview
   suggests adding one: "AirPods Pro" (Pro 1, 2 and 3) gets the hint, "AirPods
   Pro 2" doesn't.
@@ -219,7 +220,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 628 tests, as of 2026-10-17
+npm test                                   # 629 tests, as of 2026-10-17
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
