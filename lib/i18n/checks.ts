@@ -77,6 +77,11 @@ const RULES: Rule[] = [
     (n, used, w, on) => `Preis im Marktrahmen: verglichen mit ${n} ${used ? "gebrauchten " : ""}Angeboten ${what(w)} ${where(on)}.`,
   ],
   [
+    /^Well below the market: (\d+)% under the median of (\d+) (used )?listings of (.+?) ((?:on|across) .+), though not low enough to be flagged\.$/,
+    (pct, n, used, w, on) =>
+      `Deutlich unter dem Markt: ${pct} % unter dem Median von ${n} ${used ? "gebrauchten " : ""}Angeboten ${what(w)} ${where(on)}, aber nicht so niedrig, dass es markiert wird.`,
+  ],
+  [
     /^Priced above most of the (\d+) (used )?listings of (.+?) ((?:on|across) .+) \(median (.+)\)\. You may find it cheaper\.$/,
     (n, used, w, on, median) => `Teurer als die meisten der ${n} ${used ? "gebrauchten " : ""}Angebote ${what(w)} ${where(on)} (Median ${median}). Vielleicht findest du es günstiger.`,
   ],

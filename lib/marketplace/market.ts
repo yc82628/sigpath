@@ -91,6 +91,15 @@ export function dealScore(l: Listing, analysis: Analysis): number | null {
   return Math.round(((totalPrice(l).amount - c.median) / c.median) * 100);
 }
 
+/**
+ * Whether a group's prices spread so widely that the search likely covers
+ * several models: the top of the usual range more than twice its bottom
+ * ("AirPods Pro" holds Pro 1, 2 and 3, from 55 € to 195 € used).
+ */
+export function isWide(g: MarketGroup): boolean {
+  return g.low > 0 && g.high > g.low * 2;
+}
+
 /** How a score reads: a real saving, about the usual price, or above it. */
 export function dealTone(pct: number): "good" | "fair" | "high" {
   return pct <= -10 ? "good" : pct >= 10 ? "high" : "fair";

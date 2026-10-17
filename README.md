@@ -94,6 +94,11 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   typical", green from 10% below). Only compared listings count, so a charging
   case never drags the range down, and a flagged listing gets no score: its
   "−60%" is bait, not a deal.
+  A checked price 25% or more under the median says "Well below the market"
+  rather than "in line" (`WELL_BELOW_PCT`, label.ts): not low enough to flag,
+  but the words match the score. When the usual range spans more than double
+  (`isWide`), the search likely covers several models ("AirPods Pro" holds Pro
+  1, 2 and 3), and the overview suggests adding the generation or storage.
 - **Filter and sort.** Above the results: condition (new, refurbished, used),
   marketplace, a price range, SigPath-checked only, hide accessories and parts,
   and sort by best match or price either way. A plain GET form, so the choices
@@ -212,7 +217,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 624 tests, as of 2026-10-17
+npm test                                   # 626 tests, as of 2026-10-17
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

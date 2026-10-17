@@ -157,6 +157,7 @@ const en = {
       offers: (n: number) => `${n} offer${n === 1 ? "" : "s"} compared`,
       chart: (low: string, high: string) => `How the prices spread, from ${low} to ${high}`,
       typicalMark: "typical price",
+      wide: "Prices spread widely here, so this search may cover several models or generations. Add the generation or storage size (like \"AirPods Pro 2\" or \"iPhone 15 128GB\") for a sharper picture.",
     },
     filters: {
       title: "Filter and sort",
@@ -557,6 +558,7 @@ const de: Messages = {
       offers: (n) => `${n} ${n === 1 ? "Angebot" : "Angebote"} verglichen`,
       chart: (low, high) => `So verteilen sich die Preise, von ${low} bis ${high}`,
       typicalMark: "typischer Preis",
+      wide: "Die Preise streuen hier stark, die Suche umfasst also vielleicht mehrere Modelle oder Generationen. Gib die Generation oder den Speicher mit an (etwa „AirPods Pro 2“ oder „iPhone 15 128GB“), dann wird das Bild schärfer.",
     },
     filters: {
       title: "Filtern und sortieren",

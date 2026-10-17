@@ -36,6 +36,9 @@ import { priceCheckFor, type PriceCheck } from "../checkout/eligibility";
 
 export type Verdict = "checked" | "caution" | "unchecked";
 
+/** From this far under the median (in percent), a checked price is said to be well below the market. */
+export const WELL_BELOW_PCT = 25;
+
 /**
  * A verified business behind the listing's account (lib/sellers/business.ts):
  * an EU-registered VAT number, checked against the register, linking every
@@ -161,13 +164,19 @@ export function checkLabel(
     const what = specs ? `the same model and configuration (${specs})` : "the same product";
     const group = conditionGroup(listing) === "used" ? "used " : "";
     const above = totalPrice(listing).amount > comparison.median * 1.5;
+    // Checked, yet well under the market: say so rather than "in line". It isn't low enough to be
+    // flagged (UNDERPRICED_RATIO), but a shopper reading "−48% vs typical" deserves the same words.
+    const under = Math.round((1 - totalPrice(listing).amount / comparison.median) * 100);
+    const wellBelow = under >= WELL_BELOW_PCT;
     // What it was actually compared with: real marketplaces and the demo feed are never pooled.
     const where = comparison.scope ?? `on ${marketplaces(analysis)}`;
     points.push({
-      tone: above ? "info" : "good",
+      tone: above || wellBelow ? "info" : "good",
       text: above
         ? `Priced above most of the ${comparison.sampleSize} ${group}listings of ${what} ${where} (median ${formatMoney({ amount: comparison.median, currency: listing.price.currency })}). You may find it cheaper.`
-        : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
+        : wellBelow
+          ? `Well below the market: ${under}% under the median of ${comparison.sampleSize} ${group}listings of ${what} ${where}, though not low enough to be flagged.`
+          : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
     });
     // A title that names no model details was compared with every version, and says so.
     const othersSpecified = Object.values(analysis.identities ?? {}).some((i) => i.kind === "product" && describeSpecs(i) !== null);

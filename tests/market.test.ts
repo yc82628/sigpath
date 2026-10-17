@@ -64,3 +64,26 @@ test("the deal score: percent from the typical price of what it was compared wit
   assert.strictEqual(dealScore(at("other", 10, "new", "Hülle für Nintendo Switch OLED"), a), null, "not compared: no score");
   assert.deepStrictEqual([dealTone(-22), dealTone(-9), dealTone(0), dealTone(9), dealTone(15)], ["good", "fair", "fair", "fair", "high"]);
 });
+
+test("a wide spread suggests a more specific search; a narrow one doesn't", async () => {
+  const { isWide } = await import("../lib/marketplace/market");
+  const g = (low: number, high: number) => ({ group: "used" as const, typical: low, count: 9, low, high, min: low, max: high, bins: [], typicalBin: 0 });
+  assert.ok(isWide(g(5519, 19495)), "AirPods Pro, all generations: 55 to 195 €");
+  assert.ok(!isWide(g(15768, 21900)), "Switch OLED: 158 to 219 €");
+  assert.ok(!isWide(g(10000, 20000)), "exactly double isn't wide");
+});
+
+test("a checked price far under the typical one says so, rather than \"in line\"", async () => {
+  const { withLabels } = await import("../lib/marketplace/label");
+  const { translateCheck } = await import("../lib/i18n/checks");
+  const listings = [200, 200, 200, 200, 200, 200, 104, 190].map((p, i) => at(`n${i}`, p));
+  const r = withLabels({ listings, analysis: analyse([ok(listings)], { query: "Nintendo Switch OLED" }) });
+  const text = (id: string) => r.listings.find((l) => l.id === id)!.check.points[0].text;
+  assert.strictEqual(r.listings.find((l) => l.id === "n6")!.check.verdict, "checked", "48% under isn't flagged");
+  assert.strictEqual(text("n6"), "Well below the market: 48% under the median of 8 listings of the same product on eBay, though not low enough to be flagged.");
+  assert.match(text("n7"), /^Price in line with the market/);
+  assert.strictEqual(
+    translateCheck(text("n6"), "de"),
+    "Deutlich unter dem Markt: 48 % unter dem Median von 8 Angeboten desselben Produkts auf eBay, aber nicht so niedrig, dass es markiert wird.",
+  );
+});

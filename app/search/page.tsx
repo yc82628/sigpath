@@ -28,7 +28,7 @@ import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 import { applyFilters, filterHref, isFiltered, parseFilters, type Filters } from "@/lib/marketplace/filters";
-import { dealScore, dealTone, marketSnapshot, type MarketGroup } from "@/lib/marketplace/market";
+import { dealScore, dealTone, isWide, marketSnapshot, type MarketGroup } from "@/lib/marketplace/market";
 
 const marketLabel = (id: string) =>
   MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id === "feed" ? "Partner feeds" : id);
@@ -423,6 +423,7 @@ function MarketOverview({ groups, currency }: { groups: MarketGroup[]; currency:
           );
         })}
       </div>
+      {groups.some(isWide) && <p className="hint market-wide">{m.search.market.wide}</p>}
     </section>
   );
 }
