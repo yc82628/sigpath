@@ -87,3 +87,24 @@ test("a checked price far under the typical one says so, rather than \"in line\"
     "Deutlich unter dem Markt: 48 % unter dem Median von 8 Angeboten desselben Produkts auf eBay, aber nicht so niedrig, dass es markiert wird.",
   );
 });
+
+test("the words follow the deal score: in line, below, well below", async () => {
+  const { withLabels } = await import("../lib/marketplace/label");
+  const { translateCheck } = await import("../lib/i18n/checks");
+  const listings = [200, 200, 200, 200, 200, 200, 158, 194].map((p, i) => at(`n${i}`, p));
+  const r = withLabels({ listings, analysis: analyse([ok(listings)], { query: "Nintendo Switch OLED" }) });
+  const text = (id: string) => r.listings.find((l) => l.id === id)!.check.points[0].text;
+  assert.strictEqual(text("n6"), "Below the market: 21% under the median of 8 listings of the same product on eBay.");
+  assert.match(text("n7"), /^Price in line with the market/, "3% under is in line");
+  assert.strictEqual(translateCheck(text("n6"), "de"), "Unter dem Markt: 21 % unter dem Median von 8 Angeboten desselben Produkts auf eBay.");
+});
+
+test("a narrower search is suggested only when the search has no number in it yet", async () => {
+  const { suggestNarrower } = await import("../lib/marketplace/market");
+  const wide = { group: "used" as const, typical: 8000, count: 9, low: 5500, high: 19500, min: 5500, max: 19500, bins: [], typicalBin: 0 };
+  const narrow = { ...wide, low: 15000, high: 21000 };
+  assert.ok(suggestNarrower([wide], "AirPods Pro"));
+  assert.ok(!suggestNarrower([wide], "AirPods Pro 2"), "the number is already there");
+  assert.ok(!suggestNarrower([wide], "iPhone 15 128GB"));
+  assert.ok(!suggestNarrower([narrow], "Nintendo Switch OLED"));
+});

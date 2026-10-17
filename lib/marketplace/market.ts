@@ -100,6 +100,16 @@ export function isWide(g: MarketGroup): boolean {
   return g.low > 0 && g.high > g.low * 2;
 }
 
+/**
+ * Whether to suggest a more specific search: the prices spread widely AND the
+ * search names no generation or size yet. "AirPods Pro" gets the hint;
+ * "AirPods Pro 2" doesn't, since adding the number is what it would suggest
+ * and its spread comes from somewhere else (cheap "new" listings).
+ */
+export function suggestNarrower(groups: MarketGroup[], query: string): boolean {
+  return groups.some(isWide) && !/\d/.test(query);
+}
+
 /** How a score reads: a real saving, about the usual price, or above it. */
 export function dealTone(pct: number): "good" | "fair" | "high" {
   return pct <= -10 ? "good" : pct >= 10 ? "high" : "fair";

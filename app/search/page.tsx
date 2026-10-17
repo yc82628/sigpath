@@ -28,7 +28,7 @@ import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 import { applyFilters, filterHref, isFiltered, parseFilters, type Filters } from "@/lib/marketplace/filters";
-import { dealScore, dealTone, isWide, marketSnapshot, type MarketGroup } from "@/lib/marketplace/market";
+import { dealScore, dealTone, marketSnapshot, suggestNarrower, type MarketGroup } from "@/lib/marketplace/market";
 
 const marketLabel = (id: string) =>
   MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id === "feed" ? "Partner feeds" : id);
@@ -386,7 +386,7 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
  * the typical price, the range most offers fall in, how many were compared,
  * and a small histogram of where the prices sit, the typical price marked.
  */
-function MarketOverview({ groups, currency }: { groups: MarketGroup[]; currency: string }) {
+function MarketOverview({ groups, currency, query }: { groups: MarketGroup[]; currency: string; query: string }) {
   const { m } = i18n();
   if (!groups.length) return null;
   const at = (amount: number) => money({ amount, currency });
@@ -423,7 +423,7 @@ function MarketOverview({ groups, currency }: { groups: MarketGroup[]; currency:
           );
         })}
       </div>
-      {groups.some(isWide) && <p className="hint market-wide">{m.search.market.wide}</p>}
+      {suggestNarrower(groups, query) && <p className="hint market-wide">{m.search.market.wide}</p>}
     </section>
   );
 }
@@ -586,7 +586,7 @@ async function SearchResults({
         ))}
       </ul>
 
-      {a?.status === "ok" && <MarketOverview groups={marketSnapshot(result.listings, a)} currency={a.currency!} />}
+      {a?.status === "ok" && <MarketOverview groups={marketSnapshot(result.listings, a)} currency={a.currency!} query={q} />}
       {a?.status === "ok" ? (
         <p className="hint market-scope">
           {/* New and used are compared separately, each against its own

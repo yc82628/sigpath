@@ -36,7 +36,12 @@ import { priceCheckFor, type PriceCheck } from "../checkout/eligibility";
 
 export type Verdict = "checked" | "caution" | "unchecked";
 
-/** From this far under the median (in percent), a checked price is said to be well below the market. */
+/**
+ * How far under the median (in percent) a checked price is said to be below,
+ * then well below, the market. BELOW_PCT matches where the deal score turns
+ * green (market.ts dealTone), so the words and the score never disagree.
+ */
+export const BELOW_PCT = 10;
 export const WELL_BELOW_PCT = 25;
 
 /**
@@ -168,15 +173,19 @@ export function checkLabel(
     // flagged (UNDERPRICED_RATIO), but a shopper reading "−48% vs typical" deserves the same words.
     const under = Math.round((1 - totalPrice(listing).amount / comparison.median) * 100);
     const wellBelow = under >= WELL_BELOW_PCT;
+    const below = !wellBelow && under >= BELOW_PCT;
     // What it was actually compared with: real marketplaces and the demo feed are never pooled.
     const where = comparison.scope ?? `on ${marketplaces(analysis)}`;
     points.push({
       tone: above || wellBelow ? "info" : "good",
+      // Checked: "Below the market: 21% under …". Well below: said, with why it isn't flagged.
       text: above
         ? `Priced above most of the ${comparison.sampleSize} ${group}listings of ${what} ${where} (median ${formatMoney({ amount: comparison.median, currency: listing.price.currency })}). You may find it cheaper.`
         : wellBelow
           ? `Well below the market: ${under}% under the median of ${comparison.sampleSize} ${group}listings of ${what} ${where}, though not low enough to be flagged.`
-          : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
+          : below
+            ? `Below the market: ${under}% under the median of ${comparison.sampleSize} ${group}listings of ${what} ${where}.`
+            : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
     });
     // A title that names no model details was compared with every version, and says so.
     const othersSpecified = Object.values(analysis.identities ?? {}).some((i) => i.kind === "product" && describeSpecs(i) !== null);
