@@ -34,7 +34,7 @@ const display = Fredoka({ subsets: ["latin"], display: "swap", variable: "--font
 
 export const metadata: Metadata = {
   title: `SigPath — ${SLOGAN}`,
-  description: "Live prices in one search. Every deal price-checked, every seller screened, and you only pay when it ships.",
+  description: "See what a product really costs and get the best real deal: live prices across marketplaces, every offer scored against the market, fakes filtered out.",
 };
 
 /** Offered only where it can answer: a model must be configured (lib/assistant/models.ts). */

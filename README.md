@@ -187,7 +187,9 @@ it**, not from its own database:
 - **`/seller`** — the rules for sellers, before anything happens to one: what
   an honest seller gets (badge, fair comparison, protection from reports by
   non-buyers, right of reply) and what shipping a fake leads to, step by step.
-- **The home page** says what's different in three cards and carries a live
+- **The home page** leads with the deal ("See what a product really costs, and
+  get the best real deal"; "How SigPath finds the real deal": the market, a
+  score on every offer, fakes filtered out) and carries a live
   line ("Live on Solana · devnet: 2 orders paid out · 2 refunded · 6 seller
   findings on record"), streamed in after the page so a slow RPC never holds it
   up, and absent if the chain hasn't answered.

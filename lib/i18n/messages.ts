@@ -61,7 +61,7 @@ const en = {
     language: "Language",
   },
   home: {
-    sub: "Every deal compared and checked.",
+    sub: "See what a product really costs, and get the best real deal.",
     placeholder: "Product name or link",
     searchLabel: "Search all marketplaces",
     searchButton: "Search",
@@ -80,20 +80,20 @@ const en = {
     proofLine: (paid: number, refunded: number, findings: number) =>
       `${paid} order${paid === 1 ? "" : "s"} paid out · ${refunded} refunded · ${findings} seller finding${findings === 1 ? "" : "s"} on record`,
     proofLink: "See the proof →",
-    diffTitle: "What makes SigPath different",
-    diffSub: "Anyone can say they're safe. SigPath's rules run on Solana, where you can check them.",
+    diffTitle: "How SigPath finds the real deal",
+    diffSub: "One search across marketplaces, and three things no single shop shows you.",
     diff: [
       {
-        title: "A record that follows scammers",
-        line: "eBay can't warn you about an AliExpress seller. SigPath's findings go on Solana under the seller's name, readable by every shop and app.",
+        title: "See the whole market",
+        line: "The typical new and used price, the range most offers fall in, and where every price sits, before you look at a single offer.",
       },
       {
-        title: "Your money held by code",
-        line: "Pay in USDC and an escrow program holds it until your order is placed, or sends it back to you by itself.",
+        title: "Every offer scored",
+        line: "Each checked offer shows how far it is from the typical price: green for a real saving, orange when you'd pay more than usual.",
       },
       {
-        title: "Only real buyers can report",
-        line: "A report needs the wallet that paid, a live photo of the item and a reviewer's decision. Rivals can't just pile on.",
+        title: "Fakes filtered out",
+        line: "Too-cheap bait, recycled photos and brand-new accounts are flagged, and upheld fake reports are recorded on Solana for every shop to see.",
       },
     ],
     sellersLink: "Selling? The rules for sellers →",
@@ -110,8 +110,8 @@ const en = {
       Handmade: "Handmade",
     } as Record<string, string>,
     promises: [
-      { title: "Best price", line: "Live prices in one search" },
-      { title: "Every deal checked", line: "Too good to be true? We say so" },
+      { title: "Best real deal", line: "The cheapest offer that passes our checks" },
+      { title: "Know the real price", line: "Typical price and range, live from the market" },
       { title: "Pay when it ships", line: "Your money waits safely until then" },
     ],
     howFakes: "How we keep fakes out →",
@@ -462,7 +462,7 @@ const de: Messages = {
     language: "Sprache",
   },
   home: {
-    sub: "Jedes Angebot verglichen und geprüft.",
+    sub: "Sieh, was ein Produkt wirklich kostet, und hol dir das beste echte Angebot.",
     placeholder: "Produkt oder Link",
     searchLabel: "Alle Marktplätze durchsuchen",
     searchButton: "Suchen",
@@ -481,20 +481,20 @@ const de: Messages = {
     proofLine: (paid, refunded, findings) =>
       `${paid} ${paid === 1 ? "Bestellung" : "Bestellungen"} ausgezahlt · ${refunded} erstattet · ${findings} ${findings === 1 ? "Befund" : "Befunde"} gegen Verkäufer`,
     proofLink: "Zum Nachweis →",
-    diffTitle: "Was SigPath anders macht",
-    diffSub: "Sicher nennen kann sich jeder. Die Regeln von SigPath laufen auf Solana, wo du sie nachprüfen kannst.",
+    diffTitle: "So findet SigPath das echte Angebot",
+    diffSub: "Eine Suche über mehrere Marktplätze und drei Dinge, die dir kein einzelner Shop zeigt.",
     diff: [
       {
-        title: "Ein Eintrag, der Betrügern folgt",
-        line: "eBay kann dich nicht vor einem AliExpress-Verkäufer warnen. Die Befunde von SigPath stehen auf Solana unter dem Namen des Verkäufers, lesbar für jeden Shop und jede App.",
+        title: "Den ganzen Markt sehen",
+        line: "Den typischen Neu- und Gebrauchtpreis, die Spanne der meisten Angebote und wo jeder Preis liegt, bevor du dir ein einziges Angebot ansiehst.",
       },
       {
-        title: "Dein Geld, verwahrt von Code",
-        line: "Zahle in USDC, und ein Treuhandprogramm hält das Geld, bis deine Bestellung aufgegeben ist, oder schickt es dir von selbst zurück.",
+        title: "Jedes Angebot bewertet",
+        line: "Jedes geprüfte Angebot zeigt, wie weit es vom typischen Preis entfernt ist: grün für eine echte Ersparnis, orange, wenn du mehr als üblich zahlst.",
       },
       {
-        title: "Nur echte Käufer können melden",
-        line: "Eine Meldung braucht die Wallet, die bezahlt hat, ein Live-Foto des Artikels und die Entscheidung einer prüfenden Person. Konkurrenten können nicht einfach Meldungen streuen.",
+        title: "Fälschungen aussortiert",
+        line: "Lockangebote, wiederverwendete Fotos und brandneue Konten werden markiert, und bestätigte Fälschungsmeldungen stehen auf Solana, für jeden Shop sichtbar.",
       },
     ],
     sellersLink: "Du verkaufst? Die Regeln für Verkäufer →",
@@ -511,8 +511,8 @@ const de: Messages = {
       Handmade: "Handgemacht",
     },
     promises: [
-      { title: "Bester Preis", line: "Live-Preise in einer Suche" },
-      { title: "Jedes Angebot geprüft", line: "Zu gut, um wahr zu sein? Wir sagen es dir" },
+      { title: "Bestes echtes Angebot", line: "Das günstigste Angebot, das unsere Prüfung besteht" },
+      { title: "Der echte Preis", line: "Typischer Preis und Spanne, live vom Markt" },
       { title: "Zahlung erst beim Versand", line: "Bis dahin liegt dein Geld sicher" },
     ],
     howFakes: "So halten wir Fälschungen fern →",

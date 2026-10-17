@@ -14,12 +14,12 @@ import { MARKET_LOGOS, type Logo, type Market } from "./components/market-logos"
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
 
 const PROMISES: { title: string; line: string; icon: IconName }[] = [
-  { title: "Best price", line: "Live prices in one search", icon: "tag" },
-  { title: "Every deal checked", line: "Too good to be true? We say so", icon: "seal-check" },
+  { title: "Best real deal", line: "The cheapest offer that passes our checks", icon: "seal-check" },
+  { title: "Know the real price", line: "Typical price and range, live from the market", icon: "tag" },
   { title: "Pay when it ships", line: "Your money waits safely until then", icon: "lock-key" },
 ];
 
-const DIFF_ICONS: IconName[] = ["gavel", "vault", "user-focus"];
+const DIFF_ICONS: IconName[] = ["magnifying-glass", "tag", "shield-check"];
 
 export default function Home() {
   const m = getMessages();
@@ -133,7 +133,7 @@ export default function Home() {
         <HeroDevices label={m.home.devices} caption={m.home.devicesCaption} lang={getLang()} />
       </section>
 
-      {/* What no other shopping site does: the record on Solana, the escrow, reports only from real buyers. */}
+      {/* How the real deal is found: the market, a score on every offer, fakes filtered out (the record on Solana). */}
       <section className="container wide home-section" aria-labelledby="different">
         <h2 id="different" className="section-title">{m.home.diffTitle}</h2>
         <p className="hint diff-sub">{m.home.diffSub}</p>
