@@ -3,7 +3,8 @@
 import { useState } from "react";
 import CameraCapture, { type CaptureChallenge, type FrameResult } from "../../components/CameraCapture";
 import WalletButton from "../../components/WalletButton";
-import { walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
+import type { ConnectedWallet } from "../../components/wallet";
+import { useWalletErrorText } from "../../components/WalletProvider";
 import { useLang } from "../../components/I18n";
 
 /**
@@ -67,6 +68,7 @@ type Step = "describe" | "signing" | "capture" | "filed" | "error";
 
 export default function ReportForm({ order }: { order: string }) {
   const t = useLang() === "de" ? de : en;
+  const describe = useWalletErrorText();
   const [category, setCategory] = useState<string>("");
   const [description, setDescription] = useState("");
   const [step, setStep] = useState<Step>("describe");
@@ -98,7 +100,7 @@ export default function ReportForm({ order }: { order: string }) {
       setMessage("");
     } catch (err) {
       setStep("error");
-      setMessage(walletErrorMessage(err));
+      setMessage(describe(err));
     }
   }
 

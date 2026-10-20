@@ -63,6 +63,8 @@ export const RULES = {
   supplier: { name: "supplier", limit: 10, windowSecs: TEN_MIN, message: "Too many checks. Try again in a few minutes." },
   /** Routes that write a record, sign something or send a transaction. */
   write: { name: "write", limit: 30, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
+  /** The page reading the connected wallet's balance: two RPC reads, on connect and on "Check again". */
+  walletBalance: { name: "wallet-balance", limit: 60, windowSecs: TEN_MIN, message: "Too many balance checks. Try again in a few minutes." },
   /** The cart asking for its prices again: each request, and each eBay item in it (the daily quota). */
   cart: { name: "cart", limit: 30, windowSecs: TEN_MIN, message: "Too many cart refreshes. Try again in a few minutes." },
   cartItem: { name: "cart-item", limit: 150, windowSecs: TEN_MIN, message: "Too many price checks. Try again in a few minutes." },

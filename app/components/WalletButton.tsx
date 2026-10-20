@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMessages } from "./I18n";
-import { NO_WALLET_MESSAGE, walletErrorMessage, walletOptions, walletRegistry, type ConnectedWallet, type WalletOption } from "./wallet";
+import { WalletPicker, useWallet, useWalletErrorText } from "./WalletProvider";
+import type { ConnectedWallet, WalletOption } from "./wallet";
 
 /**
- * One button for every wallet step. With one Solana wallet installed it
- * connects straight away; with several, it asks which one first.
- *
- * Wallets are found through the Wallet Standard and, failing that, the older
- * objects wallets put on `window` (see wallet.ts). The list is read again on
- * click, after a short wait if it is still empty, because an extension can
- * finish loading after the page.
+ * One button for every wallet step. If a wallet is already connected (in the
+ * header, or at an earlier step on any page), it goes straight on with that
+ * one. Otherwise it connects first: straight away with one Solana wallet
+ * installed, after asking which with several, and with none it shows how to
+ * get one in place (and on a phone, how to open SigPath in a wallet app).
  *
  * `onConnect` gets the connected wallet and does the rest of the step (and
- * handles its own errors); `onError` gets the reason a wallet couldn't connect.
+ * handles its own errors); `onError` gets the reason a wallet couldn't
+ * connect, already in the page's language.
  */
 export default function WalletButton({
   label,
@@ -29,25 +29,20 @@ export default function WalletButton({
   onConnect: (wallet: ConnectedWallet) => void | Promise<void>;
   onError: (message: string) => void;
 }) {
-  const [choices, setChoices] = useState<WalletOption[]>([]);
-  const [choosing, setChoosing] = useState(false);
   const m = useMessages();
+  const { wallet, connect, findOptions } = useWallet();
+  const describe = useWalletErrorText();
+  const [picking, setPicking] = useState<WalletOption[] | null>(null);
   const [connecting, setConnecting] = useState(false);
 
-  useEffect(() => {
-    const registry = walletRegistry();
-    if (!registry) return;
-    return registry.on(() => setChoices(walletOptions(registry)));
-  }, []);
-
   async function use(option: WalletOption) {
-    setChoosing(false);
+    setPicking(null);
     setConnecting(true);
     let connected: ConnectedWallet;
     try {
-      connected = await option.connect();
+      connected = await connect(option);
     } catch (err) {
-      onError(`Wallet connection refused: ${walletErrorMessage(err)}`);
+      onError(describe(err));
       return;
     } finally {
       setConnecting(false);
@@ -56,39 +51,19 @@ export default function WalletButton({
   }
 
   async function start() {
-    let found = walletOptions();
-    if (!found.length) {
-      setConnecting(true);
-      await new Promise((r) => setTimeout(r, 800));
-      setConnecting(false);
-      found = walletOptions();
-    }
-    setChoices(found);
-    if (found.length === 0) onError(NO_WALLET_MESSAGE);
-    else if (found.length === 1) void use(found[0]);
-    else setChoosing(true);
+    if (wallet) return void onConnect(wallet);
+    setConnecting(true);
+    const found = await findOptions();
+    setConnecting(false);
+    if (found.length === 1) void use(found[0]);
+    else setPicking(found); // several to choose from, or none: the picker says how to get one
   }
 
-  if (choosing) {
-    return (
-      <div className="wallet-choice" role="group" aria-label="Choose a wallet">
-        {choices.map((w) => (
-          <button key={w.name} type="button" onClick={() => use(w)}>
-            {/* Wallets give their icon as a data: URI, so a plain img is right. */}
-            {w.icon && <img src={w.icon} alt="" width={20} height={20} />}
-            {w.name}
-          </button>
-        ))}
-        <button type="button" className="link" onClick={() => setChoosing(false)}>
-          Cancel
-        </button>
-      </div>
-    );
-  }
+  if (picking) return <WalletPicker options={picking} onPick={use} onCancel={() => setPicking(null)} />;
 
   return (
     <button type="button" className={className} disabled={disabled || connecting} onClick={start}>
-      {connecting ? m.checkout.connecting : label}
+      {connecting ? m.wallet.connecting : label}
     </button>
   );
 }

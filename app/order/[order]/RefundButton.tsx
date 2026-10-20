@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import WalletButton from "../../components/WalletButton";
-import { waitForOrder, walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
+import { waitForOrder, type ConnectedWallet } from "../../components/wallet";
+import { useWalletErrorText } from "../../components/WalletProvider";
 import { useLang } from "../../components/I18n";
 
 /**
@@ -16,6 +17,7 @@ import { useLang } from "../../components/I18n";
 export default function RefundButton({ order }: { order: string }) {
   const router = useRouter();
   const de = useLang() === "de";
+  const describe = useWalletErrorText();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -37,7 +39,7 @@ export default function RefundButton({ order }: { order: string }) {
       await waitForOrder(order, (s) => s.status === "refunded");
       router.refresh();
     } catch (err) {
-      setMessage(walletErrorMessage(err));
+      setMessage(describe(err));
     } finally {
       setBusy(false);
     }

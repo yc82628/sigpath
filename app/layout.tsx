@@ -15,6 +15,8 @@ import { CATEGORIES } from "./components/catalog";
 import CartLink from "./components/CartLink";
 import type { IconName } from "./components/icon-paths";
 import { LangProvider, LangSwitch } from "./components/I18n";
+import { WalletProvider } from "./components/WalletProvider";
+import WalletChip from "./components/WalletChip";
 import { getLang } from "@/lib/i18n/server";
 import { MESSAGES, type Messages } from "@/lib/i18n/messages";
 
@@ -51,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang={lang} className={`${sans.variable} ${display.variable}`}>
       <body>
         <LangProvider lang={lang}>
+        <WalletProvider>
         <header className="site-header">
           <div className="site-header-inner">
             <div className="site-header-start">
@@ -77,6 +80,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   )}
                 </Fragment>
               ))}
+              <WalletChip>
+                <PopIcon name="wallet" tone="purple" size={22} onDark />
+              </WalletChip>
               <LangSwitch />
             </nav>
           </div>
@@ -115,6 +121,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </footer>
         <ShoppingAssistant />
+        </WalletProvider>
         </LangProvider>
         {visitCounterOn() && <VisitCounter />}
       </body>

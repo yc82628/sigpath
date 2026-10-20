@@ -2,7 +2,7 @@
 
 import type { Lang } from "@/lib/i18n/lang";
 import type { Money } from "@/lib/marketplace/types";
-import { decimalText, moneyText } from "@/lib/i18n/money";
+import { decimalText, moneyText, usdc, usdcNumber } from "@/lib/i18n/money";
 import { useLang, useMessages } from "../components/I18n";
 
 /**
@@ -31,15 +31,6 @@ export interface InvoiceData {
   rate: { display: string; source: string } | null;
 }
 
-/** USDC base units (6 decimals) as "283.0383": the same rule as the payment's own display. */
-export function usdcNumber(base: string): string {
-  const b = BigInt(base);
-  const whole = b / 1_000_000n;
-  let frac = (b % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
-  if (frac.length < 2) frac = frac.padEnd(2, "0");
-  return `${whole}.${frac}`;
-}
-export const usdc = (base: string, lang: Lang = "en") => `${decimalText(usdcNumber(base), lang)} USDC`;
 
 
 const MARKET: Record<string, string> = { ebay: "eBay", amazon: "Amazon", aliexpress: "AliExpress", stub: "Demo", feed: "Partner feed" };

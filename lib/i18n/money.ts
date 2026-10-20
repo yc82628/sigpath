@@ -33,6 +33,22 @@ export function decimalText(s: string, lang: Lang): string {
   return lang === "de" ? s.replace(".", ",") : s;
 }
 
+/** USDC base units (6 decimals) as "283.0383": the same rule as the payment's own display. */
+export function usdcNumber(base: string): string {
+  const b = BigInt(base);
+  const whole = b / 1_000_000n;
+  let frac = (b % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  if (frac.length < 2) frac = frac.padEnd(2, "0");
+  return `${whole}.${frac}`;
+}
+
+/**
+ * "283.0383 USDC", in the page's language. Lives here, not beside the invoice:
+ * the checkout page (a server component) calls it too, and a function from a
+ * "use client" file can't be called on the server.
+ */
+export const usdc = (base: string, lang: Lang = "en") => `${decimalText(usdcNumber(base), lang)} USDC`;
+
 /** Every "125.19 EUR" inside a sentence, written the German way. For the check reasons. */
 export function germanMoneyInText(s: string): string {
   return s.replace(/\b(\d+)\.(\d{2}) (EUR|USD|GBP|CHF)\b/g, (_, whole: string, cents: string, cur: string) =>

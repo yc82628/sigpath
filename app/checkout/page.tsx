@@ -8,7 +8,8 @@ import { getLang } from "@/lib/i18n/server";
 import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
 import CheckoutForm from "./CheckoutForm";
-import Invoice, { usdc } from "./Invoice";
+import Invoice from "./Invoice";
+import { usdc } from "@/lib/i18n/money";
 
 /**
  * app/checkout/page.tsx — pay for one listing with USDC.
@@ -74,7 +75,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
           </section>
 
-          <CheckoutForm quote={token} usdcDisplay={usdc(invoice.totalUsdc, lang)} moonPay={moonPayAvailable() !== null} />
+          <CheckoutForm quote={token} usdcDisplay={usdc(invoice.totalUsdc, lang)} totalUsdc={invoice.totalUsdc} moonPay={moonPayAvailable() !== null} />
         </>
       )}
     </main>

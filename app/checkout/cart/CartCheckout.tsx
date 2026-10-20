@@ -6,7 +6,8 @@ import { checkoutCandidates, quoteFresh, removeItem, setQuote, type CartItem } f
 import { readCart, writeCart } from "../../components/cart-store";
 import { useCheckText, useLang, useMessages } from "../../components/I18n";
 import CheckoutForm from "../CheckoutForm";
-import Invoice, { usdc, type InvoiceData } from "../Invoice";
+import Invoice, { type InvoiceData } from "../Invoice";
+import { usdc } from "@/lib/i18n/money";
 
 type Ready = { item: CartItem; token: string; usdc?: string };
 type NotReady = { item: CartItem; reason: string };
@@ -124,6 +125,7 @@ export default function CartCheckout({ max, moonPay }: { max: number; moonPay: b
         <CheckoutForm
           quotes={state.ready.map((r) => r.token)}
           usdcDisplay={usdc(invoice.totalUsdc, lang)}
+          totalUsdc={invoice.totalUsdc}
           moonPay={moonPay}
           onPaid={(orders, confirmed, wallet) => {
             // Paid items leave the cart; their order pages, and this invoice, are the record now.
