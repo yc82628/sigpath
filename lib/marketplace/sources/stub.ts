@@ -50,10 +50,15 @@ export class StubSource implements MarketplaceSource {
    * `delayMs` makes the demo feed answer like a real marketplace would — after
    * a network round trip — so the search page's streaming can be seen and
    * demonstrated without live keys (STUB_DELAY_MS). Zero by default.
+   *
+   * `now` is the clock the listing and account dates are counted back from.
+   * Real time by default; a test that runs the same search twice and compares
+   * the results pins it, or two runs either side of a second boundary differ.
    */
   constructor(
     private readonly currency = "EUR",
     private readonly delayMs = 0,
+    private readonly now: () => number = Date.now,
   ) {}
 
   async search(query: string, opts: SearchOptions = {}): Promise<SourceResult> {
@@ -65,6 +70,8 @@ export class StubSource implements MarketplaceSource {
 
     const limit = Math.min(opts.limit ?? 12, 40);
     const next = rng(q.toLowerCase());
+    // Read once, so every date in one answer is counted from the same moment.
+    const nowSec = Math.floor(this.now() / 1000);
 
     // A plausible going rate for this query, 40.00 to 640.00.
     const base = 4000 + Math.floor(next() * 60000);
@@ -92,7 +99,7 @@ export class StubSource implements MarketplaceSource {
           feedbackScore: Math.floor(next() * 4000),
           feedbackPercentage: 90 + Math.floor(next() * 10),
         },
-        listedAt: Math.floor(Date.now() / 1000) - Math.floor(next() * 60 * 86400),
+        listedAt: nowSec - Math.floor(next() * 60 * 86400),
       });
     }
 
@@ -111,9 +118,9 @@ export class StubSource implements MarketplaceSource {
         displayName: "Quick Deals",
         feedbackScore: 0,
         feedbackPercentage: 0,
-        memberSince: Math.floor(Date.now() / 1000) - 3 * 86400,
+        memberSince: nowSec - 3 * 86400,
       },
-      listedAt: Math.floor(Date.now() / 1000) - 3600,
+      listedAt: nowSec - 3600,
     });
 
     // --- the plant: a USED item far below the going used price ----------------
@@ -131,7 +138,7 @@ export class StubSource implements MarketplaceSource {
       condition: "used",
       imageHash: "img-used-bait",
       seller: { handle: "long_time_seller", displayName: "Long Time Seller", feedbackScore: 1200, feedbackPercentage: 98 },
-      listedAt: Math.floor(Date.now() / 1000) - 86400,
+      listedAt: nowSec - 86400,
     });
 
     // --- the plant: same photo, different seller ----------------------------
@@ -145,14 +152,14 @@ export class StubSource implements MarketplaceSource {
       condition: "new",
       imageHash: "img-shared",
       seller: { handle: "bargain_bin_77", displayName: "Bargain Bin", feedbackScore: 12 },
-      listedAt: Math.floor(Date.now() / 1000) - 7200,
+      listedAt: nowSec - 7200,
     });
 
     // --- not the product: an accessory and a for-parts unit ---------------------
     // Both are far below the going rate and both are honest. Priced against the
     // product they would read as scams; the identity check (identity.ts) keeps
     // them out of the comparison and says why, instead of accusing their sellers.
-    const oldAccount = Math.floor(Date.now() / 1000) - 5 * 365 * 86400;
+    const oldAccount = nowSec - 5 * 365 * 86400;
     listings.push({
       id: "stub-accessory",
       source: this.id,
@@ -163,7 +170,7 @@ export class StubSource implements MarketplaceSource {
       condition: "new",
       imageHash: "img-accessory",
       seller: { handle: "cable_corner", displayName: "Cable Corner", feedbackScore: 5400, feedbackPercentage: 99, memberSince: oldAccount },
-      listedAt: Math.floor(Date.now() / 1000) - 5 * 86400,
+      listedAt: nowSec - 5 * 86400,
     });
     listings.push({
       id: "stub-parts",
@@ -175,7 +182,7 @@ export class StubSource implements MarketplaceSource {
       condition: "used",
       imageHash: "img-parts",
       seller: { handle: "repair_shop_de", displayName: "Repair Shop", feedbackScore: 860, feedbackPercentage: 97, memberSince: oldAccount },
-      listedAt: Math.floor(Date.now() / 1000) - 9 * 86400,
+      listedAt: nowSec - 9 * 86400,
     });
 
     return { source: this.id, status: "ok", listings };

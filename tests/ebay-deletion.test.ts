@@ -188,7 +188,10 @@ test("a source that throws becomes a typed error, never a rejected promise", asy
 });
 
 test("assembling the streamed results gives exactly what searchAll gives", async () => {
-  const sources = [new StubSource()];
+  // One pinned clock for both runs: the demo feed dates its listings from it,
+  // and two runs either side of a second boundary would otherwise differ by one.
+  const t = Date.now();
+  const sources = [new StubSource("EUR", 0, () => t)];
   const viaStream = assembleSearch("thinkpad", await Promise.all(startSearch("thinkpad", sources, { limit: 20 })), { limit: 20 });
   const viaAll = await searchAll("thinkpad", sources, { limit: 20 });
   assert.deepEqual(viaStream, viaAll);
