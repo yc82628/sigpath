@@ -205,6 +205,50 @@ button { font-family: var(--font-sans); }
 .site-nav .nav-icon:last-child:hover::after, .site-nav .nav-icon:last-child:focus-visible::after { transform: none; }
 .site-header :focus-visible { outline-color: var(--brass); }
 
+/* The header's wallet (WalletChip): an icon to connect; connected, the short address, a green dot and a menu. */
+.wallet-chip { position: relative; display: flex; }
+.wallet-chip-button { border: 0; padding: 0; background: transparent; color: #f4f3fb; cursor: pointer; }
+.wallet-chip-button.connected {
+  display: inline-flex; gap: 6px; width: auto; padding: 0 10px 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.wallet-chip-address { font: 700 0.8rem/1 var(--font-sans); letter-spacing: 0.02em; }
+.wallet-chip-dot {
+  position: absolute; top: 7px; left: 25px; width: 8px; height: 8px; border-radius: 50%;
+  background: #3ddc97; box-shadow: 0 0 0 2px var(--ink);
+}
+/* Its hover label opens leftwards: the chip sits near the right edge. */
+.wallet-chip .nav-icon::after { left: auto; right: 0; transform: translateY(-4px); }
+.wallet-chip .nav-icon:hover::after, .wallet-chip .nav-icon:focus-visible::after { transform: none; }
+.wallet-menu, .wallet-chip-notice {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40;
+  width: min(340px, calc(100vw - 32px)); padding: 14px 16px; border-radius: 14px;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--border); box-shadow: var(--shadow-lift);
+}
+.wallet-chip-notice { margin: 0; font-size: 0.88rem; }
+.wallet-menu p { margin: 0 0 10px; }
+.wallet-menu-name { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.wallet-menu-tag {
+  padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--fg);
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.wallet-menu-address code { display: block; padding: 6px 8px; font-size: 0.78rem; word-break: break-all; }
+.wallet-menu-balance { font-size: 0.9rem; }
+.wallet-menu-balance > span:first-child { color: var(--muted); }
+.wallet-menu-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.wallet-menu-actions button, .wallet-menu-actions a {
+  padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg); font: 600 0.85rem/1.2 var(--font-sans); text-decoration: none; cursor: pointer;
+}
+.wallet-menu-actions button:hover, .wallet-menu-actions a:hover { border-color: var(--brand); }
+.wallet-menu .notice { margin: 10px 0 0; }
+.wallet-menu :focus-visible { outline-color: var(--brand); }
+/* A phone: the dot says "connected"; the address is in the menu. */
+@media (max-width: 520px) {
+  .wallet-chip-address { display: none; }
+  .wallet-chip-button.connected { width: 40px; padding: 0; border-color: transparent; }
+}
+
 /* The footer: one quiet line of links and the copyright, one line of fine print. */
 .site-footer { margin-top: 64px; border-top: 1px solid var(--border); }
 /* The bottom padding keeps the fine print clear of Ai-chan's button, fixed at the bottom right. */
@@ -1206,6 +1250,15 @@ a.chat-card-title:hover { text-decoration: underline; }
 .wallet-choice button:hover { border-color: var(--brand); }
 .wallet-choice img { border-radius: 4px; }
 .wallet-choice button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 10px 8px; }
+/* No wallet found: how to get one, or on a phone, open SigPath in a wallet app (WalletProvider.tsx). */
+.wallet-help { display: flex; flex-direction: column; gap: 8px; }
+.wallet-help p { margin: 0; }
+.wallet-help .wallet-choice { margin: 2px 0 4px; }
+/* A button that reads as a link inside a sentence ("Check again", "Reload"). */
+.wallet-help button.link, .checkout-form .hint button.link {
+  padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer;
+}
+.checkout-form .hint button.link:disabled { opacity: 0.6; cursor: default; }
 
 /* Impressum and privacy policy: plain reading pages. */
 .legal h2 { font-size: 1.15rem; margin: 28px 0 8px; }

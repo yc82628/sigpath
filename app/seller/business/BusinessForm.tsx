@@ -10,7 +10,8 @@
 
 import { useState } from "react";
 import WalletButton from "../../components/WalletButton";
-import { walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
+import type { ConnectedWallet } from "../../components/wallet";
+import { useWalletChange, useWalletErrorText } from "../../components/WalletProvider";
 // The browser-safe half: the server rebuilds exactly this text to verify the signature.
 import { businessMessage, domainAction, vatAction } from "@/lib/sellers/business-message";
 import type { BusinessStatus } from "@/lib/sellers/business-api";
@@ -53,6 +54,15 @@ export default function BusinessForm() {
   const [record, setRecord] = useState<{ domain: string; record: { name: string; value: string } } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const describe = useWalletErrorText();
+
+  // Everything below is for one wallet's badges. Another wallet starts from its own.
+  useWalletChange(wallet, () => {
+    setConnected(null);
+    setStatus(null);
+    setBusiness(null);
+    setRecord(null);
+  });
 
   async function sign(action: string): Promise<{ time: string; signature: string } | null> {
     if (!connected || !wallet) return null;
@@ -67,7 +77,7 @@ export default function BusinessForm() {
     try {
       await fn();
     } catch (err) {
-      setError(walletErrorMessage(err));
+      setError(describe(err));
     } finally {
       setBusy(false);
     }

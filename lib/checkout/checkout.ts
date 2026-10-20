@@ -87,6 +87,19 @@ export async function readOrder(conn: Connection, order: PublicKey): Promise<Cha
   return { found: true, ...orders.decodeOrder(info.data) };
 }
 
+/**
+ * What a wallet can pay with: its USDC (base units, 0 without a token account)
+ * and its SOL. The checkout and the page's balance check read it the same way,
+ * so the page never says "enough" where the checkout will say "short".
+ */
+export async function walletFunds(conn: Connection, owner: PublicKey): Promise<{ usdc: bigint; lamports: number }> {
+  const [tokenInfo, lamports] = await Promise.all([
+    conn.getAccountInfo(associatedTokenAddress(owner, orders.USDC_MINT)),
+    conn.getBalance(owner),
+  ]);
+  return { usdc: tokenAmountFromData(tokenInfo?.data) ?? 0n, lamports };
+}
+
 /** For OrderMetaStore.sweep: status AND settlement time, since the report window runs from settlement. */
 export function chainStateReader(conn: Connection) {
   return async (order: string): Promise<ChainOrderView> => {
@@ -382,8 +395,7 @@ async function prepareOrders(
   // 4. can this wallet pay for all of it?
   const conn = deps.conn ?? new Connection(ordersRpcUrl(env), "confirmed");
   const buyerToken = associatedTokenAddress(buyer, orders.USDC_MINT);
-  const [tokenInfo, lamports] = await Promise.all([conn.getAccountInfo(buyerToken), conn.getBalance(buyer)]);
-  const have = tokenAmountFromData(tokenInfo?.data) ?? 0n;
+  const { usdc: have, lamports } = await walletFunds(conn, buyer);
   if (have < total) {
     return {
       ok: false,

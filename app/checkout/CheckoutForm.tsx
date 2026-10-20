@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import WalletButton from "../components/WalletButton";
-import { DEVNET, waitForOrder, walletErrorMessage, type ConnectedWallet } from "../components/wallet";
-import { useMessages } from "../components/I18n";
+import { DEVNET, waitForOrder } from "../components/wallet";
+import { shortAddress, useWallet, useWalletErrorText, useWalletFunds } from "../components/WalletProvider";
+import { useLang, useMessages } from "../components/I18n";
+import { usdc } from "@/lib/i18n/money";
 
 /**
  * The delivery form and the wallet step.
@@ -13,6 +15,11 @@ import { useMessages } from "../components/I18n";
  * transaction, and is stored encrypted before the transaction comes back. It is
  * never kept in the browser beyond this form's state: no localStorage, no
  * cookie. Closing the tab is enough to forget it on this side.
+ *
+ * The wallet is the site's (WalletProvider): connected here or in the header,
+ * the form shows its balance straight away and says before Pay, not after,
+ * when it is short. The checkout still checks again on Pay; this is only so
+ * nobody fills in an address for a payment their wallet can't make.
  */
 
 const FIELDS: { key: string; required: boolean; autoComplete: string }[] = [
@@ -31,6 +38,7 @@ export default function CheckoutForm({
   quotes,
   onPaid,
   usdcDisplay,
+  totalUsdc,
   localDisplay,
   moonPay = false,
 }: {
@@ -41,6 +49,8 @@ export default function CheckoutForm({
   /** For the cart: called with the orders once the payment is confirmed (or sent, if confirmation is slow). */
   onPaid?: (orders: { order: string; source: string; id: string }[], confirmed: boolean, wallet?: string) => void;
   usdcDisplay: string;
+  /** The total in USDC base units (the invoice's), to compare with the wallet's balance before Pay. */
+  totalUsdc?: string;
   /** The same total in the listing's currency, for reference (e.g. "145,82 €"). */
   localDisplay?: string;
   /** Whether to offer MoonPay when the wallet is short (see MOONPAY_ENABLED). */
@@ -48,21 +58,36 @@ export default function CheckoutForm({
 }) {
   const router = useRouter();
   const m = useMessages();
+  const lang = useLang();
+  const describe = useWalletErrorText();
+  const { wallet } = useWallet();
+  const funds = useWalletFunds(wallet?.address);
   const [address, setAddress] = useState<Record<string, string>>({ country: "DE" });
-  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState("");
-  /** How much more USDC the connected wallet needs, when it's short. */
+  /** How much more USDC the connected wallet needs, as the checkout said on Pay. */
   const [shortfall, setShortfall] = useState<number | null>(null);
   const [topUpNote, setTopUpNote] = useState("");
 
+  // Another account is another balance: what the checkout said about the last one no longer holds.
+  useEffect(() => {
+    setShortfall(null);
+    setTopUpNote("");
+  }, [wallet?.address]);
+
+  // Known before Pay: the balance against the invoice's total, and SOL for the fees.
+  const orderCount = quotes?.length ?? 1;
+  const shortBy = funds.status === "ok" && totalUsdc ? BigInt(totalUsdc) - funds.usdc : 0n;
+  const needSol = funds.status === "ok" && funds.lamports < funds.minSolLamports * orderCount ? (funds.minSolLamports * orderCount) / 1e9 : 0;
+  const short = shortfall ?? (shortBy > 0n ? Number(shortBy) / 1e6 : null);
+
   async function buyWithMoonPay() {
-    if (!wallet || shortfall === null) return;
+    if (!wallet || short === null) return;
     // Opened now, inside the click, so a popup blocker lets it through; filled once the link is signed.
     const tab = window.open("", "_blank");
     setTopUpNote("Opening MoonPay…");
     try {
-      const qs = new URLSearchParams({ wallet: wallet.address, usdc: String(shortfall), back: window.location.href });
+      const qs = new URLSearchParams({ wallet: wallet.address, usdc: String(short), back: window.location.href });
       const res = await fetch(`/api/onramp/moonpay?${qs}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "MoonPay isn't available right now.");
@@ -79,8 +104,7 @@ export default function CheckoutForm({
     }
   }
 
-  function connected(w: ConnectedWallet) {
-    setWallet(w);
+  function connected() {
     setPhase("idle");
     setMessage("");
   }
@@ -109,14 +133,17 @@ export default function CheckoutForm({
         body: JSON.stringify(cart ? { quotes, buyer: wallet.address, address } : { quote, buyer: wallet.address, address }),
       });
       const body = await res.json();
-      if (res.status === 402 && typeof body.shortfallUsdc === "number") setShortfall(body.shortfallUsdc);
+      if (res.status === 402) {
+        if (typeof body.shortfallUsdc === "number") setShortfall(body.shortfallUsdc);
+        funds.refresh();
+      }
       if (!res.ok) throw new Error(body.error ?? `Checkout failed (${res.status}).`);
       cartOrders = cart ? body.orders : [];
       order = cart ? body.orders[0].order : body.order;
       transaction = body.transaction;
     } catch (err) {
       setPhase("error");
-      setMessage(walletErrorMessage(err));
+      setMessage(describe(err));
       return;
     }
 
@@ -128,7 +155,7 @@ export default function CheckoutForm({
       // Nothing was paid. The stored address is deleted by the sweep once the
       // order has failed to appear for fifteen minutes.
       setPhase("error");
-      setMessage(m.checkout.notSent(walletErrorMessage(err)));
+      setMessage(m.checkout.notSent(describe(err)));
       return;
     }
 
@@ -167,8 +194,25 @@ export default function CheckoutForm({
       ) : (
         <>
           <p className="hint">
-            {m.checkout.payingFrom} {wallet.name} <code>{wallet.address.slice(0, 4)}…{wallet.address.slice(-4)}</code>
+            {m.checkout.payingFrom} {wallet.name} <code>{shortAddress(wallet.address)}</code>
+            {" · "}
+            {m.wallet.balance}{" "}
+            {funds.status === "ok"
+              ? usdc(funds.usdc.toString(), lang)
+              : funds.status === "error"
+                ? m.wallet.balanceUnavailable
+                : m.wallet.checking}{" "}
+            <button type="button" className="link" onClick={funds.refresh} disabled={funds.status === "loading"}>
+              {m.wallet.checkAgain}
+            </button>
           </p>
+          {(shortBy > 0n || needSol > 0) && shortfall === null && (
+            <p className="notice withheld" role="status">
+              {shortBy > 0n && m.wallet.short(usdc(shortBy.toString(), lang))}
+              {shortBy > 0n && needSol > 0 && " "}
+              {needSol > 0 && m.wallet.needSol(needSol.toLocaleString(lang, { maximumFractionDigits: 3 }))}
+            </p>
+          )}
           <button type="submit" className="primary" disabled={busy}>
             {busy ? m.checkout.working : m.checkout.payButton(`${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`)}
           </button>
@@ -177,7 +221,7 @@ export default function CheckoutForm({
 
       {message && <p className={phase === "error" ? "notice withheld" : "notice"}>{message}</p>}
 
-      {shortfall !== null && wallet && (
+      {short !== null && wallet && (
         <section className="top-up">
           <h3>{m.checkout.topUp}</h3>
           {moonPay ? (

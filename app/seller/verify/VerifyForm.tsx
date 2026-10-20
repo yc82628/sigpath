@@ -3,7 +3,8 @@
 import { useState } from "react";
 import CameraCapture, { type CaptureChallenge, type FrameResult } from "../../components/CameraCapture";
 import WalletButton from "../../components/WalletButton";
-import { walletErrorMessage, type ConnectedWallet } from "../../components/wallet";
+import type { ConnectedWallet } from "../../components/wallet";
+import { useWalletChange, useWalletErrorText } from "../../components/WalletProvider";
 import { useLang } from "../../components/I18n";
 
 /**
@@ -56,6 +57,21 @@ export default function VerifyForm({ explorerBase, marketplaces }: { explorerBas
   const [badge, setBadge] = useState<{ sellerKey: string; attestation: string; mint: string; expiresAt: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
+  const describe = useWalletErrorText();
+
+  // The code and the signature belong to one wallet. If the person switches or
+  // disconnects before the badge is issued, start again with the new one.
+  useWalletChange(step === "done" ? null : wallet?.address, () => {
+    setWallet(null);
+    setClaim(null);
+    setProven(null);
+    setSignature("");
+    setStep("connect");
+    setMessage(T(
+      "Your wallet changed, so verification starts again with the wallet now connected.",
+      "Deine Wallet hat gewechselt, daher beginnt die Verifizierung mit der jetzt verbundenen Wallet von vorn.",
+    ));
+  });
 
   async function post(path: string, body: unknown) {
     const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -78,7 +94,7 @@ export default function VerifyForm({ explorerBase, marketplaces }: { explorerBas
       setMessage("");
     } catch (err) {
       setStep("error");
-      setMessage(walletErrorMessage(err));
+      setMessage(describe(err));
     } finally {
       setBusy(false);
     }
@@ -105,7 +121,7 @@ export default function VerifyForm({ explorerBase, marketplaces }: { explorerBas
       setStep("capture");
       setMessage("");
     } catch (err) {
-      setMessage(walletErrorMessage(err));
+      setMessage(describe(err));
     } finally {
       setBusy(false);
     }

@@ -16,7 +16,7 @@ import {
 } from "../lib/checkout/address-store";
 import { checkoutEligibility, priceCheckFor } from "../lib/checkout/eligibility";
 import { analyse } from "../lib/marketplace/anomaly";
-import { prepareCheckout, prepareRefund, MIN_SOL_LAMPORTS } from "../lib/checkout/checkout";
+import { prepareCheckout, prepareRefund, walletFunds, MIN_SOL_LAMPORTS } from "../lib/checkout/checkout";
 import { OrderMetaStore } from "../lib/reports/order-meta";
 import * as orders from "../lib/chains/solana/orders";
 import { associatedTokenAddress } from "../lib/chains/solana/spl";
@@ -606,4 +606,22 @@ test("a settled order offers no refund", async () => {
   const conn = fakeConn({ usdc: null, lamports: 0, order: orderAccount(1, 0) });
   const r = await prepareRefund({ order: Keypair.generate().publicKey.toBase58(), caller: orders.OPERATOR.toBase58() }, { conn });
   assert.equal(!r.ok && r.status, 409);
+});
+
+test("the page's balance check reads the buyer's own USDC account and SOL, as the checkout does", async () => {
+  const owner = Keypair.generate().publicKey;
+  const asked: string[] = [];
+  const conn = {
+    getAccountInfo: async (pk: PublicKey) => {
+      asked.push(pk.toBase58());
+      const data = Buffer.alloc(165);
+      data.writeBigUInt64LE(12_340_000n, 64);
+      return { owner: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), data, executable: false, lamports: 1 };
+    },
+    getBalance: async () => 7_000_000,
+  } as unknown as Connection;
+  assert.deepEqual(await walletFunds(conn, owner), { usdc: 12_340_000n, lamports: 7_000_000 });
+  assert.deepEqual(asked, [associatedTokenAddress(owner, orders.USDC_MINT).toBase58()]);
+  // No USDC account yet: nothing to pay with, not an error.
+  assert.deepEqual(await walletFunds(fakeConn({ usdc: null, lamports: 0 }), owner), { usdc: 0n, lamports: 0 });
 });

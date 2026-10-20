@@ -125,6 +125,7 @@ export default function CartCheckout({ max, moonPay }: { max: number; moonPay: b
         <CheckoutForm
           quotes={state.ready.map((r) => r.token)}
           usdcDisplay={usdc(invoice.totalUsdc, lang)}
+          totalUsdc={invoice.totalUsdc}
           moonPay={moonPay}
           onPaid={(orders, confirmed, wallet) => {
             // Paid items leave the cart; their order pages, and this invoice, are the record now.
