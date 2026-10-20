@@ -8,7 +8,8 @@ import { getLang } from "@/lib/i18n/server";
 import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
 import CheckoutForm from "./CheckoutForm";
-import Invoice, { usdc } from "./Invoice";
+import Invoice from "./Invoice";
+import { usdc } from "@/lib/i18n/money";
 
 /**
  * app/checkout/page.tsx — pay for one listing with USDC.

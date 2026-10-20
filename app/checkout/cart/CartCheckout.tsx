@@ -6,7 +6,8 @@ import { checkoutCandidates, quoteFresh, removeItem, setQuote, type CartItem } f
 import { readCart, writeCart } from "../../components/cart-store";
 import { useCheckText, useLang, useMessages } from "../../components/I18n";
 import CheckoutForm from "../CheckoutForm";
-import Invoice, { usdc, type InvoiceData } from "../Invoice";
+import Invoice, { type InvoiceData } from "../Invoice";
+import { usdc } from "@/lib/i18n/money";
 
 type Ready = { item: CartItem; token: string; usdc?: string };
 type NotReady = { item: CartItem; reason: string };
