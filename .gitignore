@@ -35,3 +35,12 @@ usdc-mint.json
 # Pitch deck exports: the full deck stays local; the 2-minute deck is published
 SigPath-Pitch*.pptx
 !SigPath-Pitch-2min.pptx
+
+# TypeScript incremental-build cache: rebuilt on every build, differs per machine
+*.tsbuildinfo
+
+# Local Claude Code settings for this machine
+.claude/
+
+# Windows screenshots: often capture browser tabs and the taskbar, keep them local
+Screenshot *.png
