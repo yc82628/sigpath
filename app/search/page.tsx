@@ -398,7 +398,9 @@ function MarketOverview({ groups, currency, query }: { groups: MarketGroup[]; cu
           const peak = Math.max(...g.bins);
           return (
             <div key={g.group} className="market-group">
-              <span className="market-label">{g.group === "used" ? m.search.market.usedLabel : m.search.market.newLabel}</span>
+              <span className="market-label">
+                {g.group === "used" ? m.search.market.usedLabel : g.withRefurbished ? m.search.market.newRefurbishedLabel : m.search.market.newLabel}
+              </span>
               <span className="market-typical">
                 <b>{at(g.typical)}</b> {m.search.market.typical}
               </span>
@@ -519,6 +521,9 @@ async function SearchResults({
   const businessOf = (l: Listing) => businesses.get(sellerKey(l.source, l.seller.handle)) ?? null;
 
   const a = result.analysis;
+  // The market box and the median line under it read the same numbers.
+  const groups = a?.status === "ok" ? marketSnapshot(result.listings, a) : [];
+  const newGroup = groups.find((g) => g.group === "new");
   const badgeOf = (l: Listing) => badgeFor(sellerKey(l.source, l.seller.handle), badgeEntries, upheldReports);
   // Flags grouped by marketplace AND id, one verdict per listing, the best checked deals.
   const labelled = result ? labelSearch(result, (l) => badgeOf(l) !== null, businessOf) : null;
@@ -586,14 +591,22 @@ async function SearchResults({
         ))}
       </ul>
 
-      {a?.status === "ok" && <MarketOverview groups={marketSnapshot(result.listings, a)} currency={a.currency!} query={q} />}
+      {a?.status === "ok" && <MarketOverview groups={groups} currency={a.currency!} query={q} />}
       {a?.status === "ok" ? (
         <p className="hint market-scope">
           {/* New and used are compared separately, each against its own
               median — so both are shown when both could be computed. */}
           {m.search.median(
             [
-              a.median !== undefined ? m.search.newAcross(money({ amount: a.median, currency: a.currency! }), a.sampleSize ?? 0) : null,
+              // The same numbers as the market box above, when it has a new group.
+              newGroup
+                ? (newGroup.withRefurbished ? m.search.newRefurbishedAcross : m.search.newAcross)(
+                    money({ amount: newGroup.typical, currency: a.currency! }),
+                    newGroup.count,
+                  )
+                : a.median !== undefined
+                  ? m.search.newAcross(money({ amount: a.median, currency: a.currency! }), a.sampleSize ?? 0)
+                  : null,
               a.used ? m.search.usedAcross(money({ amount: a.used.median, currency: a.currency! }), a.used.sampleSize) : null,
             ]
               .filter(Boolean)

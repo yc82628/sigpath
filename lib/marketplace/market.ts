@@ -13,7 +13,7 @@
  * with real marketplaces.
  */
 
-import type { Analysis } from "./anomaly";
+import { median, MIN_SAMPLE, type Analysis } from "./anomaly";
 import { listingKey, totalPrice, type Listing } from "./types";
 
 export const BINS = 8;
@@ -34,6 +34,12 @@ export interface MarketGroup {
   bins: number[];
   /** Which band the typical price falls in. */
   typicalBin: number;
+  /**
+   * The "new" group also holds refurbished listings, and says so. The scam check
+   * pools them (anomaly.ts); the picture uses new listings alone when there
+   * are at least MIN_SAMPLE of them, and only falls back to the pool otherwise.
+   */
+  withRefurbished?: boolean;
 }
 
 /** The value at fraction p (0..1) of sorted values, by nearest rank. */
@@ -52,11 +58,14 @@ export function marketSnapshot(listings: Listing[], analysis: Analysis): MarketG
   const typicalOf = { new: analysis.median, used: analysis.used?.median };
 
   return (["new", "used"] as const).flatMap((group): MarketGroup[] => {
-    const typical = typicalOf[group];
-    const totals = compared
-      .filter((l) => groupOf(l) === group && totalPrice(l).currency === analysis.currency)
-      .map((l) => totalPrice(l).amount)
-      .sort((a, b) => a - b);
+    const inGroup = compared.filter((l) => groupOf(l) === group && totalPrice(l).currency === analysis.currency);
+    // "Neu: 206 € typisch" was eight consoles, most of them refurbished. New ones alone when there
+    // are enough; otherwise the pool, labelled as new and refurbished.
+    const fresh = inGroup.filter((l) => l.condition === "new");
+    const newOnly = group === "new" && fresh.length >= MIN_SAMPLE;
+    const shown = newOnly ? fresh : inGroup;
+    const totals = shown.map((l) => totalPrice(l).amount).sort((a, b) => a - b);
+    const typical = newOnly ? median(totals) : typicalOf[group];
     if (typical === undefined || totals.length < 2) return [];
     const min = totals[0];
     const max = totals[totals.length - 1];
@@ -75,6 +84,7 @@ export function marketSnapshot(listings: Listing[], analysis: Analysis): MarketG
         max,
         bins,
         typicalBin: binOf(Math.min(max, Math.max(min, typical))),
+        ...(group === "new" && shown.some((l) => l.condition === "refurbished") ? { withRefurbished: true } : {}),
       },
     ];
   });

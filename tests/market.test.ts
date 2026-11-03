@@ -120,3 +120,21 @@ test("over the market reads as such: above, then above most", async () => {
   assert.match(text("n8"), /^Priced above most of the 9 listings/, "60% over: you may find it cheaper");
   assert.strictEqual(translateCheck(text("n6"), "de"), "Über dem Markt: 44 % über dem Median von 9 Angeboten desselben Produkts auf eBay.");
 });
+
+test("the new market is new listings alone when there are enough, else new and refurbished, said as such", () => {
+  const fresh = [250, 255, 260, 265, 270].map((p, i) => at(`n${i}`, p));
+  const refurb = [180, 185, 190, 195].map((p, i) => at(`r${i}`, p, "refurbished"));
+  const enough = [...fresh, ...refurb];
+  const [g] = marketSnapshot(enough, analyse([ok(enough)], { query: "Nintendo Switch OLED" }));
+  assert.strictEqual(g.group, "new");
+  assert.strictEqual(g.typical, 26000, "the new ones' typical price, not one dragged down by refurbished units");
+  assert.strictEqual(g.count, 5);
+  assert.ok(!g.withRefurbished);
+
+  const few = [...fresh.slice(0, 2), ...refurb, at("r9", 200, "refurbished")];
+  const a = analyse([ok(few)], { query: "Nintendo Switch OLED" });
+  const [h] = marketSnapshot(few, a);
+  assert.strictEqual(h.typical, a.median, "too few new ones: the pool the check used");
+  assert.strictEqual(h.count, 7);
+  assert.strictEqual(h.withRefurbished, true, "and it says so");
+});

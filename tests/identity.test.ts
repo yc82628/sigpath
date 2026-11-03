@@ -233,3 +233,18 @@ test("a title that says refurbished is read as refurbished", async () => {
   assert.strictEqual(refurbishedFromTitle("Apple iPhone 15 128GB Neu OVP"), undefined);
   assert.strictEqual(refurbishedFromTitle("Apple iPhone 15 128GB not refurbished, brand new"), undefined);
 });
+
+test("dead pixels are a fault; a screen without them isn't", () => {
+  const Q = "Nintendo Switch OLED";
+  assert.strictEqual(identify("Nintendo Switch OLED – Splatoon 3-Edition - guter Zustand - Pixelfehler", Q).kind, "parts");
+  assert.strictEqual(identify("Nintendo Switch OLED, dead pixel top left", Q).kind, "parts");
+  for (const title of [
+    "Nintendo Switch OLED Weiß, Display ohne Pixelfehler",
+    "Nintendo Switch OLED, keine Pixelfehler, kaum benutzt",
+    "Nintendo Switch OLED, frei von Pixelfehlern",
+    "Nintendo Switch OLED pixelfehlerfrei",
+    "Nintendo Switch OLED, no dead pixels",
+  ]) {
+    assert.strictEqual(identify(title, Q).kind, "product", title);
+  }
+});

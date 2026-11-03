@@ -94,6 +94,12 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   typical", green from 10% below). Only compared listings count, so a charging
   case never drags the range down, and a flagged listing gets no score: its
   "−60%" is bait, not a deal.
+  The "New" box is new listings alone when there are at least five; with
+  fewer, it is the pool the check compares (new and refurbished) and says so,
+  "New & refurbished" ("Neu: 206 € typisch" was eight Switch OLEDs, most of
+  them refurbished). The median line under it uses the same numbers. A title
+  naming dead pixels ("Pixelfehler", "dead pixel") is a fault, not a cheap
+  working unit; "ohne/keine/frei von Pixelfehlern" isn't.
   The words follow the score: a checked price 10% or more under the median says
   "Below the market", 25% or more "Well below the market … though not low
   enough to be flagged", never "in line" (`BELOW_PCT`, `WELL_BELOW_PCT`,
@@ -224,7 +230,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 645 tests, as of 2026-11-03
+npm test                                   # 647 tests, as of 2026-11-03
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

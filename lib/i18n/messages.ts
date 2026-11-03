@@ -138,6 +138,7 @@ const en = {
     } as Record<string, string>,
     median: (what: string) => `Median price ${what}`,
     newAcross: (price: string, n: number) => `new ${price} across ${n} listings`,
+    newRefurbishedAcross: (price: string, n: number) => `new and refurbished ${price} across ${n} listings`,
     usedAcross: (price: string, n: number) => `used ${price} across ${n} listings`,
     onMarketplaces: (n: number) => `on ${n} marketplaces`,
     on: (name: string) => `on ${name}`,
@@ -152,6 +153,7 @@ const en = {
     market: {
       title: "The market right now",
       newLabel: "New",
+      newRefurbishedLabel: "New & refurbished",
       usedLabel: "Used",
       typical: "typical",
       range: (low: string, high: string) => `most between ${low} and ${high}`,
@@ -574,6 +576,7 @@ const de: Messages = {
     },
     median: (what) => `Medianpreis ${what}`,
     newAcross: (price, n) => `neu ${price} bei ${n} Angeboten`,
+    newRefurbishedAcross: (price, n) => `neu und generalüberholt ${price} bei ${n} Angeboten`,
     usedAcross: (price, n) => `gebraucht ${price} bei ${n} Angeboten`,
     onMarketplaces: (n) => `auf ${n} Marktplätzen`,
     on: (name) => (name === "Demo-Feed" ? "im Demo-Feed" : `auf ${name}`),
@@ -588,6 +591,7 @@ const de: Messages = {
     market: {
       title: "Der Markt gerade",
       newLabel: "Neu",
+      newRefurbishedLabel: "Neu & generalüberholt",
       usedLabel: "Gebraucht",
       typical: "typisch",
       range: (low, high) => `meist zwischen ${low} und ${high}`,

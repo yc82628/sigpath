@@ -82,6 +82,8 @@ const PARTS_PHRASES = [
   // Faults sellers name in passing ("ANC / Transparenz rauscht"): it doesn't work as it should.
   "rauscht", "rauschen", "knistert", "knistern", "knackt", "wackelkontakt", "tonaussetzer", "kein ton", "ohne ton",
   "crackling", "static noise", "buzzing", "no sound",
+  // A screen with dead pixels: "guter Zustand - Pixelfehler" was a checked used deal at -18%.
+  "pixelfehler", "pixelfehlern", "dead pixel", "dead pixels", "stuck pixel", "stuck pixels",
 ];
 
 /** Phrases that say only part of the product is sold (a Dyson "Hauptgerät" is the motor unit alone). */
@@ -157,7 +159,7 @@ const INCLUDED_BEFORE =
 /** "charger included", "case incl.", "Hülle inklusive" */
 const INCLUDED_AFTER = /^\s*(included|incl\b|inclusive|inklusive|dabei)/i;
 /** "not cracked", "no broken", "never water damaged", "isn't faulty", "nicht defekt" */
-const NEGATED_BEFORE = /(not|no|never|isn'?t|wasn'?t|without|zero|free of|nicht|kein|keine|keinen|ohne|nie)\s+(been\s+|any\s+)?$/i;
+const NEGATED_BEFORE = /(not|no|never|isn'?t|wasn'?t|without|zero|free of|nicht|kein|keine|keinen|ohne|nie|frei von)\s+(been\s+|any\s+)?$/i;
 
 /**
  * Words in a title that say the item is used, whatever the marketplace's
