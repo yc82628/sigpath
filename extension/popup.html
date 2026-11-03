@@ -3,32 +3,47 @@
 <head>
 <meta charset="utf-8">
 <style>
-  body { width: 280px; margin: 0; padding: 14px 16px; font: 14px/1.45 system-ui, sans-serif; color: #16132b; background: #fff; }
+  body { width: 290px; margin: 0; padding: 14px 16px; font: 14px/1.45 system-ui, sans-serif; color: #16132b; background: #fff; }
   h1 { margin: 0 0 6px; font-size: 16px; }
   p { margin: 6px 0; color: #5b5875; font-size: 12.5px; }
   label { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0; cursor: pointer; }
   .small { font-size: 12px; color: #5b5875; }
   input[type=checkbox] { margin-top: 3px; accent-color: #6a2fe0; }
-  select { width: 100%; padding: 4px; margin-top: 4px; }
   #check { width: 100%; padding: 8px; border: 0; border-radius: 999px; background: #6a2fe0; color: #fff; font: 700 13px system-ui, sans-serif; cursor: pointer; }
   a { color: #6a2fe0; }
+  #result { margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px; background: #f6f5fb; }
+  #result[hidden] { display: none; }
+  #result .big { font-size: 20px; font-weight: 800; margin-right: 6px; }
+  #result .tone { font-weight: 700; }
+  #result p { margin: 4px 0 0; }
+  .good { color: #22703d; } .high { color: #9a3412; } .caution { color: #8a5a00; }
+  hr { border: 0; border-top: 1px solid #e3e0f0; margin: 12px 0 4px; }
   @media (prefers-color-scheme: dark) {
     body { background: #151230; color: #f4f3fb; }
     p, .small { color: #b9b5d6; }
     a { color: #b48cff; }
+    #result { background: #211c45; }
+    .good { color: #6fd894; } .high { color: #ffb37a; } .caution { color: #ffc96b; }
+    hr { border-top-color: #2a2550; }
   }
 </style>
 </head>
 <body>
   <h1>SigPath check</h1>
-  <p>On Amazon, AliExpress, OTTO, MediaMarkt and Saturn, SigPath's check appears by itself at the bottom right of a product page.</p>
-  <button id="check" type="button">Check this page</button>
+  <div id="result" hidden></div>
+  <p id="intro"></p>
+  <button id="check" type="button"></button>
   <p id="status" class="small"></p>
+  <hr>
+  <label>
+    <input type="checkbox" id="auto">
+    <span><strong id="autoTitle"></strong><br><span class="small" id="autoNote"></span></span>
+  </label>
   <label>
     <input type="checkbox" id="share">
-    <span><strong>Share Amazon.de prices I see</strong> (off unless you turn it on)<br><span class="small">Helps other shoppers compare: the products and prices on Amazon.de pages you open go into SigPath's search as "seen on Amazon". Nothing about you is sent.</span></span>
+    <span><strong id="shareTitle"></strong><br><span class="small" id="shareNote"></span></span>
   </label>
-  <p><a href="https://sigpath.vercel.app/extension" target="_blank">What's shared, in full</a></p>
+  <p><a id="more" href="https://sigpath.vercel.app/extension" target="_blank"></a></p>
   <script src="popup.js"></script>
 </body>
 </html>

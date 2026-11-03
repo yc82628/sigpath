@@ -2,7 +2,9 @@
 //
 // It reads what the page shows (the product's name and price, on Amazon also
 // its ASIN, photo and seller), asks SigPath about it through the background
-// worker, and shows the answer in a small panel at the bottom right. On an
+// worker, and shows the answer on the toolbar icon (the deal score, or "!")
+// and in a small panel at the bottom right: by itself, or only when asked from
+// the menu if the shopper chose the icon only. A warning always opens it. On an
 // Amazon results page it puts a "SigPath check" button on every result, and on
 // Amazon.de, with "share prices" on, reports the products and prices listed
 // there. It reads only this page, only what's on screen, and sends nothing
@@ -24,12 +26,18 @@
         best: "Bestes geprüftes eBay-Angebot", full: "Ganze Prüfung auf SigPath →", soldBy: "Verkauf durch", ebayDown: "eBay hat gerade nicht geantwortet: kein Vergleich.",
         error: "SigPath ist gerade nicht erreichbar.", close: "Schließen", reload: "Die Erweiterung wurde neu geladen: lade diese Seite neu.",
         noAnswer: "Keine Antwort von der Erweiterung.", button: "Mit SigPath prüfen →", on: "SigPath ist an: „Mit SigPath prüfen“ bei jedem Ergebnis, oder ein Produkt öffnen.",
-        nothing: "Auf dieser Seite hat SigPath kein Produkt mit Preis gefunden.", noPrice: "Den Preis auf dieser Seite konnte SigPath nicht lesen: vielleicht ist der Artikel nicht verfügbar, oder erst eine Variante (Farbe, Größe) wählen.", checked: "Geprüft", caution: "Vorsicht", unchecked: "Nicht geprüft", newW: "neu", usedW: "gebraucht" }
+        nothing: "Auf dieser Seite hat SigPath kein Produkt mit Preis gefunden.", noPrice: "Den Preis auf dieser Seite konnte SigPath nicht lesen: vielleicht ist der Artikel nicht verfügbar, oder erst eine Variante (Farbe, Größe) wählen.", checked: "Geprüft", caution: "Vorsicht", unchecked: "Nicht geprüft", newW: "neu", usedW: "gebraucht",
+        retry: "Erneut versuchen", pct: (n) => `${n} %`, under: (p) => `${p} unter dem Markt`, over: (p) => `${p} über dem Markt`,
+        good: "Gutes Angebot", fair: "Etwa der übliche Preis", high: "Anderswo vielleicht günstiger",
+        usually: (lo, hi, n, mixed) => `${mixed ? "Neu und generalüberholt" : "Neu"} auf eBay meist ${lo} – ${hi} (${n} Angebote).`, also: "Auch auf", notChecked: "nicht von SigPath geprüft" }
     : { checking: "SigPath is checking…", typical: "Typical on eBay", listings: "listings", below: "below", above: "above", same: "exactly the typical price",
         best: "Best checked eBay deal", full: "Full check on SigPath →", soldBy: "Sold by", ebayDown: "eBay didn't answer just now: no comparison.",
         error: "SigPath can't be reached right now.", close: "Close", reload: "The extension was reloaded: reload this page.",
         noAnswer: "No answer from the extension.", button: "Check with SigPath →", on: "SigPath is on: “Check with SigPath” on any result, or open a product.",
-        nothing: "SigPath found no product with a price on this page.", noPrice: "SigPath couldn't read the price on this page: the item may be unavailable, or choose an option (colour, size) first.", checked: "Checked", caution: "Caution", unchecked: "Not checked", newW: "new", usedW: "used" };
+        nothing: "SigPath found no product with a price on this page.", noPrice: "SigPath couldn't read the price on this page: the item may be unavailable, or choose an option (colour, size) first.", checked: "Checked", caution: "Caution", unchecked: "Not checked", newW: "new", usedW: "used",
+        retry: "Try again", pct: (n) => `${n}%`, under: (p) => `${p} under the market`, over: (p) => `${p} over the market`,
+        good: "Good deal", fair: "About the usual price", high: "You may find it cheaper",
+        usually: (lo, hi, n, mixed) => `${mixed ? "New and refurbished" : "New"} on eBay, usually ${lo} – ${hi} (${n} listings).`, also: "Also on", notChecked: "not checked by SigPath" };
 
   const host = location.hostname;
   const manual = () => !!window.__sigpathManual; // "Check this page" in the extension's menu
@@ -136,7 +144,17 @@
 
   const reported = new Set();
   let server = "https://sigpath.vercel.app";
-  ask({ type: "settings" }).then((r) => { if (r.ok && r.data && r.data.server) server = r.data.server; });
+  // Whether the panel opens by itself (the menu's setting), and whether the shopper asked for it from the menu.
+  let auto = true;
+  let forced = false;
+  // On a shop it doesn't cover, it only runs because the shopper asked from the menu.
+  const visible = () => auto || forced || SHOP === "other";
+  const ready = ask({ type: "settings" }).then((r) => {
+    if (r.ok && r.data) {
+      if (r.data.server) server = r.data.server;
+      auto = r.data.auto !== false;
+    }
+  });
   let notePill = false;
 
   /** A "SigPath check" button on each result, opening SigPath's check for it; on Amazon.de the prices are reported. */
@@ -163,7 +181,7 @@
       where.appendChild(a);
     }
     if (items.length) ask({ type: "seen", items: items.slice(0, 60) });
-    if (reported.size && !notePill) {
+    if (reported.size && !notePill && visible()) {
       notePill = true;
       showPanel().body.innerHTML = `<p class="muted">${T.on}</p>`;
     }
@@ -188,9 +206,15 @@
       .checked { background: #e2f4e8; color: #22703d; } .caution { background: #fdf0d8; color: #8a5a00; } .unchecked { background: #eeedf4; color: #5b5875; }
       .headline { font-weight: 700; margin: 0 0 6px; } ul { margin: 0 0 8px; padding-left: 18px; } li { margin: 2px 0; } li.warn { color: #a3361f; }
       .muted { color: #5b5875; font-size: 12px; } a { color: #6a2fe0; } p { margin: 6px 0; }
-      @media (prefers-color-scheme: dark) { .card { background: #151230; color: #f4f3fb; border-color: #2a2550; } .muted, button { color: #b9b5d6; } a { color: #b48cff; } li.warn { color: #ff9a85; } }
+      .deal { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 4px; }
+      .deal .big { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+      .deal .tone { font-weight: 700; }
+      .good .big, .good .tone { color: #22703d; } .high .big, .high .tone { color: #9a3412; }
+      button.retry { font: 700 12px system-ui, sans-serif; color: #fff; background: #6a2fe0; border-radius: 999px; padding: 6px 12px; margin-top: 4px; }
+      @media (prefers-color-scheme: dark) { .card { background: #151230; color: #f4f3fb; border-color: #2a2550; } .muted, button { color: #b9b5d6; } a { color: #b48cff; } li.warn { color: #ff9a85; }
+        .good .big, .good .tone { color: #6fd894; } .high .big, .high .tone { color: #ffb37a; } button.retry { color: #fff; } }
     </style><div class="card" role="dialog" aria-label="SigPath"><div class="head"><span class="brand">SigPath</span><button aria-label="${T.close}">×</button></div><div class="body"></div></div>`;
-    root.querySelector("button").addEventListener("click", () => { hostEl.remove(); panel = null; });
+    root.querySelector("button").addEventListener("click", () => { hostEl.remove(); panel = null; forced = false; });
     document.documentElement.appendChild(hostEl);
     panel = { body: root.querySelector(".body"), host: hostEl };
     return panel;
@@ -198,28 +222,65 @@
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const safeUrl = (u) => (/^https:\/\//.test(u || "") ? esc(u) : "#");
+  // Marketplace titles run to a paragraph; the panel stays small.
+  const short = (t) => (String(t ?? "").length > 70 ? `${String(t).slice(0, 68).trimEnd()}…` : String(t ?? ""));
 
-  function render(r, product) {
-    const p = showPanel();
+  /** The toolbar icon: the deal score on a checked price, "!" on a warning, "?" when it couldn't be checked. */
+  function badgeOf(r) {
+    if (r.verdict === "caution") return { text: "!", color: "#b45309" };
+    if (r.verdict !== "checked") return { text: "?", color: "#6b7280" };
+    if (!r.deal || Math.abs(r.deal.pct) > 99) return { text: "✓", color: "#22703d" };
+    const color = { good: "#22703d", fair: "#6b7280", high: "#9a3412" }[r.deal.tone] || "#6b7280";
+    return { text: r.deal.pct === 0 ? "±0" : `${r.deal.pct > 0 ? "+" : "−"}${Math.abs(r.deal.pct)}%`, color };
+  }
+
+  /** The deal first: how far from the market, then the usual range; why SigPath can vouch for it follows. */
+  function dealHtml(r) {
+    if (!r.deal) return "";
+    const d = r.deal;
+    const big = d.pct === 0 ? "±0" : `${d.pct > 0 ? "+" : "−"}${T.pct(Math.abs(d.pct))}`;
+    const words = d.pct < 0 ? T.under(T.pct(-d.pct)) : d.pct > 0 ? T.over(T.pct(d.pct)) : T.same;
+    let html = `<div class="deal ${esc(d.tone)}"><span class="big">${esc(big)}</span><span class="tone">${esc(T[d.tone] || "")}</span></div>
+      <p class="muted">${esc(r.price)}: ${esc(words)}.</p>`;
+    if (r.market) html += `<p>${esc(T.usually(r.market.low, r.market.high, r.market.listings, r.market.basis === "new-refurbished"))}</p>`;
+    return html;
+  }
+
+  function render(r, product, open) {
     const label = { checked: T.checked, caution: T.caution, unchecked: T.unchecked }[r.verdict] || r.verdict;
-    let html = `<span class="pill ${esc(r.verdict)}">${r.verdict === "checked" ? "✓ " : r.verdict === "caution" ? "! " : ""}${esc(label)}</span>
-      <p class="headline">${esc(r.headline)}</p><ul>${r.points.slice(0, 4).map((x) => `<li class="${esc(x.tone)}">${esc(x.text)}</li>`).join("")}</ul>`;
-    if (r.typical) {
+    // The verdict on the toolbar icon, and a summary for the menu.
+    ask({
+      type: "badge",
+      ...badgeOf(r),
+      summary: { verdict: r.verdict, headline: r.headline, deal: r.deal || null, price: r.price, market: r.market || null, checkUrl: r.checkUrl },
+    });
+    // A warning opens the panel even when the shopper chose the icon only.
+    if (!open && r.verdict !== "caution") return;
+    let html = dealHtml(r);
+    // With the deal on top, the price line below would say it again in other numbers (measured against
+    // new and used alike), and "photo not checked" means nothing for a shop's own product: warnings only.
+    const points = r.deal ? r.points.filter((x) => x.tone === "warn") : r.points.slice(0, 4);
+    html += `<span class="pill ${esc(r.verdict)}">${r.verdict === "checked" ? "✓ " : r.verdict === "caution" ? "! " : ""}${esc(label)}</span>`;
+    if (!r.deal) html += `<p class="headline">${esc(r.headline)}</p>`;
+    if (points.length) html += `<ul>${points.map((x) => `<li class="${esc(x.tone)}">${esc(x.text)}</li>`).join("")}</ul>`;
+    if (r.typical && !r.deal) {
       const d = r.typical.diffPct;
-      const rel = d === 0 ? T.same : `${Math.abs(d)} % ${d < 0 ? T.below : T.above}`;
+      const rel = d === 0 ? T.same : `${T.pct(Math.abs(d))} ${d < 0 ? T.below : T.above}`;
       html += `<p><strong>${T.typical}:</strong> ${esc(r.typical.price)} <span class="muted">(${r.typical.listings} ${T.listings}) · ${esc(r.price)} = ${esc(rel)}</span></p>`;
-    } else if (!r.ebayOk) {
+    } else if (!r.typical && !r.ebayOk) {
       html += `<p class="muted">${T.ebayDown}</p>`;
     }
     if (r.bestEbay?.length) {
       const b = r.bestEbay[0];
-      html += `<p><strong>${T.best}:</strong> <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer">${esc(b.title)}</a> — ${esc(b.price)} (${b.group === "used" ? T.usedW : T.newW})</p>`;
+      html += `<p><strong>${T.best}:</strong> <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer">${esc(short(b.title))}</a> — ${esc(b.price)} (${b.group === "used" ? T.usedW : T.newW})</p>`;
+    }
+    if (r.elsewhere) {
+      const e = r.elsewhere;
+      html += `<p><strong>${T.also} ${esc(e.shop)}:</strong> <a href="${safeUrl(e.url)}" target="_blank" rel="${e.affiliate ? "sponsored " : ""}noopener noreferrer">${esc(short(e.title))}</a> — ${esc(e.price)} <span class="muted">(${T.notChecked})</span></p>`;
     }
     if (product.seller) html += `<p class="muted">${T.soldBy}: ${esc(product.seller)}</p>`;
     html += `<p><a href="${safeUrl(r.checkUrl)}" target="_blank" rel="noopener">${T.full}</a></p>`;
-    p.body.innerHTML = html;
-    // The verdict on the toolbar icon too.
-    ask({ type: "badge", text: r.verdict === "checked" ? "✓" : r.verdict === "caution" ? "!" : "?" });
+    showPanel().body.innerHTML = html;
   }
 
   // ---- Running it ---------------------------------------------------------
@@ -239,13 +300,13 @@
     const key = `${product.title}|${product.price}`;
     if (key === lastChecked) return;
     lastChecked = key;
-    const p = showPanel();
+    const open = visible();
     if (!product.price) {
       // A product page, but no price SigPath can read: say so rather than stay silent.
-      p.body.innerHTML = `<p class="muted">${T.noPrice}</p>`;
+      if (open) showPanel().body.innerHTML = `<p class="muted">${T.noPrice}</p>`;
       return;
     }
-    p.body.innerHTML = `<p class="muted">${T.checking}</p>`;
+    if (open) showPanel().body.innerHTML = `<p class="muted">${T.checking}</p>`;
     const res = await ask({
       type: "check",
       product: {
@@ -258,19 +319,31 @@
         lang: DE ? "de" : "en",
       },
     });
+    // A check that came back after the shopper moved on to another product isn't this page's.
+    if (lastChecked !== key) return;
     if (!res.ok) {
-      // The reason, as the background worker gave it: no server, an old SigPath, a reloaded extension.
-      p.body.innerHTML = `<p class="muted">${T.error}</p><p class="muted">${esc(res.error)}</p>`;
+      // The reason, as the background worker gave it: no server, too slow, a reloaded extension.
+      // Shown only where the panel is open, with a way to ask again.
+      if (!open && !panel) return;
+      const body = showPanel().body;
+      body.innerHTML = `<p class="muted">${T.error}</p><p class="muted">${esc(res.error)}</p><button class="retry" type="button">${T.retry}</button>`;
+      body.querySelector(".retry").addEventListener("click", () => {
+        lastChecked = "";
+        run();
+      });
       return;
     }
-    render(res.data, product);
+    render(res.data, product, open || !!panel);
   }
 
+  // The menu's "Show the check": the panel opens, whatever the setting.
   window.__sigpathRerun = () => {
+    forced = true;
     lastChecked = "";
     run();
   };
-  run();
+  // After the settings, so the first check knows whether to open the panel.
+  ready.then(run);
   // Shops that change page without reloading (OTTO, MediaMarkt), and Amazon results that load more as you scroll.
   let href = location.href;
   let timer = 0;
@@ -280,7 +353,9 @@
       if (location.href !== href) {
         href = location.href;
         lastChecked = "";
+        forced = false;
         if (panel) { panel.host.remove(); panel = null; }
+        ask({ type: "forget" });
       }
       run();
     }, 1200);

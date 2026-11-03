@@ -103,6 +103,10 @@ const RULES: Rule[] = [
     (w) => `Im Titel steht „${w}“, daher gilt es als gebraucht, egal welcher Zustand im Angebot steht.`,
   ],
   [
+    /^Its title says "(.+)", so it's treated as refurbished, whatever the listing's condition says\.$/,
+    (w) => `Im Titel steht „${w}“, daher gilt es als generalüberholt, egal welcher Zustand im Angebot steht.`,
+  ],
+  [
     /^The seller has no ratings yet, and the price is (\d+)% below the median of (\d+) comparable (used )?listings ((?:on|across) .+)\.$/,
     (pct, n, used, on) =>
       `Der Verkäufer hat noch keine Bewertungen, und der Preis liegt ${pct} % unter dem Median von ${n} vergleichbaren ${used ? "gebrauchten " : ""}Angeboten ${where(on)}.`,

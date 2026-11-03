@@ -2,7 +2,10 @@
 
 What to paste into the Chrome Web Store (and Microsoft Edge Add-ons) forms. The
 upload is a zip of this folder with `manifest.json` at its root (not the folder
-itself), e.g. `sigpath-check-0.3.0.zip`.
+itself), e.g. `sigpath-check-0.4.0.zip`.
+
+**0.4.0:** upload only once 0.3.0 is approved; a new upload while one is in
+review sends it back to the start of the queue.
 
 - **Chrome Web Store:** https://chrome.google.com/webstore/devconsole, a Google
   developer account, a one-time US$5 registration fee.
@@ -13,20 +16,25 @@ itself), e.g. `sigpath-check-0.3.0.zip`.
 **Name:** SigPath check
 
 **Summary** (132 characters at most):
-> Scam and price check on Amazon, AliExpress, OTTO, MediaMarkt and Saturn: compared with eBay, seller and price red flags shown.
+> See how good a deal is on Amazon, AliExpress, OTTO, MediaMarkt and Saturn: the price against the market, red flags, a better deal.
 
 **Category:** Shopping. **Languages:** English, German.
 
 **Description:**
-> SigPath checks the deal you're looking at before you buy.
+> SigPath shows how good the deal you're looking at really is, before you buy.
 >
 > On a product page at Amazon, AliExpress, OTTO, MediaMarkt or Saturn, a small
 > SigPath panel shows:
-> • how the price compares with the typical price for the same item on eBay
+> • the deal score: how far the price is from the market for the same product
+>   ("−22 %, good deal"), and the usual price range
 > • SigPath's warnings: a price too good to be true, a seller with upheld
 >   fake-product reports
-> • the best SigPath-checked eBay deal for it
+> • the best SigPath-checked eBay deal for it, and the same product on
+>   AliExpress when its price is believable
 > • on Amazon, who actually sells it
+>
+> Prefer it quiet? Turn off "Open the panel by itself": the score shows on the
+> icon only, and a warning still opens the panel.
 >
 > On Amazon's search results, "Check with SigPath" under each result opens the
 > check for it. On any other shop, click the icon and "Check this page".
@@ -52,7 +60,7 @@ with the "Check with SigPath" buttons; the menu with "Check this page".
 > user is viewing.
 
 **Permission justifications:**
-- `storage`: remembers one setting, whether the user turned on sharing Amazon.de prices.
+- `storage`: remembers two settings (sharing Amazon.de prices; opening the panel by itself), and the last check on each tab for the menu, in session storage only, gone when the browser closes.
 - `activeTab`: "Check this page" runs the check on the tab the user has open, only when they click it.
 - `scripting`: runs the check script on that tab after that click (on shops it doesn't cover by itself).
 - Host permission `https://sigpath.vercel.app/*`: sends the product's name and price to SigPath's own service for the check.

@@ -97,3 +97,39 @@ test("a repeat of a recent search is answered from what the marketplace said, a 
   assert.strictEqual(asked, 5, "a failed answer isn't kept");
   clearSearchCache();
 });
+
+test("the price check's market is shared between shoppers for half an hour, through the database", async () => {
+  const { sharedSources, SHARED_CACHE_SECS } = await import("../lib/marketplace/search-cache");
+  const db = new Map<string, string>();
+  const sets: unknown[][] = [];
+  const kv = {
+    command: async <T>(args: (string | number)[]): Promise<T> => {
+      if (args[0] === "GET") return (db.get(String(args[1])) ?? null) as T;
+      sets.push(args);
+      db.set(String(args[1]), String(args[2]));
+      return "OK" as T;
+    },
+    pipeline: async () => [],
+  };
+  let asked = 0;
+  let status: "ok" | "error" = "ok";
+  const source = { id: "ebay" as const, search: async () => (asked++, { source: "ebay" as const, status, listings: [] }) };
+  // Two server instances, one database.
+  const [a] = sharedSources([source], kv);
+  const [b] = sharedSources([source], kv);
+  await a.search("AirPods Pro 2", { limit: 50, currency: "EUR" });
+  const r = await b.search("airpods pro 2", { limit: 50, currency: "EUR" });
+  assert.strictEqual(asked, 1, "the second shopper's check costs no eBay search");
+  assert.strictEqual(r.status, "ok");
+  assert.deepStrictEqual(sets[0].slice(3), ["EX", SHARED_CACHE_SECS], "kept with an expiry");
+  status = "error";
+  await a.search("PS5", {});
+  await b.search("PS5", {});
+  assert.strictEqual(asked, 3, "a failed answer isn't shared");
+
+  const broken = { command: async () => { throw new Error("down"); }, pipeline: async () => [] };
+  status = "ok";
+  const [c] = sharedSources([source], broken);
+  assert.strictEqual((await c.search("Switch", {})).status, "ok", "a database that fails never fails the check");
+  assert.strictEqual(sharedSources([source], null)[0], source, "no database: asked live");
+});

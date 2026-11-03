@@ -1307,7 +1307,7 @@ a.chat-card-title:hover { text-decoration: underline; }
 .qs-dots { display: flex; gap: 5px; }
 .qs-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
 .qs-url { flex: 1; padding: 3px 10px; border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 0.78rem; }
-.qs-ext { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--ok); color: #fff; font-size: 0.75rem; font-weight: 800; }
+.qs-ext { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 6px; background: var(--ok); color: #fff; font-size: 0.72rem; font-weight: 800; }
 .qs-page { position: relative; min-height: 250px; padding: 18px; }
 .qs-product { display: flex; gap: 16px; max-width: 60%; }
 .qs-photo { flex: none; display: grid; place-items: center; width: 110px; height: 110px; border-radius: 10px; background: var(--surface-2); }
@@ -1326,6 +1326,8 @@ a.chat-card-title:hover { text-decoration: underline; }
 .qs-brand { font-weight: 800; background: var(--gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .qs-pill { align-self: flex-start; padding: 1px 9px; border-radius: 999px; background: #e2f4e8; color: #22703d; font-weight: 700; font-size: 0.75rem; }
 .qs-muted { color: #b9b5d6; font-size: 0.76rem; }
+.qs-deal { color: #6fd894; font-weight: 700; }
+.qs-deal b { font-size: 1.3rem; font-weight: 800; margin-right: 4px; }
 @keyframes qs-pop { from { opacity: 0; transform: translateY(12px) scale(0.96); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .qs-panel { animation: none; } }
 .qs-browser figcaption { padding: 10px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }

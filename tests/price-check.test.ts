@@ -61,6 +61,7 @@ test("AirPods at a fifth of the market price on AliExpress: look closer", async 
   );
   assert.equal(r.shop, "AliExpress");
   assert.equal(r.product.check.verdict, "caution");
+  assert.equal(r.deal, null, "a flagged price is never shown as a deal");
   assert.ok(r.product.check.points.some((p) => /Priced well below the median/.test(p.text)));
 });
 
@@ -129,4 +130,84 @@ test("a console checked as \"PlayStation 5 Konsole – Digital Edition\" is stil
   assert.equal(r.query, "PlayStation 5 Digital");
   assert.equal(r.product.title, "PlayStation 5 Konsole – Digital Edition (Slim)");
   assert.ok(r.comparison, "compared, though the shop says \"Konsole\" in between");
+});
+
+const aliSource = (offers: [string, number][]): MarketplaceSource => ({
+  id: "aliexpress",
+  priceComparable: false,
+  search: async () => ({
+    source: "aliexpress",
+    status: "ok",
+    listings: offers.map(([title, amount], i): Listing => ({
+      id: `a${i}`, source: "aliexpress", title, url: `https://aliexpress.com/item/${i}.html`, condition: "new",
+      price: { amount, currency: "EUR" }, seller: { handle: `ali${i}` }, affiliate: true,
+    })),
+  }),
+});
+
+test("the deal score and the usual range, as the extension's panel shows them", async () => {
+  const r = await checkPrice(
+    { title: "Apple AirPods Pro 2", price: { amount: 19500, currency: "EUR" }, from: "amazon" },
+    {},
+    [ebaySource([24000, 24500, 25000, 25500, 26000, 23500])],
+  );
+  assert.ok(r.comparison);
+  assert.deepStrictEqual(r.deal, { pct: -21, tone: "good" }, "195 € against the 247.50 € typical of the six eBay prices");
+  assert.deepStrictEqual(
+    r.market,
+    { low: 24000, high: 25500, count: 6, typical: 24750, currency: "EUR", basis: "new" },
+    "fewer than ten: the middle half, so one odd listing isn't the bottom of the range",
+  );
+  const down: MarketplaceSource = { id: "ebay", search: async () => ({ source: "ebay", status: "error", listings: [] }) };
+  const none = await checkPrice({ title: "Apple AirPods Pro 2", price: { amount: 19500, currency: "EUR" }, from: "amazon" }, {}, [down]);
+  assert.strictEqual(none.deal, null, "no market, no score");
+  assert.strictEqual(none.market, null);
+});
+
+test("AliExpress is shown as an alternative only for the same product at a believable price, never in the market", async () => {
+  const ebay = ebaySource([24000, 24500, 25000, 25500, 26000, 23500]);
+  const r = await checkPrice(
+    { title: "Apple AirPods Pro 2", price: { amount: 24900, currency: "EUR" }, from: "otto" },
+    {},
+    [ebay, aliSource([["Apple AirPods Pro 2 TWS", 2900], ["Apple AirPods Pro 2", 21000], ["Apple AirPods Pro 2", 19900], ["Hülle für Apple AirPods Pro 2", 900]])],
+  );
+  assert.strictEqual(r.comparison!.median, 24900, "AliExpress prices don't move the market price");
+  assert.strictEqual(r.elsewhere?.listing.id, "a2", "the cheapest believable one: 29 € is a copy, the case isn't the product");
+  assert.strictEqual(r.elsewhere?.total.amount, 19900);
+  const onAli = await checkPrice(
+    { title: "Apple AirPods Pro 2", price: { amount: 24900, currency: "EUR" }, from: "aliexpress" },
+    {},
+    [ebay, aliSource([["Apple AirPods Pro 2", 21000]])],
+  );
+  assert.strictEqual(onAli.elsewhere, null, "already on AliExpress");
+  const dearer = await checkPrice(
+    { title: "Apple AirPods Pro 2", price: { amount: 19000, currency: "EUR" }, from: "otto" },
+    {},
+    [ebay, aliSource([["Apple AirPods Pro 2", 21000]])],
+  );
+  assert.strictEqual(dearer.elsewhere, null, "not when it costs more than the page the shopper is on");
+});
+
+test("a new product is measured against new listings, not refurbished ones, when there are enough", async () => {
+  const listings = (rows: [string, number][]): MarketplaceSource => ({
+    id: "ebay",
+    search: async () => ({
+      source: "ebay",
+      status: "ok",
+      listings: rows.map(([condition, amount], i): Listing => ({
+        id: String(i), source: "ebay", title: "Apple iPhone 15 128GB", url: `https://ebay.de/${i}`, condition: condition as Listing["condition"],
+        price: { amount, currency: "EUR" }, shipping: { amount: 0, currency: "EUR" }, seller: { handle: `s${i}`, feedbackScore: 100 },
+      })),
+    }),
+  });
+  const refurbished: [string, number][] = [36900, 38200, 38900, 39900, 43000, 44500, 46900, 48900].map((p) => ["refurbished", p]);
+  const iphone = { title: "Apple iPhone 15 (128 GB) - Schwarz", price: { amount: 69900, currency: "EUR" }, from: "amazon" as const };
+
+  const mostlyRefurbished = await checkPrice(iphone, {}, [listings([...refurbished, ["new", 50699], ["new", 59900]])]);
+  assert.strictEqual(mostlyRefurbished.market?.basis, "new-refurbished", "two new ones aren't a market: the pool, said as such");
+
+  const enoughNew = await checkPrice(iphone, {}, [listings([...refurbished, ...[64900, 67900, 69900, 71900, 72900].map((p): [string, number] => ["new", p])])]);
+  assert.strictEqual(enoughNew.market?.basis, "new");
+  assert.strictEqual(enoughNew.market?.typical, 69900);
+  assert.deepStrictEqual(enoughNew.deal, { pct: 0, tone: "fair" }, "the usual price for a new one, not +53%");
 });

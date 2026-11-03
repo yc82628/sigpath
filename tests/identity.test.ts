@@ -225,3 +225,11 @@ test("a title that says used is read as used, whatever the condition field says"
     assert.strictEqual(usedFromTitle(title), undefined, title);
   }
 });
+
+test("a title that says refurbished is read as refurbished", async () => {
+  const { refurbishedFromTitle } = await import("../lib/marketplace/identity");
+  assert.strictEqual(refurbishedFromTitle("Nintendo Switch OLED-Modell 64GB weiß Sehr Gut – Refurbished"), "refurbished");
+  assert.strictEqual(refurbishedFromTitle("Apple iPhone 15 128GB generalüberholt"), "generalüberholt");
+  assert.strictEqual(refurbishedFromTitle("Apple iPhone 15 128GB Neu OVP"), undefined);
+  assert.strictEqual(refurbishedFromTitle("Apple iPhone 15 128GB not refurbished, brand new"), undefined);
+});

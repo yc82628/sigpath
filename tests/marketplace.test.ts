@@ -1342,3 +1342,17 @@ test("results: a refurbished listing graded \"wie neu\" stays refurbished", () =
   assert.strictEqual(r.listings[0].condition, "refurbished");
   assert.strictEqual(r.listings[0].conditionFromTitle, undefined);
 });
+
+test("results: a listing sold as new but titled refurbished is refurbished, with the reason, in both languages", async () => {
+  const { translateCheck } = await import("../lib/i18n/checks");
+  const fresh = Array.from({ length: MIN_SAMPLE }, (_, i) =>
+    listing({ id: `n${i}`, title: "Nintendo Switch OLED", condition: "new", price: { amount: 30000, currency: "EUR" }, seller: { handle: `n${i}` } }),
+  );
+  const refurb = listing({ id: "x", title: "Nintendo Switch OLED Sehr Gut – Refurbished", condition: "new", price: { amount: 24000, currency: "EUR" }, seller: { handle: "x" } });
+  const r = withLabels(assembleSearch("Nintendo Switch OLED", [ok([...fresh, refurb])]));
+  const x = r.listings.find((l) => l.id === "x")!;
+  assert.strictEqual(x.condition, "refurbished");
+  const note = x.check.points.find((p) => p.text.includes("treated as refurbished"))!;
+  assert.ok(note, "the shopper is told why");
+  assert.strictEqual(translateCheck(note.text, "de"), "Im Titel steht „refurbished“, daher gilt es als generalüberholt, egal welcher Zustand im Angebot steht.");
+});

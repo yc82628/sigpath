@@ -203,7 +203,10 @@ export function checkLabel(
     points.push({ tone: "info", text: priceCheck.reason });
   }
   if (listing.conditionFromTitle) {
-    points.push({ tone: "info", text: `Its title says "${listing.conditionFromTitle}", so it's treated as used, whatever the listing's condition says.` });
+    points.push({
+      tone: "info",
+      text: `Its title says "${listing.conditionFromTitle}", so it's treated as ${listing.condition === "refurbished" ? "refurbished" : "used"}, whatever the listing's condition says.`,
+    });
   }
   points.push(...checkLines(listing, analysis, now));
   if (verifiedSeller) points.push({ ...badgePoint, tone: "good" });

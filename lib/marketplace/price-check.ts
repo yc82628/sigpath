@@ -15,8 +15,11 @@ import { searchAll } from "./search";
 import { defaultSources } from "./sources";
 import type { MarketplaceSource } from "./sources/types";
 import { bestCheckedDeals, withLabels } from "./label";
-import { listingKey, type Listing, type MarketplaceId, type Money } from "./types";
+import { listingKey, totalPrice, type Listing, type MarketplaceId, type Money } from "./types";
 import { sameProduct, VARIANT_WORDS } from "./identity";
+import { dealTone, quantile } from "./market";
+import { median, MIN_SAMPLE } from "./anomaly";
+import { cachedSources, sharedSources } from "./search-cache";
 import { DecisionLog } from "../reports/reports";
 
 const SYMBOLS: [RegExp, string][] = [
@@ -101,10 +104,27 @@ export interface PriceCheckInput {
   url?: string;
 }
 
+/**
+ * What a price is checked against: eBay (the market) and AliExpress (shown as
+ * an alternative, never in the market price), each answer shared between
+ * shoppers for half an hour (search-cache.ts).
+ */
+export function checkSources(env: Record<string, string | undefined> = process.env): MarketplaceSource[] {
+  return cachedSources(sharedSources(defaultSources(env).filter((s) => s.id === "ebay" || s.id === "aliexpress")));
+}
+
+/**
+ * An AliExpress offer is shown next to a check only at 75% of the market price
+ * or more. Below that, for a branded product, it is far more often a copy than
+ * a bargain, and AliExpress prices are never checked (sources/aliexpress.ts):
+ * the panel must not send a shopper from a fair price to a fake.
+ */
+export const ALTERNATIVE_MIN_RATIO = 0.75;
+
 export async function checkPrice(
   input: PriceCheckInput,
   env: Record<string, string | undefined> = process.env,
-  ebay: MarketplaceSource[] = defaultSources(env).filter((s) => s.id === "ebay"),
+  sources: MarketplaceSource[] = checkSources(env),
 ) {
   const shop = SHOPS[input.from] ?? SHOPS.other;
   const query = shortQuery(input.title);
@@ -126,25 +146,70 @@ export async function checkPrice(
     search: async () => ({ source: shop.source, status: "ok", listings: [product] }),
   };
   const upheldReports = await DecisionLog.fromEnv(env).upheldCounts();
-  const raw = await searchAll(query, [...ebay, brought], { limit: 50, currency: input.price.currency }, { upheldReports });
+  const raw = await searchAll(query, [...sources, brought], { limit: 50, currency: input.price.currency }, { upheldReports });
   const labelled = withLabels(raw);
   const key = listingKey(product);
   const ebayStatus = raw.sources.find((s) => s.source === "ebay");
+  const comparison = raw.analysis.comparisons[key] ?? null;
+  const mine = raw.analysis.identities[key];
+  const same = (l: Listing) => {
+    const theirs = raw.analysis.identities[listingKey(l)];
+    return !!mine && !!theirs && theirs.named !== false && sameProduct(mine, theirs);
+  };
+  const currency = input.price.currency;
+
+  // The market a shop's new product is measured against: the eBay listings of the same product it
+  // was compared with, NEW ones only when there are enough of them. The scam check pools refurbished
+  // with new (anomaly.ts), which is right for "far too cheap" but not for a deal score: an iPhone 15
+  // at 699 € read "+53%" against eight refurbished phones. With too few new ones, the pool is used
+  // and says so (basis "new-refurbished").
+  const pool = labelled.listings.filter(
+    (l) => l.source === "ebay" && l.condition !== "used" && raw.analysis.comparisons[listingKey(l)] && same(l) && totalPrice(l).currency === currency,
+  );
+  const fresh = pool.filter((l) => l.condition === "new");
+  const basis: "new" | "new-refurbished" = fresh.length >= MIN_SAMPLE ? "new" : "new-refurbished";
+  const totals = (basis === "new" ? fresh : pool).map((l) => totalPrice(l).amount).sort((a, b) => a - b);
+  // The usual range: the middle 80% of ten or more prices, the middle half of fewer, where one
+  // odd listing would otherwise be the whole bottom of the range.
+  const [lo, hi] = totals.length >= 10 ? [0.1, 0.9] : [0.25, 0.75];
+  const market =
+    comparison && totals.length >= MIN_SAMPLE
+      ? { low: quantile(totals, lo), high: quantile(totals, hi), count: totals.length, typical: median(totals), currency, basis }
+      : null;
+
+  // Only for a price SigPath checked, as on the search page: a flagged price 60% under the market is no deal.
+  const checked = labelled.listings.find((l) => listingKey(l) === key)!;
+  const pct =
+    checked.check.verdict === "checked" && market ? Math.round(((totalPrice(product).amount - market.typical) / market.typical) * 100) : null;
+  const deal = pct === null ? null : { pct, tone: dealTone(pct) };
+
+  // The cheapest AliExpress offer for the same product, new, at a believable price. Not when the
+  // product being checked is already on AliExpress: that's the page the shopper is on.
+  const elsewhere =
+    comparison && shop.source !== "aliexpress"
+      ? labelled.listings
+          .filter((l) => l.source === "aliexpress" && l.condition !== "used" && same(l))
+          .map((l) => ({ listing: l, total: totalPrice(l) }))
+          // Cheaper than the page the shopper is on, but not so cheap it's more likely a copy.
+          .filter((x) => x.total.currency === currency && x.total.amount < input.price.amount)
+          .filter((x) => x.total.amount >= (market?.typical ?? comparison.median) * ALTERNATIVE_MIN_RATIO)
+          .sort((a, b) => a.total.amount - b.total.amount)[0] ?? null
+      : null;
+
   return {
     query,
     shop: shop.label,
-    product: { ...labelled.listings.find((l) => listingKey(l) === key)!, title: input.title },
-    comparison: raw.analysis.comparisons[key] ?? null,
+    product: { ...checked, title: input.title },
+    comparison,
+    market,
+    deal,
+    elsewhere,
     ebay: { status: ebayStatus?.status ?? "error", count: ebayStatus?.count ?? 0 },
     // The cheapest checked eBay deal per condition on the same product as the one checked: same
     // model, variant, generation and size. Taken from the whole search, a Kindle Paperwhite check
     // offered a 5th-generation one and a 256 GB phone a 512 GB one.
     bestEbay: bestCheckedDeals(
-      labelled.listings.filter((l) => {
-        const mine = raw.analysis.identities[key];
-        const theirs = raw.analysis.identities[listingKey(l)];
-        return l.source === "ebay" && !!mine && !!theirs && sameProduct(mine, theirs);
-      }),
+      labelled.listings.filter((l) => l.source === "ebay" && same(l)),
       (l) => (l as (typeof labelled.listings)[number]).check,
       raw.analysis,
     ).map((d) => ({ ...d, listing: d.listing as (typeof labelled.listings)[number], belowMedian: d.belowMedian ?? null })),

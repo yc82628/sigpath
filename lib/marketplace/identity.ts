@@ -171,6 +171,19 @@ const USED_PHRASES = [
   "2nd hand", "like new", "very good condition", "good condition",
 ];
 
+/**
+ * Words that say a listing sold as new is refurbished: "Sehr Gut – Refurbished",
+ * listed under eBay's "new". Counted as new, eight of them made the new price of
+ * a Switch OLED look 30% lower than it is.
+ */
+const REFURBISHED_PHRASES = ["refurbished", "generalüberholt", "generalueberholt", "renewed", "wiederaufbereitet"];
+
+/** The refurbished phrase in a title, unless negated ("not refurbished"). */
+export function refurbishedFromTitle(title: string): string | undefined {
+  const t = title.toLowerCase();
+  return REFURBISHED_PHRASES.find((p) => countsAs(t, p, NEGATED_BEFORE));
+}
+
 /** The used phrase in a title, unless negated ("nicht gebraucht", "never used"); "ungebraucht" never matches. */
 export function usedFromTitle(title: string): string | undefined {
   const t = title.toLowerCase().replace(/["„“”'‚‘’]/g, " ");

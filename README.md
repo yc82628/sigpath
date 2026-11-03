@@ -222,7 +222,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 629 tests, as of 2026-10-17
+npm test                                   # 644 tests, as of 2026-11-03
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -743,14 +743,44 @@ other shop only when the shopper clicks "Check this page" in its menu
 (`activeTab`: that tab, that click). It talks only to SigPath.
 
 - **On Amazon's search results** a "Check with SigPath →" button under each
-  result's price opens SigPath's check for it. The toolbar icon shows the
-  verdict of the product page that's open (✓, !, ?).
+  result's price opens SigPath's check for it.
 
 - **On a product page** it reads what the page shows (name and price; on
   Amazon also the ASIN, photo and seller) and shows SigPath's check in a
-  panel at the bottom right: the verdict, the eBay typical price, the best
-  checked eBay deal (`POST /api/extension/check`, the same check as
-  `/check`, rate-limited like a search).
+  panel at the bottom right (`POST /api/extension/check`, the same check as
+  `/check`, rate-limited like a search). Deal first (0.4.0): how far the
+  price is from the market ("−22 % Good deal"), the usual range, then the
+  verdict and any warning, the best checked eBay deal, and an AliExpress
+  offer for the same product when there is a believable one. The toolbar
+  icon shows the same score (−22%, +15%), "!" on a warning, "?" when it
+  couldn't be checked.
+- **The market a shop's product is measured against** (`price-check.ts`): the
+  eBay listings of the same product, NEW ones only when there are at least
+  five. The scam check pools refurbished with new, which is right for "far
+  too cheap" but made an iPhone 15 at 699 € read "+53 %" against eight
+  refurbished phones; with too few new ones the pool is used and the panel
+  says "new and refurbished". The usual range is the middle 80 % of ten or
+  more prices, the middle half of fewer. The score is only given to a price
+  SigPath checked: a flagged price is never a "good deal". A listing sold as
+  new whose title says "refurbished" or "generalüberholt" is read as
+  refurbished, everywhere (`refurbishedFromTitle`).
+- **AliExpress beside it, never in it.** The cheapest AliExpress offer for the
+  same product, new, cheaper than the shop's price but at 75 % of the market
+  or more: below that, a branded product there is more often a copy than a
+  bargain. Shown as "not checked by SigPath", never in the market price.
+- **Quiet mode.** "Open the panel by itself" in the menu (on by default). Off,
+  the score shows on the icon only, and the menu shows the tab's last check
+  with "Show the check on the page". A warning always opens the panel.
+- **Built to scale on free quotas.** Each check is an eBay and an AliExpress
+  search, against eBay's 5,000 a day. The marketplaces' answers are kept for
+  half an hour in the shared database (`sharedSources` in `search-cache.ts`),
+  so a hundred shoppers on the same AirPods page cost one eBay search per half
+  hour; the shopper's own price is never cached. A database that fails is
+  skipped, never a failed check. A cached check answers in about 0.2 s.
+- **Never stuck on "checking".** The background worker gives up after 20 s
+  and the panel offers "Try again", in English or German.
+- **Older versions keep working.** The API only adds fields (`deal`,
+  `market`, `elsewhere`); 0.3.0 reads the ones it always did.
 - **Amazon prices seen by shoppers** (`lib/extension/seen.ts`). Only with "Share
   Amazon.de prices I see" on (a switch in the extension's menu, off until the
   shopper turns it on),

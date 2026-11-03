@@ -174,7 +174,10 @@ export default function PrivacyDe() {
           Die Erweiterung läuft von selbst nur auf Seiten von Amazon, AliExpress, OTTO, MediaMarkt und Saturn, die du öffnest,
           und auf der Seite eines anderen Shops nur, wenn du in ihrem Menü auf &bdquo;Diese Seite prüfen&ldquo; klickst. Auf
           einer Produktseite liest sie Namen und Preis des Produkts (bei Amazon auch Produktnummer, Fotoadresse und Namen des
-          Verkäufers) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. Nur wenn du
+          Verkäufers) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. SigPath sucht dann
+          auf eBay und AliExpress nach dem Namen des Produkts und behält deren Antwort eine halbe Stunde lang, für alle, die
+          dasselbe Produkt prüfen: die Angebote der Marktplätze, nichts über dich. Die Erweiterung merkt sich die letzte
+          Prüfung je Tab nur in deinem Browser, bis du den Tab oder den Browser schließt. Nur wenn du
           &bdquo;Amazon.de-Preise teilen, die ich sehe&ldquo; einschaltest (ein Schalter im Menü der Erweiterung, aus, bis du
           es tust), speichert SigPath die Amazon-Produkte, die du angesehen hast, und die auf Amazon-Ergebnisseiten, die du
           öffnest: Produktnummer, Titel, Preis, Fotoadresse und Zeitpunkt, damit SigPaths Suche sie als &bdquo;auf Amazon

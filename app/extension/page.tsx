@@ -18,19 +18,20 @@ type Tone = "purple" | "blue" | "green";
 
 const en = {
   title: "The SigPath extension",
-  lede: "SigPath's check, right on the shop's page.",
+  lede: "How good the deal is, and SigPath's check, right on the shop's page.",
   steps: [
     { icon: "plus" as IconName, tone: "purple" as Tone, title: "Add it", line: "To Chrome or Edge, once." },
     { icon: "shopping-cart-simple" as IconName, tone: "blue" as Tone, title: "Shop as usual", line: "Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
-    { icon: "seal-check" as IconName, tone: "green" as Tone, title: "See the check", line: "Price vs eBay, red flags, the best deal." },
+    { icon: "seal-check" as IconName, tone: "green" as Tone, title: "See the deal", line: "How far from the market, red flags, the best deal." },
   ],
   picture: "The SigPath panel on an Amazon product page",
-  iconTitle: "The extension's icon shows the verdict",
+  iconTitle: "The extension's icon shows the deal score",
   product: "Wireless earbuds, 2nd gen",
   basket: "Add to basket",
   checked: "✓ Checked",
-  below: "4 % below",
-  belowRest: " eBay's typical price",
+  deal: "−12%",
+  dealTone: "Good deal",
+  usually: "New on eBay, usually 249 – 269 €",
   best: "Best checked eBay deal: 205 €",
   soldBy: "Sold by: Amazon",
   caption: "On every product page: the check appears at the bottom right.",
@@ -39,6 +40,8 @@ const en = {
   resultsRest: "under every price.",
   otherLabel: "Any other shop:",
   otherRest: "click the icon, then “Check this page”.",
+  quietLabel: "Prefer it quiet?",
+  quietRest: "turn off “Open the panel by itself” in its menu: the score shows on the icon only. Warnings still open it.",
   choiceLabel: "Your choice:",
   choiceRest: "sharing Amazon prices is off until you turn it on.",
   shared: "What's shared",
@@ -54,19 +57,20 @@ const en = {
 
 const de: typeof en = {
   title: "Die SigPath-Erweiterung",
-  lede: "SigPaths Prüfung direkt auf der Seite des Shops.",
+  lede: "Wie gut das Angebot ist, und SigPaths Prüfung, direkt auf der Seite des Shops.",
   steps: [
     { icon: "plus", tone: "purple", title: "Hinzufügen", line: "Zu Chrome oder Edge, einmal." },
     { icon: "shopping-cart-simple", tone: "blue", title: "Einkaufen wie immer", line: "Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
-    { icon: "seal-check", tone: "green", title: "Prüfung sehen", line: "Preis gegen eBay, Warnsignale, das beste Angebot." },
+    { icon: "seal-check", tone: "green", title: "Angebot sehen", line: "Wie weit vom Markt, Warnsignale, das beste Angebot." },
   ],
   picture: "Das SigPath-Fenster auf einer Amazon-Produktseite",
-  iconTitle: "Das Symbol der Erweiterung zeigt das Urteil",
+  iconTitle: "Das Symbol der Erweiterung zeigt die Bewertung",
   product: "Kabellose Ohrhörer, 2. Generation",
   basket: "In den Einkaufswagen",
   checked: "✓ Geprüft",
-  below: "4 % unter",
-  belowRest: " dem typischen eBay-Preis",
+  deal: "−12 %",
+  dealTone: "Gutes Angebot",
+  usually: "Neu auf eBay meist 249 – 269 €",
   best: "Bestes geprüftes eBay-Angebot: 205 €",
   soldBy: "Verkauf durch: Amazon",
   caption: "Auf jeder Produktseite: Die Prüfung erscheint unten rechts.",
@@ -75,6 +79,8 @@ const de: typeof en = {
   resultsRest: "unter jedem Preis.",
   otherLabel: "Jeder andere Shop:",
   otherRest: "aufs Symbol klicken, dann „Diese Seite prüfen“.",
+  quietLabel: "Lieber ruhig?",
+  quietRest: "„Das Fenster von selbst öffnen“ im Menü ausschalten: Die Bewertung steht dann nur am Symbol. Warnungen öffnen es trotzdem.",
   choiceLabel: "Deine Wahl:",
   choiceRest: "Amazon-Preise teilen ist aus, bis du es einschaltest.",
   shared: "Was geteilt wird",
@@ -100,7 +106,7 @@ function BrowserPicture({ t }: { t: typeof en }) {
         </span>
         <span className="qs-url">amazon.de/…/dp/B0…</span>
         <span className="qs-ext" title={t.iconTitle}>
-          ✓
+          {t.deal}
         </span>
       </div>
       <div className="qs-page" aria-hidden="true">
@@ -118,11 +124,11 @@ function BrowserPicture({ t }: { t: typeof en }) {
         </div>
         <div className="qs-panel">
           <span className="qs-brand">SigPath</span>
-          <span className="qs-pill">{t.checked}</span>
-          <span>
-            <b>{t.below}</b>
-            {t.belowRest}
+          <span className="qs-deal">
+            <b>{t.deal}</b> {t.dealTone}
           </span>
+          <span>{t.usually}</span>
+          <span className="qs-pill">{t.checked}</span>
           <span className="qs-muted">{t.best}</span>
           <span className="qs-muted">{t.soldBy}</span>
         </div>
@@ -163,6 +169,12 @@ export default function ExtensionPage() {
           <PopIcon name="storefront" tone="blue" size={22} />
           <span>
             <strong>{t.otherLabel}</strong> {t.otherRest}
+          </span>
+        </li>
+        <li>
+          <PopIcon name="info" tone="purple" size={22} />
+          <span>
+            <strong>{t.quietLabel}</strong> {t.quietRest}
           </span>
         </li>
         <li>

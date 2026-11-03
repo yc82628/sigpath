@@ -14,7 +14,7 @@ import { listingKey, sellerKey, totalPrice } from "./types";
 import type { MarketplaceSource } from "./sources/types";
 import { analyse, type Analysis, type Flag } from "./anomaly";
 import { linkOutTargets, type LinkOut } from "./registry";
-import { usedFromTitle } from "./identity";
+import { refurbishedFromTitle, usedFromTitle } from "./identity";
 
 export interface SearchResponse {
   query: string;
@@ -47,7 +47,10 @@ function byTotalAscending(a: Listing, b: Listing): number {
 function readCondition(l: Listing): Listing {
   if (l.condition === "used" || l.condition === "refurbished") return l;
   const phrase = usedFromTitle(l.title);
-  return phrase ? { ...l, condition: "used", conditionFromTitle: phrase } : l;
+  if (phrase) return { ...l, condition: "used", conditionFromTitle: phrase };
+  // Refurbished, not new: compared with new ones still (anomaly.ts pools them), but never the new market's price.
+  const refurb = refurbishedFromTitle(l.title);
+  return refurb ? { ...l, condition: "refurbished", conditionFromTitle: refurb } : l;
 }
 
 /**

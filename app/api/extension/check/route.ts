@@ -10,6 +10,10 @@ import { SeenStore } from "@/lib/extension/seen";
 // POST /api/extension/check
 //   { from, title, price, url?, asin?, imageUrl?, share?, lang? }
 //
+// Extension 0.3.0 reads verdict, headline, points, typical, ebayOk, bestEbay
+// and checkUrl; 0.4.0 also deal, market and elsewhere. Fields are only added,
+// never renamed, while older versions are still installed.
+//
 // The SigPath extension (extension/) asking about the product page a shopper
 // has open: the same check as /check, the answer shaped for its panel. With
 // `share` on and an Amazon product, the price is also kept as a sighting
@@ -59,6 +63,15 @@ export async function POST(req: NextRequest) {
             listings: c.sampleSize,
             diffPct: Math.round(((result.product.price.amount - c.median) / c.median) * 100),
           }
+        : null,
+      // The deal score, as on the search page: -22 is 22% under the typical price.
+      deal: result.deal,
+      market: result.market
+        ? { low: formatMoney({ amount: result.market.low, currency: result.market.currency }), high: formatMoney({ amount: result.market.high, currency: result.market.currency }), listings: result.market.count, basis: result.market.basis }
+        : null,
+      // A believable AliExpress offer for the same product: shown, never checked.
+      elsewhere: result.elsewhere
+        ? { shop: "AliExpress", title: result.elsewhere.listing.title, url: result.elsewhere.listing.url, price: formatMoney(result.elsewhere.total), affiliate: !!result.elsewhere.listing.affiliate }
         : null,
       ebayOk: result.ebay.status === "ok",
       bestEbay: result.bestEbay.slice(0, 2).map((d) => ({ title: d.listing.title, url: d.listing.url, price: formatMoney(d.total), group: d.group })),
