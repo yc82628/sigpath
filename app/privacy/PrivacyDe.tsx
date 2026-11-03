@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   aliexpressAffiliate,
+  ebayCampaignId,
   aliexpressOn,
   amazonTag,
   assistantProvider,
@@ -293,6 +294,17 @@ export default function PrivacyDe() {
           wenn du bezahlst, ein Verkäufer-Abzeichen beantragst oder ein Unternehmen verifizierst.
         </p>
       </Part>
+      {ebayCampaignId() && (
+        <>
+          <Part title="Links zu eBay">
+            <p>
+              Links zu eBay enthalten SigPaths Kampagnen-ID im eBay Partner Network, und SigPath erhält eventuell eine
+              Provision auf deinen Kauf. Der Preis ist in beiden Fällen derselbe. Sobald du auf eBay bist, gilt die
+              Datenschutzerklärung von eBay, einschließlich seiner Cookies.
+            </p>
+          </Part>
+        </>
+      )}
       {aliexpressAffiliate() && (
         <>
           <Part title="Links zu AliExpress">

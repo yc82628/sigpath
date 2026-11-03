@@ -207,7 +207,9 @@ npm run dev
 Open http://localhost:3000 and search for anything. A **demo feed** is on by
 default here. It deliberately includes a bait listing, a recycled photo and a
 brand-new account, so every verdict is on screen without any keys. For live
-results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` to `.env.local`,
+results, add `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` to `.env.local`
+(plus `EBAY_CAMPAIGN_ID`, an eBay Partner Network campaign id, for eBay's
+affiliate links, disclosed in the footer and privacy page while it is set),
 `ALIEXPRESS_APP_KEY`/`ALIEXPRESS_APP_SECRET`/`ALIEXPRESS_TRACKING_ID` for
 AliExpress, and `AMAZON_PARTNER_TAG` to tag the Amazon search link (see
 `.env.local.example`). The demo feed can stay on next to them: its invented
@@ -222,7 +224,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 644 tests, as of 2026-11-03
+npm test                                   # 645 tests, as of 2026-11-03
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report

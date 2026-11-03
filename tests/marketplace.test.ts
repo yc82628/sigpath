@@ -1356,3 +1356,37 @@ test("results: a listing sold as new but titled refurbished is refurbished, with
   assert.ok(note, "the shopper is told why");
   assert.strictEqual(translateCheck(note.text, "de"), "Im Titel steht „refurbished“, daher gilt es als generalüberholt, egal welcher Zustand im Angebot steht.");
 });
+
+test("with an eBay Partner Network campaign, eBay links are eBay's affiliate links, marked as such", async () => {
+  const headers: (Record<string, string> | undefined)[] = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    if (String(url).includes("oauth2/token")) return new Response(JSON.stringify({ access_token: "t", expires_in: 7200 }), { status: 200 });
+    headers.push(init?.headers as Record<string, string>);
+    return new Response(
+      JSON.stringify({
+        itemSummaries: [
+          { itemId: "1", itemWebUrl: "https://www.ebay.de/itm/1", itemAffiliateWebUrl: "https://www.ebay.de/itm/1?mkcid=1&campid=5338000000", price: { value: "10.00", currency: "EUR" } },
+          { itemId: "2", itemWebUrl: "https://www.ebay.de/itm/2", itemAffiliateWebUrl: "https://evil.example/itm/2", price: { value: "11.00", currency: "EUR" } },
+        ],
+      }),
+      { status: 200 },
+    );
+  }) as unknown as typeof fetch;
+  const env = { EBAY_CLIENT_ID: "id", EBAY_CLIENT_SECRET: "secret" };
+
+  const on = await new EbaySource({ ...env, EBAY_CAMPAIGN_ID: " 5338000000 " }, fetchImpl).search("thinkpad");
+  assert.equal(headers[0]?.["X-EBAY-C-ENDUSERCTX"], "affiliateCampaignId=5338000000");
+  assert.equal(on.listings[0].url, "https://www.ebay.de/itm/1?mkcid=1&campid=5338000000");
+  assert.equal(on.listings[0].affiliate, true);
+  assert.equal(on.listings[1].url, "https://www.ebay.de/itm/2", "only ever a link to eBay");
+  assert.equal(on.listings[1].affiliate, undefined);
+
+  const off = await new EbaySource(env, fetchImpl).search("thinkpad");
+  assert.equal(headers[1]?.["X-EBAY-C-ENDUSERCTX"], undefined, "no campaign: nothing sent");
+  assert.equal(off.listings[0].url, "https://www.ebay.de/itm/1");
+  assert.equal(off.listings[0].affiliate, undefined);
+
+  const { ebayCampaignId } = await import("../lib/legal/site");
+  assert.equal(ebayCampaignId({ EBAY_CAMPAIGN_ID: "abc" }), null, "not a campaign id: off");
+  assert.equal(ebayCampaignId({}), null);
+});

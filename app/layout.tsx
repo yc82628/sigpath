@@ -5,7 +5,7 @@ import { Fredoka, Nunito } from "next/font/google";
 import { SLOGAN, Wordmark } from "./components/Logo";
 import Assistant from "./components/Assistant";
 import { assistantConfig, providerName } from "@/lib/assistant/models";
-import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag } from "@/lib/legal/site";
+import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag, ebayCampaignId } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
 import VisitCounter from "./components/VisitCounter";
 import SaleDayBanner from "./components/SaleDayBanner";
@@ -109,6 +109,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <p className="footer-note">
               {m.footer.note(visitCounterOn())} {m.footer.marks}
+              {ebayCampaignId() && <> {m.footer.ebay}</>}
               {aliexpressAffiliate() && <> {m.footer.aliexpress}</>}
               {amazonTag() && (
                 <>

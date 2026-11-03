@@ -90,7 +90,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
               <ul>
                 {result.bestEbay.map((d) => (
                   <li key={d.listing.id}>
-                    <a href={d.listing.url} target="_blank" rel="noopener noreferrer">
+                    <a href={d.listing.url} target="_blank" rel={d.listing.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}>
                       {d.listing.title}
                     </a>{" "}
                     — {money(d.total)} ({d.group === "used" ? m.search.usedWord : m.search.newWord})

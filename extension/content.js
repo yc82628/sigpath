@@ -272,7 +272,7 @@
     }
     if (r.bestEbay?.length) {
       const b = r.bestEbay[0];
-      html += `<p><strong>${T.best}:</strong> <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer">${esc(short(b.title))}</a> — ${esc(b.price)} (${b.group === "used" ? T.usedW : T.newW})</p>`;
+      html += `<p><strong>${T.best}:</strong> <a href="${safeUrl(b.url)}" target="_blank" rel="${b.affiliate ? "sponsored " : ""}noopener noreferrer">${esc(short(b.title))}</a> — ${esc(b.price)} (${b.group === "used" ? T.usedW : T.newW})</p>`;
     }
     if (r.elsewhere) {
       const e = r.elsewhere;

@@ -6,6 +6,7 @@ import PrivacyDe from "./PrivacyDe";
 import { getLang } from "@/lib/i18n/server";
 import {
   aliexpressAffiliate,
+  ebayCampaignId,
   aliexpressOn,
   amazonTag,
   assistantProvider,
@@ -292,6 +293,17 @@ function PrivacyEn() {
           or verify a business.
         </p>
       </Part>
+      {ebayCampaignId() && (
+        <>
+          <Part title="eBay links">
+            <p>
+              Links to eBay carry SigPath&apos;s eBay Partner Network campaign id, and SigPath may earn a commission on what
+              you buy. The price is the same either way. Once you are on eBay, eBay&apos;s own privacy notice applies,
+              including its cookies.
+            </p>
+          </Part>
+        </>
+      )}
       {aliexpressAffiliate() && (
         <>
           <Part title="AliExpress links">

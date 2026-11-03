@@ -74,7 +74,9 @@ export async function POST(req: NextRequest) {
         ? { shop: "AliExpress", title: result.elsewhere.listing.title, url: result.elsewhere.listing.url, price: formatMoney(result.elsewhere.total), affiliate: !!result.elsewhere.listing.affiliate }
         : null,
       ebayOk: result.ebay.status === "ok",
-      bestEbay: result.bestEbay.slice(0, 2).map((d) => ({ title: d.listing.title, url: d.listing.url, price: formatMoney(d.total), group: d.group })),
+      bestEbay: result.bestEbay
+        .slice(0, 2)
+        .map((d) => ({ title: d.listing.title, url: d.listing.url, price: formatMoney(d.total), group: d.group, affiliate: !!d.listing.affiliate })),
       checkUrl: check,
       searchUrl: `${SITE}/search?q=${encodeURIComponent(result.query)}`,
     },

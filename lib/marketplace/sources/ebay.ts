@@ -33,6 +33,7 @@
 import type { Condition, Listing, Money, SearchOptions, SourceResult } from "../types";
 import type { CurrentPrice, ListingProof, MarketplaceSource } from "./types";
 import { groupHashes, photoHash } from "../photo";
+import { ebayCampaignId } from "../../legal/site";
 
 /**
  * Sandbox and production are separate accounts with separate keysets.
@@ -111,6 +112,8 @@ interface EbayItemSummary {
   itemId?: string;
   title?: string;
   itemWebUrl?: string;
+  /** The item's page with SigPath's eBay Partner Network campaign: only when the search sent one. */
+  itemAffiliateWebUrl?: string;
   price?: { value?: string; currency?: string };
   shippingOptions?: { shippingCost?: { value?: string; currency?: string } }[];
   condition?: string;
@@ -310,10 +313,13 @@ export class EbaySource implements MarketplaceSource {
         `?q=${encodeURIComponent(query)}` +
         `&limit=${Math.min(Math.max(opts.limit ?? 20, EBAY_MIN_RESULTS), 200)}`;
 
+      // With an eBay Partner Network campaign, eBay answers each item with an affiliate link too.
+      const campaign = ebayCampaignId(this.env);
       const res = await this.fetchImpl(url, {
         headers: {
           authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": creds.marketplace,
+          ...(campaign ? { "X-EBAY-C-ENDUSERCTX": `affiliateCampaignId=${campaign}` } : {}),
         },
         // Live prices: never a stored copy of an earlier search.
         cache: "no-store",
@@ -347,11 +353,14 @@ export class EbaySource implements MarketplaceSource {
         if (!price || !it.itemId || !it.itemWebUrl) continue;
 
         const pct = it.seller?.feedbackPercentage;
+        // eBay's own affiliate link for the item, only ever an https link to eBay.
+        const affiliateUrl = campaign && /^https:\/\/([a-z0-9-]+\.)*ebay\.[a-z.]+\//i.test(it.itemAffiliateWebUrl ?? "") ? it.itemAffiliateWebUrl : undefined;
         listings.push({
           id: it.itemId,
           source: this.id,
           title: it.title ?? "(untitled)",
-          url: it.itemWebUrl,
+          url: affiliateUrl ?? it.itemWebUrl,
+          ...(affiliateUrl ? { affiliate: true } : {}),
           price,
           shipping: money(it.shippingOptions?.[0]?.shippingCost),
           condition: mapCondition(it.condition, it.conditionId),

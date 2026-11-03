@@ -114,6 +114,17 @@ export const aliexpressOn = (env: Env = process.env) =>
 /** AliExpress links carry SigPath's affiliate tracking id: a commission to disclose. */
 export const aliexpressAffiliate = (env: Env = process.env) => aliexpressOn(env) && !!clean(env.ALIEXPRESS_TRACKING_ID);
 
+/**
+ * The eBay Partner Network campaign id, when set and well formed (digits only).
+ * With it, eBay's search answers with affiliate links (sources/ebay.ts) and
+ * SigPath earns a commission on purchases through them: disclosed in the
+ * footer and the privacy page while it is set.
+ */
+export function ebayCampaignId(env: Env = process.env): string | null {
+  const id = clean(env.EBAY_CAMPAIGN_ID);
+  return id && /^\d{5,15}$/.test(id) ? id : null;
+}
+
 /** The Associates tracking id, when set and well formed (lib/marketplace/registry.ts uses the same rule). */
 export function amazonTag(env: Env = process.env): string | null {
   const tag = clean(env.AMAZON_PARTNER_TAG);
