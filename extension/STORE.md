@@ -16,7 +16,12 @@ review sends it back to the start of the queue.
 **Name:** SigPath check
 
 **Summary** (132 characters at most):
-> See how good a deal is on Amazon, AliExpress, OTTO, MediaMarkt and Saturn: the price against the market, red flags, a better deal.
+> Is it a real deal? On Amazon, AliExpress, OTTO, MediaMarkt and Saturn: the price against eBay, red flags, and a better deal if any.
+
+German (128):
+> Echtes Angebot? Auf Amazon, AliExpress, OTTO, MediaMarkt und Saturn: der Preis gegen eBay, Warnsignale und ein besseres Angebot.
+
+Both are true of 0.3.0 (in review) and 0.4.0.
 
 **Category:** Shopping. **Languages:** English, German.
 
