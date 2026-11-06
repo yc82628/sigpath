@@ -50,6 +50,9 @@ const GENERIC = new Set([
   "wireless", "bluetooth", "kabellos", "kabellose", "kabelloser", "in-ear", "earbuds", "earphones", "headphones", "headset",
   "kopfhörer", "kopfhorer", "kopfhoerer", "ohrhörer", "ohrhorer", "smartphone", "handy", "laptop", "notebook", "tablet", "console", "konsole", "gaming",
   "with", "mit", "for", "für", "and", "und", "inkl", "inkl.", "including", "new", "neu", "original", "genuine",
+  // Marketing words shops put before the features: "Sony WF-1000XM5 Premium True Wireless…" searched eBay
+  // for "Sony WF-1000XM5 Premium True", which almost no listing says, and wasn't compared at all.
+  "premium", "true", "truly", "noise", "cancelling", "canceling", "active", "aktive", "aktiver", "geräuschunterdrückung",
 ]);
 
 /** Words after a dash or in brackets that change which model it is: "Nintendo Switch – OLED-Modell". */

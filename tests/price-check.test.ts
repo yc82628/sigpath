@@ -23,6 +23,8 @@ test("a long shop title becomes a short eBay search", () => {
   assert.equal(shortQuery("Nintendo Switch OLED Model - White"), "Nintendo Switch OLED Model");
   assert.equal(shortQuery("Playstation®5 Digital Edition – 825 GB"), "Playstation 5 Digital Edition", "a real Amazon.de title");
   assert.equal(shortQuery("Wireless Charger Pad"), "Wireless Charger Pad", "a generic word in the first two is kept");
+  assert.equal(shortQuery("Sony WF-1000XM5 Premium True Wireless In-Ear Headphones with Noise"), "Sony WF-1000XM5", "marketing words aren't the model");
+  assert.equal(shortQuery("Bose QuietComfort Ultra Earbuds, Active Noise Cancelling"), "Bose QuietComfort Ultra", "Ultra is a model word; Earbuds describes it");
   assert.equal(shortQuery("one two three four five six seven eight nine ten"), "one two three four five six");
 });
 

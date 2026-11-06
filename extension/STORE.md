@@ -61,7 +61,12 @@ toolbar shows `icon.png`. It's the same logo, 96×96 artwork with 16px of
 transparent space on each side, as Google asks. Store images live in
 `store-assets/`, outside `extension/`, so they never go into the zip.
 
-**Screenshots** (1280×800 or 640×400, at least one): take them on the real
+**Screenshots** ready in `store-assets/`, 1280×800, in this order:
+`screenshot-2-product-panel.png` (the panel on an Amazon.de product page, with
+SigPath's real answer for it) and `screenshot-1-amazon-results.png` (the
+"Check with SigPath" buttons on Amazon's results).
+
+**Screenshots, if you make more** (1280×800 or 640×400, at least one): take them on the real
 shops. A product page on Amazon.de with the panel open; an Amazon results page
 with the "Check with SigPath" buttons; the menu with "Check this page".
 
