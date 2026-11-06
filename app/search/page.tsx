@@ -647,7 +647,8 @@ async function SearchResults({
               <li key={d.group}>
                 <span className="deal-price">{money(d.total)}</span>{" "}
                 <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
-                <span className="hint">{d.group === "used" ? m.search.usedWord : m.search.newWord}</span>
+                {/* The deal's own condition: refurbished shares the "new" group, but isn't new. */}
+                <span className="hint">{d.group === "used" ? m.search.usedWord : m.listing.conditions[d.listing.condition] ?? m.search.newWord}</span>
                 <br />
                 <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
                 {describeSaving(d) && <span className="saving"> &mdash; {tc(describeSaving(d)!)}</span>}

@@ -219,6 +219,7 @@ const RULES: Rule[] = [
 
   // --- savings (label.ts describeSaving)
   [/^(.+) below the typical (new|used) price$/, (amount, g) => `${amount} unter dem typischen ${g === "used" ? "Gebrauchtpreis" : "Neupreis"}`],
+  [/^(.+) below the typical price of new and refurbished ones$/, (amount) => `${amount} unter dem typischen Preis von neuen und generalüberholten`],
 ];
 
 /** "on eBay" / "on the demo feed", in `lang`: the scope a median was taken over. */

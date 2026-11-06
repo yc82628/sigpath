@@ -269,7 +269,10 @@ export function checkedFirst<L extends Listing>(listings: L[], labelOf: (l: L) =
 }
 
 export function describeSaving(d: BestDeal): string | null {
-  return d.belowMedian ? `${formatMoney(d.belowMedian)} below the typical ${d.group} price` : null;
+  if (!d.belowMedian) return null;
+  // A refurbished deal sits in the "new" group, priced against new AND refurbished listings: say so.
+  if (d.group === "new" && d.listing.condition === "refurbished") return `${formatMoney(d.belowMedian)} below the typical price of new and refurbished ones`;
+  return `${formatMoney(d.belowMedian)} below the typical ${d.group} price`;
 }
 
 /**

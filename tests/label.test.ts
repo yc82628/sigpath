@@ -124,6 +124,17 @@ test("the best deal is the cheapest CHECKED listing — a flagged bargain never 
   assert.match(describeSaving(best) ?? "", /below the typical new price$/);
 });
 
+test("a refurbished best deal says so: its condition, and what its saving is measured against", async () => {
+  const { translateCheck } = await import("../lib/i18n/checks");
+  const refurb = listing({ id: "r", condition: "refurbished", price: { amount: 8000, currency: "EUR" } });
+  const { a, all, labelOf } = labelled([ok([...honest(8), refurb])]);
+  const [best] = bestCheckedDeals(all, labelOf, a);
+  assert.equal(best.listing.id, "r");
+  assert.equal(best.group, "new", "it competes in the new group, as the check pools it");
+  assert.equal(describeSaving(best), "20.00 EUR below the typical price of new and refurbished ones");
+  assert.equal(translateCheck(describeSaving(best)!, "de"), "20,00 € unter dem typischen Preis von neuen und generalüberholten");
+});
+
 test("new and used get a best deal each, each saving measured against its own median", () => {
   const newDeal = listing({ id: "n", price: { amount: 9000, currency: "EUR" } });
   const usedDeal = listing({ id: "u", condition: "used", price: { amount: 4000, currency: "EUR" } });
