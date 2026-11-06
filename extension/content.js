@@ -49,18 +49,16 @@
 
   const $ = (s, root = document) => root.querySelector(s);
   const text = (el) => (el ? (el.getAttribute("content") || el.innerText || el.textContent || "").replace(/\s+/g, " ").trim() : "");
+  // Firefox names the extension API browser.*, Chrome, Brave and Edge chrome.*; both return promises.
+  const api = globalThis.browser ?? chrome;
   // After the extension is reloaded, this page's copy of the script is cut off from it until the page is reloaded.
-  const ask = (msg) =>
-    new Promise((resolve) => {
-      try {
-        chrome.runtime.sendMessage(msg, (r) => {
-          const lost = chrome.runtime.lastError;
-          resolve(r || { ok: false, error: lost ? T.reload : T.noAnswer });
-        });
-      } catch {
-        resolve({ ok: false, error: T.reload });
-      }
-    });
+  const ask = (msg) => {
+    try {
+      return api.runtime.sendMessage(msg).then((r) => r || { ok: false, error: T.noAnswer }, () => ({ ok: false, error: T.reload }));
+    } catch {
+      return Promise.resolve({ ok: false, error: T.reload });
+    }
+  };
 
   /** "1.299,00 €" or "€1,299.00" -> 129900 (cents); null if it isn't a price. */
   function cents(t) {

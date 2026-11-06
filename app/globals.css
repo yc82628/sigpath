@@ -1338,6 +1338,9 @@ a.chat-card-title:hover { text-decoration: underline; }
 .qs-install { padding: 18px 20px; border-radius: var(--radius); background: var(--surface-2); }
 .qs-install h2 { margin: 0 0 4px; font-size: 1.1rem; }
 .qs-install ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.store-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 6px; }
+.qs-by-hand { margin-top: 12px; }
+.qs-by-hand summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
 @media (max-width: 640px) {
   .qs-steps { grid-template-columns: 1fr; }
   .qs-steps li { flex-direction: row; align-items: center; flex-wrap: wrap; column-gap: 12px; }

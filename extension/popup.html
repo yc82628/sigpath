@@ -12,7 +12,8 @@
   #check { width: 100%; padding: 8px; border: 0; border-radius: 999px; background: #6a2fe0; color: #fff; font: 700 13px system-ui, sans-serif; cursor: pointer; }
   a { color: #6a2fe0; }
   #result { margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px; background: #f6f5fb; }
-  #result[hidden] { display: none; }
+  #result[hidden], #allowBox[hidden] { display: none; }
+  #allow { width: 100%; padding: 8px; margin-bottom: 4px; border: 2px solid #6a2fe0; border-radius: 999px; background: transparent; color: #6a2fe0; font: 700 13px system-ui, sans-serif; cursor: pointer; }
   #result .big { font-size: 20px; font-weight: 800; margin-right: 6px; }
   #result .tone { font-weight: 700; }
   #result p { margin: 4px 0 0; }
@@ -25,12 +26,17 @@
     #result { background: #211c45; }
     .good { color: #6fd894; } .high { color: #ffb37a; } .caution { color: #ffc96b; }
     hr { border-top-color: #2a2550; }
+    #allow { color: #b48cff; border-color: #b48cff; }
   }
 </style>
 </head>
 <body>
   <h1>SigPath check</h1>
   <div id="result" hidden></div>
+  <div id="allowBox" hidden>
+    <button id="allow" type="button"></button>
+    <p class="small" id="allowNote"></p>
+  </div>
   <p id="intro"></p>
   <button id="check" type="button"></button>
   <p id="status" class="small"></p>

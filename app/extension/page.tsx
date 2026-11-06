@@ -1,7 +1,9 @@
 import Link from "next/link";
 import PopIcon from "../components/PopIcon";
 import type { IconName } from "../components/icon-paths";
+import { headers } from "next/headers";
 import { getLang } from "@/lib/i18n/server";
+import { extensionStores, storesForVisitor, type Store } from "@/lib/extension/stores";
 
 /**
  * app/extension — a quick start for the SigPath browser extension (extension/):
@@ -46,6 +48,9 @@ const en = {
   choiceRest: "sharing Amazon prices is off until you turn it on.",
   shared: "What's shared",
   install: "Install it",
+  add: { chrome: "Add to Chrome", firefox: "Add to Firefox", edge: "Get it for Edge" } as Record<Store, string>,
+  chromeAlso: "Chrome's button works in Brave, Edge, Opera and Vivaldi too.",
+  byHand: "Or install it by hand (for developers)",
   soon: "In the Chrome Web Store soon. Until then:",
   step1a: "Download SigPath from",
   step1b: "(Code → Download ZIP), unzip it.",
@@ -85,6 +90,9 @@ const de: typeof en = {
   choiceRest: "Amazon-Preise teilen ist aus, bis du es einschaltest.",
   shared: "Was geteilt wird",
   install: "Installieren",
+  add: { chrome: "Zu Chrome hinzufügen", firefox: "Zu Firefox hinzufügen", edge: "Für Edge holen" },
+  chromeAlso: "Der Chrome-Knopf funktioniert auch in Brave, Edge, Opera und Vivaldi.",
+  byHand: "Oder von Hand installieren (für Entwickler)",
   soon: "Bald im Chrome Web Store. Bis dahin:",
   step1a: "SigPath von",
   step1b: "herunterladen (Code → Download ZIP) und entpacken.",
@@ -140,6 +148,7 @@ function BrowserPicture({ t }: { t: typeof en }) {
 
 export default function ExtensionPage() {
   const t = getLang() === "de" ? de : en;
+  const stores = storesForVisitor(extensionStores(), headers().get("user-agent"));
   return (
     <main className="container quick-start">
       <h1>{t.title}</h1>
@@ -187,7 +196,36 @@ export default function ExtensionPage() {
 
       <section className="qs-install" id="install">
         <h2>{t.install}</h2>
-        <p className="hint">{t.soon}</p>
+        {stores.length > 0 ? (
+          <>
+            {/* One click from the store, the visitor's own browser first. */}
+            <p className="store-buttons">
+              {stores.map((s, i) => (
+                <a key={s.id} className={i === 0 ? "button" : "button ghost"} href={s.url} target="_blank" rel="noopener">
+                  {t.add[s.id]}
+                </a>
+              ))}
+            </p>
+            {stores.some((s) => s.id === "chrome") && <p className="hint">{t.chromeAlso}</p>}
+            <details className="qs-by-hand">
+              <summary>{t.byHand}</summary>
+              <ManualSteps t={t} />
+            </details>
+          </>
+        ) : (
+          <>
+            <p className="hint">{t.soon}</p>
+            <ManualSteps t={t} />
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
+
+/** "Load unpacked", for before a store lists it and for developers after. */
+function ManualSteps({ t }: { t: typeof en }) {
+  return (
         <ol>
           <li>
             {t.step1a}{" "}
@@ -204,7 +242,5 @@ export default function ExtensionPage() {
             {t.step3a} <code>extension</code> {t.step3b}
           </li>
         </ol>
-      </section>
-    </main>
   );
 }

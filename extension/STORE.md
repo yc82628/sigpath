@@ -80,8 +80,43 @@ with the "Check with SigPath" buttons; the menu with "Check this page".
 
 **Certify:** not sold to third parties; not used or transferred for purposes unrelated to the single purpose; not used to determine creditworthiness or for lending.
 
+## Other browsers (from 0.4.0)
+
+One package for all of them: the manifest names both a service worker
+(Chrome, Brave, Edge, Opera, Vivaldi) and a background script (Firefox), and
+the scripts call `browser.*` in Firefox and `chrome.*` elsewhere.
+
+- **Brave, Opera, Vivaldi:** nothing to do. They install from the Chrome Web
+  Store, so the Chrome listing covers them.
+- **Edge:** installs from the Chrome Web Store too. Its own store, Edge
+  Add-ons (https://partner.microsoft.com/dashboard/microsoftedge), is free and
+  optional: the same zip, the same texts.
+- **Firefox:** addons.mozilla.org (https://addons.mozilla.org/developers/),
+  free, with a Firefox account. Upload the same zip as "On this site". No
+  source code is asked for: nothing is built or minified. Firefox 128 or later.
+  - The manifest's `browser_specific_settings.gecko.data_collection_permissions`
+    declares what is sent, and Firefox shows it at install: *website content*
+    (the product's name and price) and *browsing activity* (the product page's
+    address). Both are needed for the check, so both are "required".
+  - Firefox lets people switch off an extension's access to sites. The menu
+    then shows "Allow SigPath on the shop sites", which asks again.
+  - Listing: the same summary, description and screenshots as Chrome's;
+    category "Shopping"; licence MIT; privacy policy
+    https://sigpath.vercel.app/privacy#extension.
+
+## After a store approves it
+
+Put the listing's address in Vercel, then redeploy. /extension then shows
+"Add to Chrome" / "Add to Firefox" buttons, the visitor's browser first, and
+the "Load unpacked" steps fold away under "install it by hand":
+
+- `EXTENSION_CHROME_URL` = `https://chromewebstore.google.com/detail/…`
+- `EXTENSION_FIREFOX_URL` = `https://addons.mozilla.org/…/firefox/addon/…`
+- `EXTENSION_EDGE_URL` = `https://microsoftedge.microsoft.com/addons/detail/…` (optional)
+
 ## Before each upload
 
 1. Raise `version` in `manifest.json`.
-2. `npm test` (tests/extension.test.ts checks the permissions and the sites).
+2. `npm test` (tests/extension.test.ts checks the permissions, the sites and the
+   cross-browser manifest).
 3. Zip the folder's contents.

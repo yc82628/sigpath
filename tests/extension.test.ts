@@ -91,3 +91,38 @@ test("with no Amazon prices shared, Amazon isn't shown as searched, nor as left 
   assert.ok(!r.analysis.excludedFromComparison.includes("amazon"), "no \"not price-compared: Amazon\"");
   assert.ok(r.linkOut.some((t) => t.id === "amazon"), "Amazon's own search link is still offered");
 });
+
+test("one manifest for Chrome, Brave, Edge and Firefox", () => {
+  const m = JSON.parse(readFileSync("extension/manifest.json", "utf8"));
+  // Chrome (121+) runs the service worker and ignores "scripts"; Firefox runs "scripts" and ignores the worker.
+  assert.equal(m.background.service_worker, "background.js");
+  assert.deepEqual(m.background.scripts, ["background.js"]);
+  const gecko = m.browser_specific_settings.gecko;
+  assert.match(gecko.id, /^[a-z0-9.-]+@[a-z0-9.-]+$/);
+  // Firefox shows what is sent at install: the product's name and price (website content) and its page (browsing activity).
+  assert.deepEqual(gecko.data_collection_permissions.required, ["websiteContent", "browsingActivity"]);
+  assert.ok(m.description.length <= 132, "the store's limit");
+  for (const file of ["background.js", "content.js", "popup.js"]) {
+    const code = readFileSync(`extension/${file}`, "utf8");
+    assert.match(code, /globalThis\.browser \?\? chrome/, `${file} uses browser.* in Firefox`);
+    assert.doesNotMatch(code.replace(/\/\/.*$/gm, ""), /\bchrome\.[a-z]+\./, `${file} calls the API only through that`);
+  }
+});
+
+test("the install buttons go only to the stores' own pages, the visitor's browser first", async () => {
+  const { extensionStores, storeFor, storesForVisitor } = await import("../lib/extension/stores");
+  const env = {
+    EXTENSION_CHROME_URL: "https://chromewebstore.google.com/detail/sigpath-check/abcdefghijklmnopabcdefghijklmnop",
+    EXTENSION_FIREFOX_URL: "https://addons.mozilla.org/de/firefox/addon/sigpath-check/",
+    EXTENSION_EDGE_URL: "https://evil.example/sigpath",
+  };
+  assert.deepEqual(extensionStores(env).map((s) => s.id), ["chrome", "firefox"], "not another site");
+  assert.deepEqual(extensionStores({}), [], "none yet: the manual steps");
+  const firefox = "Mozilla/5.0 (Windows NT 10.0; rv:144.0) Gecko/20100101 Firefox/144.0";
+  const edge = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 Edg/141.0";
+  const brave = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36";
+  assert.equal(storeFor(firefox), "firefox");
+  assert.equal(storeFor(brave), "chrome", "Brave installs from the Chrome Web Store");
+  assert.deepEqual(storesForVisitor(extensionStores(env), firefox).map((s) => s.id), ["firefox", "chrome"]);
+  assert.deepEqual(storesForVisitor(extensionStores(env), edge).map((s) => s.id), ["chrome", "firefox"], "Edge without its own listing: Chrome's");
+});

@@ -230,7 +230,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 647 tests, as of 2026-11-03
+npm test                                   # 649 tests, as of 2026-11-06
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -744,8 +744,13 @@ commission on orders through its links.
 
 ## The browser extension, and Amazon seen by shoppers
 
-`extension/` is a Chrome/Edge extension (Manifest V3), installed unpacked for
-now (`/extension` explains how). It runs by itself only on Amazon (.de, .com,
+`extension/` is a browser extension (Manifest V3): one package for Chrome,
+Brave, Edge, Opera, Vivaldi and, from 0.4.0, Firefox 128+ (the manifest names
+both a service worker and a background script, and the scripts call
+`browser.*` in Firefox, `chrome.*` elsewhere). Installed unpacked until a store
+lists it; then `EXTENSION_CHROME_URL` / `EXTENSION_FIREFOX_URL` /
+`EXTENSION_EDGE_URL` turn `/extension` into "Add to …" buttons, the visitor's
+browser first (`lib/extension/stores.ts`). It runs by itself only on Amazon (.de, .com,
 .co.uk, .fr, .it, .es, .nl), AliExpress, OTTO, MediaMarkt and Saturn; on any
 other shop only when the shopper clicks "Check this page" in its menu
 (`activeTab`: that tab, that click). It talks only to SigPath.
