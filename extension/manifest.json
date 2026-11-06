@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SigPath check",
-  "version": "0.4.0",
-  "description": "Is it a real deal? On Amazon, AliExpress, OTTO, MediaMarkt and Saturn: the price against eBay, red flags, and a better deal if any.",
+  "version": "0.4.1",
+  "description": "Is it a real deal? See how a price compares with the market, spot warning signs, and find a cheaper checked offer.",
   "icons": { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
   "action": { "default_popup": "popup.html", "default_icon": "icon.png", "default_title": "SigPath check" },
   "background": { "service_worker": "background.js", "scripts": ["background.js"] },

@@ -102,6 +102,8 @@ test("one manifest for Chrome, Brave, Edge and Firefox", () => {
   // Firefox shows what is sent at install: the product's name and price (website content) and its page (browsing activity).
   assert.deepEqual(gecko.data_collection_permissions.required, ["websiteContent", "browsingActivity"]);
   assert.ok(m.description.length <= 132, "the store's limit");
+  // Rejected once for keyword spam: a row of shop names in the description. None in the summary.
+  assert.doesNotMatch(m.description, /Amazon|AliExpress|OTTO|MediaMarkt|Saturn|eBay/);
   for (const file of ["background.js", "content.js", "popup.js"]) {
     const code = readFileSync(`extension/${file}`, "utf8");
     assert.match(code, /globalThis\.browser \?\? chrome/, `${file} uses browser.* in Firefox`);

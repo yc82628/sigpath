@@ -4,8 +4,13 @@ What to paste into the Chrome Web Store (and Microsoft Edge Add-ons) forms. The
 upload is a zip of this folder with `manifest.json` at its root (not the folder
 itself), e.g. `sigpath-check-0.4.0.zip`.
 
-**0.4.0:** upload only once 0.3.0 is approved; a new upload while one is in
-review sends it back to the start of the queue.
+**Rejected 2026-11-07 (0.4.0) for keyword spam** ("Yellow Argon"): the short
+description listed five shop names in a row ("On Amazon, AliExpress, OTTO,
+MediaMarkt and Saturn: the price against eBay"). Google reads a row of brand
+names in the metadata as keyword stuffing. 0.4.1 fixes it: the short
+description says what the extension does and names no shops; the long one
+names the supported shops once, in a sentence. Keep it that way: no lists of
+brands in the summary, title or description.
 
 - **Chrome Web Store:** https://chrome.google.com/webstore/devconsole, a Google
   developer account, a one-time US$5 registration fee.
@@ -15,38 +20,36 @@ review sends it back to the start of the queue.
 
 **Name:** SigPath check
 
-**Summary** (132 characters at most):
-> Is it a real deal? On Amazon, AliExpress, OTTO, MediaMarkt and Saturn: the price against eBay, red flags, and a better deal if any.
+**Summary** (132 characters at most; it is the manifest's `description`, so
+changing it means a new package):
+> Is it a real deal? See how a price compares with the market, spot warning signs, and find a cheaper checked offer.
 
-German (128):
-> Echtes Angebot? Auf Amazon, AliExpress, OTTO, MediaMarkt und Saturn: der Preis gegen eBay, Warnsignale und ein besseres Angebot.
-
-Both are true of 0.3.0 (in review) and 0.4.0.
+German (111):
+> Ist es ein echtes Angebot? Der Preis im Vergleich zum Markt, Warnsignale und ein günstigeres geprüftes Angebot.
 
 **Category:** Shopping. **Languages:** English, German.
 
 **Description:**
 > SigPath shows how good the deal you're looking at really is, before you buy.
 >
-> On a product page at Amazon, AliExpress, OTTO, MediaMarkt or Saturn, a small
-> SigPath panel shows:
+> When you open a product page, a small SigPath panel shows:
 > • the deal score: how far the price is from the market for the same product
 >   ("−22 %, good deal"), and the usual price range
-> • SigPath's warnings: a price too good to be true, a seller with upheld
+> • warnings: a price too good to be true, or a seller with upheld
 >   fake-product reports
-> • the best SigPath-checked eBay deal for it, and the same product on
->   AliExpress when its price is believable
-> • on Amazon, who actually sells it
+> • a cheaper offer for the same product that SigPath has checked
+> • who actually sells it, where the shop says so
 >
 > Prefer it quiet? Turn off "Open the panel by itself": the score shows on the
-> icon only, and a warning still opens the panel.
+> toolbar icon only, and a warning still opens the panel.
 >
-> On Amazon's search results, "Check with SigPath" under each result opens the
-> check for it. On any other shop, click the icon and "Check this page".
+> It works by itself on the product pages of the large online shops it
+> supports (currently Amazon, OTTO, MediaMarkt, Saturn and AliExpress), and on
+> any other shop when you click the icon and "Check this page".
 >
 > Optional, off until you turn it on: share the Amazon.de prices you see, so
-> SigPath's search can show them to other shoppers as "seen on Amazon". Only
-> the product and its price, never anything about you.
+> SigPath's search can show them to other shoppers. Only the product and its
+> price, never anything about you.
 >
 > No account, no tracking. SigPath is open source:
 > https://github.com/yc82628/sigpath
