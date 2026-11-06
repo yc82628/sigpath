@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * The menu at the top left, beside the logo, laid out like a big shop's
- * catalogue drawer: categories first, then shopping, selling and help. Only
- * what SigPath has (catalog.ts).
+ * The menu at the top left, beside the logo: the categories first, as a
+ * compact grid of tiles, then shopping, selling and help, each a dropdown that
+ * opens on a tap. One open at a time, and the one holding the page you're on
+ * opens by itself, so the drawer stays short. Only what SigPath has
+ * (catalog.ts).
  *
  * A modal <dialog>: the browser keeps focus inside it, Escape closes it, and
  * the page behind can't be clicked. A click on the dimmed backdrop closes it
@@ -23,6 +25,11 @@ function Chevron() {
       <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+/** Whether a menu link is the page you're on, or a page under it (/seller/business under /seller). */
+function here(pathname: string, href: string): boolean {
+  return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 }
 
 export default function CatalogMenu({ categoryIcons }: { categoryIcons: React.ReactNode[] }) {
@@ -69,43 +76,46 @@ export default function CatalogMenu({ categoryIcons }: { categoryIcons: React.Re
           <nav className="catalog-body" aria-labelledby="catalog-title">
             <section>
               <h3>{m.menu.categories}</h3>
-              <ul>
+              <ul className="catalog-tiles">
                 {CATEGORIES.map((c, i) => (
                   <li key={c.label}>
-                    <Link href={categoryHref(c.q)} className="catalog-link" onClick={close}>
+                    <Link href={categoryHref(c.q)} className="catalog-tile" onClick={close}>
                       <span className="catalog-icon">{categoryIcons[i]}</span>
                       <span>{m.home.categories[c.label] ?? c.label}</span>
-                      <Chevron />
                     </Link>
                   </li>
                 ))}
               </ul>
             </section>
             {MENU_SECTIONS.map((s) => (
-              <section key={s.links[0].href}>
-                <h3>{s.title(m)}</h3>
+              // A dropdown each; `name` makes them one group, so opening one closes the other.
+              <details
+                key={s.links[0].href}
+                name="catalog-section"
+                className="catalog-section"
+                open={s.links.some((l) => here(pathname, l.href)) || undefined}
+              >
+                <summary>
+                  <span>{s.title(m)}</span>
+                  <Chevron />
+                </summary>
                 <ul>
                   {s.links.map((l) => (
                     <li key={l.href}>
-                      <Link href={l.href} className="catalog-link" onClick={close}>
+                      <Link href={l.href} className="catalog-link" onClick={close} aria-current={pathname === l.href ? "page" : undefined}>
                         <span>{l.label(m)}</span>
-                        <Chevron />
                       </Link>
                     </li>
                   ))}
-                  {s.links[0].href === "/how" && (
-                    <li>
-                      <button type="button" className="catalog-link" onClick={lang.switchLang}>
-                        <span>{m.menu.language}</span>
-                        <span className="catalog-lang" lang={lang.other}>
-                          {m.nav.switchTo}
-                        </span>
-                      </button>
-                    </li>
-                  )}
                 </ul>
-              </section>
+              </details>
             ))}
+            <button type="button" className="catalog-link catalog-lang-row" onClick={lang.switchLang}>
+              <span>{m.menu.language}</span>
+              <span className="catalog-lang" lang={lang.other}>
+                {m.nav.switchTo}
+              </span>
+            </button>
           </nav>
         </div>
       </dialog>

@@ -119,6 +119,16 @@ function ListingRow({
             {listing.title}
           </a>
         </h3>
+        <div className="price">
+          {money(total)}
+          {/* No shipping from the marketplace (AliExpress, Amazon sightings) is unknown shipping, not free shipping. */}
+          <span className="ship">{!listing.shipping ? m.listing.plusShipping : shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
+          {deal && (
+            <span className={`deal-chip ${dealTone(deal.pct)}`} title={m.listing.dealTitle(money(deal.typical))}>
+              {m.listing.deal(deal.pct)}
+            </span>
+          )}
+        </div>
         <p className="meta">
           <span className="chip">{marketLabel(listing.source)}</span> {m.listing.conditions[listing.condition] ?? listing.condition} &middot;{" "}
           {/* A price a shopper saw, not a live one: says so where the seller would be. */}
@@ -173,7 +183,7 @@ function ListingRow({
           {/* The verdict, then only what matters: every red flag, or else the main reason. The rest folds away. */}
           <ul>
             {keyPoints.map((p, i) => (
-              <li key={i} className={p.tone}>
+              <li key={i} className={p.tone} title={tc(p.text)}>
                 {tc(p.text)}
               </li>
             ))}
@@ -233,16 +243,6 @@ function ListingRow({
               {m.listing.findings}
             </a>
           </p>
-        )}
-      </div>
-      <div className="price">
-        {money(total)}
-        {/* No shipping from the marketplace (AliExpress, Amazon sightings) is unknown shipping, not free shipping. */}
-        <span className="ship">{!listing.shipping ? m.listing.plusShipping : shipping > 0 ? m.listing.inclShipping : m.listing.freeShipping}</span>
-        {deal && (
-          <span className={`deal-chip ${dealTone(deal.pct)}`} title={m.listing.dealTitle(money(deal.typical))}>
-            {m.listing.deal(deal.pct)}
-          </span>
         )}
       </div>
     </article>
@@ -355,6 +355,7 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
           {m.search.listingsChecking(r.listings.length)}
         </span>
       </p>
+      <div className="listing-grid">
       {[...r.listings]
         .sort((x, y) => totalPrice(x).amount - totalPrice(y).amount)
         .slice(0, 3)
@@ -370,13 +371,14 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
             </div>
             <div className="body">
               <h3>{l.title}</h3>
+              <div className="price">{money(totalPrice(l))}</div>
               <div className="check-label pending">
                 <span className="check-head">{m.search.searching}</span>
               </div>
             </div>
-            <div className="price">{money(totalPrice(l))}</div>
           </article>
         ))}
+      </div>
     </div>
   );
 }
@@ -690,7 +692,8 @@ async function SearchResults({
       {result.listings.length === 0 ? (
         <p className="hint">{m.search.noListings(q)}</p>
       ) : (
-        <>
+        // A grid of boxes, as shops show products: photo, name and price first, SigPath's verdict under them.
+        <div className="listing-grid">
           {shown.map((l) => (
             <ListingRow
               key={listingKey(l)}
@@ -704,7 +707,7 @@ async function SearchResults({
               deal={dealOf(l)}
             />
           ))}
-        </>
+        </div>
       )}
 
       {/* The marketplaces we cover but are not permitted to query. One

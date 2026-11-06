@@ -85,6 +85,11 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   "ungebraucht"), and refurbished stays refurbished: "wie neu" is how
   refurbishers grade. On live eBay searches (2026-10-16) it moved 4 of 50 Switch
   OLEDs, 6 of 50 iPhone 15s and 2 of 50 AirPods Pro.
+- **Results as a grid of boxes.** Each listing is a box: the marketplace's
+  photo on top (shown whole, never cropped), the name in two lines, the price
+  and deal chip, the seller line, SigPath's verdict with its main reason in
+  three lines (the rest under "How it was checked"), and pay and cart at the
+  bottom so boxes in a row line up. As many columns as fit, two on a phone.
 - **The market right now, and a deal score.** Each search opens with what the
   product costs: per condition, the typical price, the range most offers fall
   in (the middle 80%), how many were compared, and a small chart of where the
@@ -820,9 +825,11 @@ other shop only when the shopper clicks "Check this page" in its menu
 ## The menu, the footer and the fonts
 
 - **The menu** (three lines beside the logo, `app/components/CatalogMenu.tsx`)
-  opens a drawer from the left, laid out like a big shop's catalogue: shop by
-  category, shop safely (search, price check, cart, alerts), sellers and
-  businesses, help and settings (with the language switch). It lists only
+  opens a drawer from the left: the categories as a two-column grid of tiles,
+  then shop safely (search, price check, cart, alerts), sellers and businesses,
+  and help, each a dropdown (`<details name>`: one open at a time, closed until
+  tapped, except the one holding the page you're on), and the language switch
+  at the bottom. Shorter than the old fully-expanded list. It lists only
   pages that exist (`app/components/catalog.ts`); `tests/catalog.test.ts`
   fails on a link with no page or a label missing in either language. It's a
   modal `<dialog>`: focus stays inside, Escape or a click on the dimmed page
