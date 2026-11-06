@@ -54,6 +54,8 @@ export default function Invoice({
   const sameFee = data.lines.every((l) => l.feeBps === feeBps);
   const date = new Date(paid?.at ?? Date.now()).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
   const feeTotal = data.lines.reduce((t, l) => t + BigInt(l.feeUsdc), 0n);
+  // No fee (the default): no column of zeros.
+  const showFee = feeTotal > 0n;
   // Column names, also shown beside each value when a phone stacks the table.
   const cols = {
     price: m.invoice.price(oneCurrency ?? "EUR"),
@@ -99,9 +101,11 @@ export default function Invoice({
               <th scope="col" className="num">
                 {cols.item}
               </th>
-              <th scope="col" className="num">
-                {cols.fee}
-              </th>
+              {showFee && (
+                <th scope="col" className="num">
+                  {cols.fee}
+                </th>
+              )}
               <th scope="col" className="num">
                 {cols.total}
               </th>
@@ -129,7 +133,7 @@ export default function Invoice({
                   </th>
                   <td className="num" data-label={cols.price}>{formatMoney({ amount: l.amount, currency: l.currency })}</td>
                   <td className="num" data-label={cols.item}>{num(l.itemUsdc)}</td>
-                  <td className="num" data-label={cols.fee}>{num(l.feeUsdc)}</td>
+                  {showFee && <td className="num" data-label={cols.fee}>{num(l.feeUsdc)}</td>}
                   <td className="num" data-label={cols.total}>
                     <strong>{num(l.totalUsdc)}</strong>
                   </td>
@@ -142,7 +146,7 @@ export default function Invoice({
               <th scope="row">{m.invoice.subtotal}</th>
               <td className="num" data-label={cols.price}>{data.localTotals.map(formatMoney).join(" + ")}</td>
               <td className="num" data-label={cols.item}>{num(itemTotal.toString())}</td>
-              <td className="num" data-label={cols.fee}>{num(feeTotal.toString())}</td>
+              {showFee && <td className="num" data-label={cols.fee}>{num(feeTotal.toString())}</td>}
               <td className="num invoice-total" data-label={cols.total}>{num(data.totalUsdc)}</td>
             </tr>
           </tfoot>
@@ -153,7 +157,7 @@ export default function Invoice({
         <span>{m.invoice.totalUsdc}</span> <strong>{usdc(data.totalUsdc, lang)}</strong>
       </p>
       <p className="hint">{data.rate ? m.invoice.rate(data.rate.display, m.invoice.rateSource(data.rate.source)) : m.invoice.usdOnly}</p>
-      {feeBps > 0 && <p className="hint">{m.invoice.fees}</p>}
+      {showFee ? <p className="hint">{m.invoice.fees}</p> : <p className="hint">{m.invoice.noFee}</p>}
       {paid && (
         <p className="invoice-actions">
           <button type="button" className="button ghost" onClick={() => window.print()}>

@@ -6,14 +6,14 @@ import { signQuote, verifyQuote } from "../lib/checkout/quote";
 const SECRET = { QUOTE_SECRET: "q".repeat(40) };
 const LISTING = { source: "ebay", id: "1", url: "https://www.ebay.de/itm/1", title: "t", seller: "s", amount: 24900, currency: "EUR" };
 
-test("the default service fee is 2%, and the setting can change it within reason", () => {
-  assert.equal(DEFAULT_FEE_BPS, 200);
-  assert.equal(serviceFeeBps({}), 200);
+test("shoppers pay no service fee by default; the setting can set one within reason", () => {
+  assert.equal(DEFAULT_FEE_BPS, 0);
+  assert.equal(serviceFeeBps({}), 0, "free for the shopper");
+  assert.equal(serviceFeeBps({ SIGPATH_FEE_BPS: "200" }), 200);
   assert.equal(serviceFeeBps({ SIGPATH_FEE_BPS: "150" }), 150);
-  assert.equal(serviceFeeBps({ SIGPATH_FEE_BPS: "0" }), 0, "a free checkout is a valid choice");
-  // A typo never becomes a price.
+  // A typo never becomes a price: it means no fee.
   for (const bad of ["2", "1.5", "-100", "5000", "abc"]) {
-    assert.equal(serviceFeeBps({ SIGPATH_FEE_BPS: bad }), bad === "2" ? 2 : 200, bad);
+    assert.equal(serviceFeeBps({ SIGPATH_FEE_BPS: bad }), bad === "2" ? 2 : 0, bad);
   }
 });
 

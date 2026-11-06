@@ -667,7 +667,7 @@ async function SearchResults({
       )}
       {checkoutReady && rate && result.listings.length > 0 && (
         <p className="hint">
-          {m.search.usdcRate(rate.display, rate.source, formatFeeRate(feeBps))}
+          {feeBps > 0 ? m.search.usdcRate(rate.display, rate.source, formatFeeRate(feeBps)) : m.search.usdcRateFree(rate.display, rate.source)}
         </p>
       )}
 

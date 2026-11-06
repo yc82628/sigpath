@@ -420,7 +420,8 @@ test("a valid checkout returns a transaction for exactly the quoted amount", asy
   const { store } = tmpStore();
   const buyer = Keypair.generate().publicKey;
   const r = await prepareCheckout(
-    { quote: signQuote(LISTING, ENV)!, buyer: buyer.toBase58(), address: ADDRESS },
+    // A fee set on purpose (the default is none), so the arithmetic with one is checked.
+    { quote: signQuote(LISTING, { ...ENV, SIGPATH_FEE_BPS: "200" })!, buyer: buyer.toBase58(), address: ADDRESS },
     { env: ENV, store, conn: rich(), fetchImpl: noFetch },
   );
   assert.ok(r.ok, !r.ok ? r.error : "");

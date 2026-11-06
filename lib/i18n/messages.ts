@@ -187,6 +187,7 @@ const en = {
       note: "Filters change what's shown, not the checks: every verdict and typical price still comes from all the listings found.",
     },
     usdcRate: (rate: string, source: string, fee: string) => `USDC at ${rate} USD/EUR (${source}), incl. ${fee} fee.`,
+    usdcRateFree: (rate: string, source: string) => `USDC at ${rate} USD/EUR (${source}). No fee for shoppers.`,
     noListings: (q: string) => `No listings found for “${q}”.`,
     hidden: (n: number) => `${n} listing${n === 1 ? "" : "s"} hidden because ${n === 1 ? "it isn't" : "they aren't"} SigPath-checked.`,
     alsoSearch: "Also search directly",
@@ -324,6 +325,7 @@ const en = {
     rateSource: (s: string) => s,
     usdOnly: "Priced in USD: 1 USDC = 1 USD.",
     fees: "The fee sits in escrow with each item's price and is refunded with it if that order isn't fulfilled.",
+    noFee: "No fee: you pay the item's price, nothing on top.",
     print: "Print or save as PDF",
     loading: "Preparing the invoice…",
   },
@@ -626,6 +628,8 @@ const de: Messages = {
     },
     usdcRate: (rate, source, fee) =>
       `USDC zu ${rate.replace(".", ",")} USD/EUR (${source.replace("ECB reference rate", "EZB-Referenzkurs")}), inkl. ${fee.replace(".", ",")} Gebühr.`,
+    usdcRateFree: (rate, source) =>
+      `USDC zu ${rate.replace(".", ",")} USD/EUR (${source.replace("ECB reference rate", "EZB-Referenzkurs")}). Keine Gebühr für Käufer.`,
     noListings: (q) => `Keine Angebote für „${q}“ gefunden.`,
     hidden: (n) => `${n} ${n === 1 ? "Angebot" : "Angebote"} ausgeblendet, weil ${n === 1 ? "es" : "sie"} nicht von SigPath geprüft ${n === 1 ? "ist" : "sind"}.`,
     alsoSearch: "Auch direkt suchen",
@@ -764,6 +768,7 @@ const de: Messages = {
     rateSource: (s) => s.replace("ECB reference rate", "EZB-Referenzkurs").replace("fallback rate from configuration", "Ersatzkurs aus der Konfiguration"),
     usdOnly: "In USD bepreist: 1 USDC = 1 USD.",
     fees: "Die Gebühr liegt mit dem Preis jedes Artikels in der Treuhand und wird mit ihm erstattet, wenn diese Bestellung nicht erfüllt wird.",
+    noFee: "Keine Gebühr: Du zahlst den Preis des Artikels, nichts obendrauf.",
     print: "Drucken oder als PDF speichern",
     loading: "Übersicht wird erstellt…",
   },

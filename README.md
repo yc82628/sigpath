@@ -1235,9 +1235,12 @@ use when there is more than one.
 | The fee is protected like the price | It is paid into the escrow with the price: SigPath receives it only through `fulfil`, and a refund returns it with everything else |
 | Both currencies, before paying | Pay buttons show the USDC total, fee included; the checkout ends with an EUR + USDC breakdown, and the Pay button names both |
 
-**The service fee.** 2% by default, set with `SIGPATH_FEE_BPS` in basis points
-(`200` = 2%, `150` = 1.5%, `0` = none; anything invalid means 2%, anything
-over 10% is refused). It is rounded **up** to the smallest unit in both
+**The service fee.** None by default since 2026-11-06: shoppers come for the
+best deal and pay nothing, and the search page and invoice say so ("No fee for
+shoppers") instead of showing a column of zeros. `SIGPATH_FEE_BPS` can set one
+in basis points (`200` = 2%, `150` = 1.5%; anything invalid means none,
+anything over 10% is refused), e.g. to cover converting USDC to euros and
+paying the shop once the checkout runs on real money rather than devnet. It is rounded **up** to the smallest unit in both
 currencies, so it is never slightly under the rate (`lib/checkout/fee.ts`).
 Quotes signed before the fee existed are honoured without one. It is always
 called a *service fee*, never VAT or a tax: those are the state's. Example, a
@@ -1246,7 +1249,7 @@ ThinkPad X1 Carbon on eBay at 1.1206 USD per EUR:
 | | EUR | USDC |
 |---|---:|---:|
 | Item, including shipping | 142.96 | 160.200976 |
-| SigPath service fee (2%) | 2.86 | 3.20402 |
+| SigPath service fee (2%, if set) | 2.86 | 3.20402 |
 | **Total** | **145.82** | **163.404996** |
 
 **Not enough USDC?** When a wallet is short, the checkout says by how much and
