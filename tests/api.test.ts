@@ -21,6 +21,8 @@ const ACME: Business = {
   id: "b_acme", wallet: W, createdAt: NOW_S,
   vat: { country: "DE", number: "123456789", registeredName: null, checkedAt: NOW_S - 86400 },
   domain: { name: "acme-shop.de", verifiedAt: NOW_S - 3600 },
+  // A plan running past the VAT check, so the VAT check's date is the one shown.
+  plan: { paidUntil: NOW_S + 400 * 86400, payments: [] },
 };
 
 function deps(over: Partial<ApiDeps> & { upheldFor?: Map<string, number>; chain?: OnChainBadge | null; findingsFor?: PublicFinding[] } = {}): ApiDeps {

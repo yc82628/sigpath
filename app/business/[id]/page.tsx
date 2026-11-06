@@ -25,10 +25,11 @@ const CLASS: Record<BusinessStatus, string> = {
   suspended: "status-chip warn",
   expired: "status-chip",
   incomplete: "status-chip",
+  unpaid: "status-chip",
 };
 
 const en = {
-  status: { verified: "✓ Verified business", suspended: "Suspended", expired: "Expired", incomplete: "Not verified yet" } as Record<BusinessStatus, string>,
+  status: { verified: "✓ Verified business", suspended: "Suspended", expired: "Expired", incomplete: "Not verified yet", unpaid: "Plan not active" } as Record<BusinessStatus, string>,
   /** lib/sellers/business.ts writes the reason in English. */
   reason: (r: string) => r,
   profileHint: "SigPath business profile",
@@ -77,7 +78,7 @@ const en = {
   title: (name?: string | null) => (name ? `${name} — SigPath business profile` : "Business profile — SigPath"),
 };
 const de: typeof en = {
-  status: { verified: "✓ Verifiziertes Unternehmen", suspended: "Ausgesetzt", expired: "Abgelaufen", incomplete: "Noch nicht verifiziert" },
+  status: { verified: "✓ Verifiziertes Unternehmen", suspended: "Ausgesetzt", expired: "Abgelaufen", incomplete: "Noch nicht verifiziert", unpaid: "Abo nicht aktiv" },
   reason: (r) =>
     ({
       "A verified buyer's fake-product report against one of its accounts was upheld.":
@@ -86,6 +87,8 @@ const de: typeof en = {
       "The VAT check is more than a year old.": "Die Prüfung der USt-IdNr. ist älter als ein Jahr.",
       "None of its marketplace accounts currently holds a verified-seller badge.":
         "Keines seiner Marktplatzkonten trägt derzeit ein Abzeichen als verifizierter Verkäufer.",
+      "Its Verified business plan has run out.": "Sein Abo „Verifiziertes Unternehmen“ ist abgelaufen.",
+      "Its Verified business plan hasn't started yet.": "Sein Abo „Verifiziertes Unternehmen“ hat noch nicht begonnen.",
     })[r] ?? r,
   profileHint: "SigPath-Unternehmensprofil",
   registeredIn: (c) => `Unternehmen eingetragen in ${c}`,
@@ -160,7 +163,8 @@ export default async function BusinessProfile({ params }: { params: { id: string
       <h1>{v.registeredName ?? (country ? t.registeredIn(country) : t.business)}</h1>
       <p>
         <span className={CLASS[v.status]}>{t.status[v.status]}</span>
-        {v.status === "verified" && v.expiresAt && <span className="hint">{t.validUntil(day(v.expiresAt))}</span>}
+        {/* Whichever ends first: the yearly VAT check or the paid plan. */}
+        {v.status === "verified" && v.expiresAt && <span className="hint">{t.validUntil(day(Math.min(v.expiresAt, v.paidUntil ?? v.expiresAt)))}</span>}
       </p>
       {v.statusReason && <p className="notice withheld">{t.reason(v.statusReason)}</p>}
 

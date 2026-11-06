@@ -261,7 +261,8 @@ function PrivacyEn() {
           <li>
             <strong>Verified business:</strong> your VAT number is checked with the EU&apos;s VIES service and your website
             through its domain registry. SigPath keeps the business record for up to {days(BUSINESS_TTL_SECS)} days; on
-            Solana the VAT number and website are stored only as one-way hashes.
+            Solana the VAT number and website are stored only as one-way hashes. Its plan payments (the Solana
+            transaction, amount and date) are kept with it; the transfers themselves are public on Solana.
           </li>
           <li>If you delete your eBay account, eBay notifies SigPath and the matching records are deleted.</li>
         </ul>

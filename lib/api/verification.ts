@@ -115,7 +115,7 @@ export interface BusinessRecord {
   found: boolean;
   /** The business wallet: holds its badges, and keys its attestation. Public on chain already. */
   wallet: string | null;
-  status: "verified" | "suspended" | "expired" | "incomplete" | null;
+  status: "verified" | "suspended" | "expired" | "incomplete" | "unpaid" | null;
   statusReason: string | null;
   registeredName: string | null;
   country: string | null;
@@ -164,7 +164,8 @@ export async function businessRecord(query: { id?: string; vatCountry?: string; 
       country: v.country ? VIES_COUNTRIES[v.country] ?? v.country : null,
       vat: v.vatMasked && v.vatCheckedAt ? { masked: v.vatMasked, checkedAt: iso(v.vatCheckedAt) } : null,
       website: v.domain && v.domainVerifiedAt ? { domain: v.domain, provedAt: iso(v.domainVerifiedAt) } : null,
-      validUntil: v.status === "verified" && v.expiresAt ? iso(v.expiresAt) : null,
+      // Whichever ends first: the yearly VAT check or the paid plan.
+      validUntil: v.status === "verified" && v.expiresAt ? iso(Math.min(v.expiresAt, v.paidUntil ?? v.expiresAt)) : null,
       accounts: v.accounts.filter((a) => (API_MARKETPLACES as readonly string[]).includes(a.source)).map((a) => ({ marketplace: a.source, handle: a.handle, verifiedSince: iso(a.verifiedAt), active: a.active, upheldReports: a.upheldReports, attestation: a.attestation })),
       profile: `${deps.baseUrl}/business/${b.id}`,
       onChain: chain ? { status: chain.status, attestation: chain.status === "none" ? null : chain.attestation } : { status: "not_checked", attestation: null },

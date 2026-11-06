@@ -120,6 +120,7 @@ test("report: SigPath's records — verified business, upheld reports, and borro
     id: "b_acme", wallet: w, createdAt: NOW_S,
     vat: { country: "DE", number: "123456789", registeredName: null, checkedAt: NOW_S - 86400 },
     domain: { name: "acme-trading.de", verifiedAt: NOW_S },
+    plan: { paidUntil: NOW_S + 400 * 86400, payments: [] },
   };
   const base = { businessesFor: { [w]: business }, badgesFor: { "ebay:acme_shop": badge(w), "ebay:copycat": badge("Other") } };
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import BusinessForm from "./BusinessForm";
 import { getLang } from "@/lib/i18n/server";
+import { planPrices } from "@/lib/sellers/plan";
 
 /**
  * app/seller/business — the verified-business tier, on top of verified accounts.
@@ -17,6 +18,8 @@ export function generateMetadata() {
 export default function BusinessPage() {
   const de = getLang() === "de";
   const T = (en: string, german: string) => (de ? german : en);
+  const prices = planPrices();
+  const eur = (cents: number) => new Intl.NumberFormat(de ? "de-DE" : "en-IE", { style: "currency", currency: "EUR" }).format(cents / 100);
   return (
     <main className="container">
       <h1>{T("Verify your business", "Dein Unternehmen verifizieren")}</h1>
@@ -56,6 +59,25 @@ export default function BusinessPage() {
             {T(
               ", not for any item. One upheld fake-product report against any linked account suspends it for all of them.",
               ", nicht für einen Artikel. Eine einzige bestätigte Fälschungsmeldung gegen ein verknüpftes Konto setzt es für alle aus.",
+            )}
+          </li>
+        </ul>
+      </section>
+
+      <section className="guarantees">
+        <h2>{T("What it costs", "Was es kostet")}</h2>
+        <ul>
+          <li>
+            <strong>{T("Monthly:", "Monatlich:")}</strong> {eur(prices.month)}
+            {prices.opening && <span className="hint"> {T(`(opening offer, then ${eur(prices.regular.month)})`, `(Eröffnungsangebot, danach ${eur(prices.regular.month)})`)}</span>}
+          </li>
+          <li>
+            <strong>{T("Yearly:", "Jährlich:")}</strong> {eur(prices.year)} <span className="hint">{T("(10% off twelve months)", "(10 % günstiger als zwölf Monate)")}</span>
+          </li>
+          <li>
+            {T(
+              "Paid in USDC, no automatic renewal. It pays for the checks, the badge and your profile, never for a place in search: results are ordered by the deal, the same for everyone. Your verified-seller badge stays free.",
+              "Bezahlt in USDC, ohne automatische Verlängerung. Bezahlt werden die Prüfungen, das Abzeichen und dein Profil, nie ein Platz in der Suche: Ergebnisse sind nach dem Angebot sortiert, für alle gleich. Dein Abzeichen als verifizierter Verkäufer bleibt kostenlos.",
             )}
           </li>
         </ul>

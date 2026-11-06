@@ -116,6 +116,8 @@ const biz = (wallet: string, over: Partial<Business> = {}): Business => ({
   wallet,
   createdAt: NOW_S,
   vat: { country: "IE", number: "6388047V", registeredName: "GOOGLE IRELAND LIMITED", checkedAt: NOW_S - 86400 },
+  // A plan that runs past the yearly VAT check, so these tests see the other rules.
+  plan: { paidUntil: NOW_S + 400 * 86400, payments: [] },
   ...over,
 });
 
@@ -190,7 +192,7 @@ test("steps: a verified seller attaches a VAT-checked business, then a website",
   try {
     const vat = await submitVat({ ...sign(vatAction("IE", "6388047V")), country: "ie", vatNumber: "IE 6388047V" }, d);
     assert.ok(vat.ok, JSON.stringify(vat));
-    assert.strictEqual(vat.value.status, "verified");
+    assert.strictEqual(vat.value.status, "unpaid", "every check passed; the badge shows once the plan runs");
     assert.strictEqual(vat.value.registeredName, "GOOGLE IRELAND LIMITED");
     assert.strictEqual(vat.value.accounts.length, 2);
 
@@ -261,6 +263,98 @@ test("steps: a website can be proved before the VAT number, but the business isn
     const stranger = signer();
     const refused = await verifyDomain({ ...stranger.sign(domainAction("example.ie")), domain: "example.ie" }, d);
     assert.ok(!refused.ok && refused.status === 403);
+  } finally {
+    cleanup();
+  }
+});
+
+// --- the Verified business plan ------------------------------------------------------------------
+
+test("plan: monthly, yearly at 10% off, and an opening offer until a set day", async () => {
+  const { planPrices, yearlyCents, openingOffer } = await import("../lib/sellers/plan");
+  assert.strictEqual(yearlyCents(999), 10789, "€107.89");
+  assert.strictEqual(yearlyCents(799), 8629, "€86.29");
+  assert.deepStrictEqual(planPrices({}, NOW), { month: 799, year: 8629, opening: true, regular: { month: 999, year: 10789 } }, "the opening offer runs until it's ended");
+  const env = { BUSINESS_OPENING_OFFER_UNTIL: "2026-10-03" };
+  assert.ok(openingOffer(env, Date.UTC(2026, 9, 3, 23, 59)), "that day included");
+  assert.deepStrictEqual(planPrices(env, Date.UTC(2026, 9, 4)), { month: 999, year: 10789, opening: false, regular: { month: 999, year: 10789 } });
+});
+
+test("plan: a business that passed every check shows only while its plan runs", () => {
+  const w = "Wallet3333";
+  const badges = { "ebay:shop": badge(w) };
+  const none = new Map<string, number>();
+  const unpaid = businessView(biz(w, { plan: undefined }), badges, none, NOW_S);
+  assert.strictEqual(unpaid.status, "unpaid");
+  assert.match(unpaid.statusReason!, /hasn't started/);
+  const lapsed = businessView(biz(w, { plan: { paidUntil: NOW_S, payments: [] } }), badges, none, NOW_S);
+  assert.strictEqual(lapsed.status, "unpaid");
+  assert.match(lapsed.statusReason!, /run out/);
+  assert.strictEqual(businessIndex({ [w]: biz(w, { plan: undefined }) }, badges, none, NOW_S).size, 0, "no badge in search without a plan");
+  // Paying never covers a failed check.
+  const suspended = businessView(biz(w, { plan: undefined }), badges, new Map([["ebay:shop", 1]]), NOW_S);
+  assert.strictEqual(suspended.status, "suspended");
+});
+
+test("plan: paid on chain, found by its reference, counted once, and only for the quoted amount", async () => {
+  const { OPERATOR, USDC_MINT } = await import("../lib/chains/solana/orders");
+  const { openPlanQuote } = await import("../lib/sellers/plan");
+  const { startPlan, confirmPlan } = await import("../lib/sellers/business-api");
+  const { wallet, sign } = signer();
+  const mint = USDC_MINT.toBase58();
+  let landed: { signature: string; amount: bigint }[] = [];
+  const plan = {
+    latestBlockhash: async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 100 }),
+    rate: async () => ({ micro: 1_120_000n, display: "1.12", source: "test" }),
+    paymentsFor: async () =>
+      landed.map((p) => ({
+        signature: p.signature,
+        err: null,
+        blockTime: NOW_S,
+        pre: [{ accountIndex: 1, mint, owner: wallet, amount: "100000000" }, { accountIndex: 2, mint, owner: OPERATOR.toBase58(), amount: "0" }],
+        post: [
+          { accountIndex: 1, mint, owner: wallet, amount: String(100_000_000n - p.amount) },
+          { accountIndex: 2, mint, owner: OPERATOR.toBase58(), amount: String(p.amount) },
+        ],
+      })),
+  };
+  const { d, cleanup } = deps({ badgesFor: { "ebay:shop": badge(wallet) }, plan });
+  try {
+    const before = await startPlan({ wallet, period: "month" }, d);
+    assert.ok(!before.ok && before.status === 409, "nothing to pay for before the business is checked");
+    assert.ok((await submitVat({ ...sign(vatAction("IE", "6388047V")), country: "IE", vatNumber: "6388047V" }, d)).ok);
+
+    const start = await startPlan({ wallet, period: "year" }, d);
+    assert.ok(start.ok, JSON.stringify(start));
+    assert.strictEqual(start.value.eurCents, 8629);
+    assert.strictEqual(start.value.usdc, "96644800", "€86.29 at 1.12 USD/EUR, in USDC base units");
+    const q = openPlanQuote(start.value.token, ENV, NOW_S)!;
+    assert.strictEqual(q.w, wallet);
+
+    const notYet = await confirmPlan({ token: start.value.token }, d);
+    assert.strictEqual(notYet.ok ? 0 : notYet.status, 202, "not on chain yet: ask again");
+
+    landed = [{ signature: "Short1", amount: 96_644_799n }];
+    const short = await confirmPlan({ token: start.value.token }, d);
+    assert.strictEqual(short.ok ? 0 : short.status, 202, "a cent short is no payment");
+
+    landed = [{ signature: "Paid1", amount: 96_644_800n }];
+    const paid = await confirmPlan({ token: start.value.token }, d);
+    assert.ok(paid.ok, JSON.stringify(paid));
+    assert.strictEqual(paid.value.status, "verified");
+    assert.strictEqual(paid.value.paidUntil, NOW_S + 365 * 86400);
+    const again = await confirmPlan({ token: start.value.token }, d);
+    assert.ok(again.ok && again.value.paidUntil === NOW_S + 365 * 86400, "the same payment extends once");
+
+    // A month more, paid ahead: added after the year, not from today.
+    const month = await startPlan({ wallet, period: "month" }, d);
+    assert.ok(month.ok);
+    landed = [{ signature: "Paid2", amount: BigInt(month.value.usdc) }];
+    const more = await confirmPlan({ token: month.value.token }, d);
+    assert.ok(more.ok && more.value.paidUntil === NOW_S + 395 * 86400);
+
+    const forged = await confirmPlan({ token: month.value.token.replace(/.$/, (c) => (c === "A" ? "B" : "A")) }, d);
+    assert.ok(!forged.ok && forged.status === 400);
   } finally {
     cleanup();
   }

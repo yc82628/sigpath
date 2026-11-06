@@ -262,7 +262,9 @@ export default function PrivacyDe() {
           <li>
             <strong>Verifiziertes Unternehmen:</strong> Deine USt-IdNr. wird über den VIES-Dienst der EU geprüft und deine
             Website über ihre Domain-Registry. SigPath speichert den Unternehmensdatensatz bis zu {days(BUSINESS_TTL_SECS)}{" "}
-            Tage; auf Solana werden USt-IdNr. und Website nur als Einweg-Hashwerte gespeichert.
+            Tage; auf Solana werden USt-IdNr. und Website nur als Einweg-Hashwerte gespeichert. Die Zahlungen für sein
+            Abo (Solana-Transaktion, Betrag und Datum) werden mit ihm gespeichert; die Überweisungen selbst sind auf Solana
+            öffentlich.
           </li>
           <li>Löschst du dein eBay-Konto, benachrichtigt eBay SigPath, und die zugehörigen Datensätze werden gelöscht.</li>
         </ul>

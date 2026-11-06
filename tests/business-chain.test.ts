@@ -55,7 +55,11 @@ function setup(publish?: BusinessDeps["publish"]) {
   };
   const time = new Date(NOW).toISOString();
   const sign = (action: string) => Buffer.from(nacl.sign.detached(new TextEncoder().encode(businessMessage(action, wallet, time)), kp.secretKey)).toString("base64");
-  const vat = () => submitVat({ wallet, time, signature: sign(vatAction("DE", "123456789")), country: "DE", vatNumber: "123456789" }, deps);
+  // A running plan, so the VAT check is what makes the business verified (and published) here.
+  const vat = async () => {
+    await log.update(wallet, (b) => ({ ...b, plan: { paidUntil: NOW_S + 400 * 86400, payments: [] } }), NOW_S);
+    return submitVat({ wallet, time, signature: sign(vatAction("DE", "123456789")), country: "DE", vatNumber: "123456789" }, deps);
+  };
   return { dir, wallet, log, badges, vat, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 

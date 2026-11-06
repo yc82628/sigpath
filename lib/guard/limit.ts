@@ -60,6 +60,8 @@ export const RULES = {
   attestDaily: { name: "attest-daily", limit: 50, windowSecs: DAY, global: true, message: "Verification is paused for today. Try again tomorrow." },
   vat: { name: "vat", limit: 10, windowSecs: TEN_MIN, message: "Too many checks. Try again in a few minutes." },
   domain: { name: "domain", limit: 20, windowSecs: TEN_MIN, message: "Too many checks. Try again in a few minutes." },
+  /** The business plan: each start builds a payment, each confirm reads the chain (polled while it lands). */
+  plan: { name: "plan", limit: 60, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
   supplier: { name: "supplier", limit: 10, windowSecs: TEN_MIN, message: "Too many checks. Try again in a few minutes." },
   /** Routes that write a record, sign something or send a transaction. */
   write: { name: "write", limit: 30, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },

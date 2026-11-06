@@ -20,6 +20,9 @@
  * Every step is signed by the wallet, so only the badge holder can attach a
  * business to its accounts.
  *
+ * PAID, MONTHLY OR YEARLY (plan.ts). The tier shows only while its plan runs;
+ * a seller's own verified badge stays free.
+ *
  * WHAT IT DOES NOT CLAIM, said on the profile too: a registered business can
  * still sell a bad item. It answers "who runs this account?", not "is this
  * item genuine?". One upheld fake-product report on ANY linked account
@@ -40,6 +43,7 @@ import { VIES_COUNTRIES } from "../i18n/countries";
 import { businessMessage } from "./business-message";
 import { dataDir } from "../data-dir";
 import { asTable, tableFromEnv, type Table } from "../kv/table";
+import type { Period } from "./plan";
 
 type Env = Record<string, string | undefined>;
 
@@ -170,6 +174,18 @@ export interface Business {
    * `reports-admin publish-business` retries. `revokedAt` once closed on suspension.
    */
   onChain?: { attestation: string; signature?: string; publishedAt: number; error?: string; revokedAt?: number; revokeSignature?: string };
+  /** The Verified business plan (plan.ts): paid until, and every payment, each found on chain. */
+  plan?: { paidUntil: number; payments: PlanPayment[] };
+}
+
+export interface PlanPayment {
+  /** The Solana transaction that paid. One payment, one extension. */
+  signature: string;
+  period: Period;
+  /** USDC base units, and the euro cents they stood for. */
+  usdc: string;
+  eurCents: number;
+  at: number;
 }
 
 export class BusinessLog {
@@ -233,7 +249,7 @@ export interface LinkedAccount {
   attestation: string;
 }
 
-export type BusinessStatus = "verified" | "suspended" | "expired" | "incomplete";
+export type BusinessStatus = "verified" | "suspended" | "expired" | "incomplete" | "unpaid";
 
 export interface BusinessView {
   id: string;
@@ -248,6 +264,8 @@ export interface BusinessView {
   domain?: string;
   domainVerifiedAt?: number;
   expiresAt?: number;
+  /** When the plan runs out, if it was ever paid. */
+  paidUntil?: number;
   accounts: LinkedAccount[];
   onChain: Business["onChain"] | null;
 }
@@ -287,6 +305,10 @@ export function businessView(
   } else if (!accounts.some((a) => a.active)) {
     status = "incomplete";
     statusReason = "None of its marketplace accounts currently holds a verified-seller badge.";
+  } else if (!b.plan || nowS >= b.plan.paidUntil) {
+    // Checked last: the plan pays for a business that passes every check, never instead of one.
+    status = "unpaid";
+    statusReason = b.plan ? "Its Verified business plan has run out." : "Its Verified business plan hasn't started yet.";
   }
   return {
     id: b.id,
@@ -300,6 +322,7 @@ export function businessView(
     domain: b.domain?.name,
     domainVerifiedAt: b.domain?.verifiedAt,
     expiresAt,
+    paidUntil: b.plan?.paidUntil,
     accounts,
     onChain: b.onChain ?? null,
   };

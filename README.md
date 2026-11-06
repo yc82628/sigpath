@@ -230,7 +230,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 649 tests, as of 2026-11-06
+npm test                                   # 652 tests, as of 2026-11-06
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -1609,6 +1609,36 @@ number didn't, and the hash doesn't contain it), republished with a website at
 the same address, invisible to another wallet, and closed. Closing again was a
 no-op. The run cost the issuer 0.0024 devnet SOL, mostly the one-time schema;
 rent came back on close.
+
+### The Verified business plan — paid by the business, never by shoppers
+
+The business tier is a paid plan (`lib/sellers/plan.ts`); a seller's own
+verified badge stays free, and shoppers pay nothing anywhere.
+
+| | Price |
+| --- | --- |
+| Monthly | €9.99; **€7.99** while the opening offer runs |
+| Yearly | twelve months less 10%: €107.89; **€86.29** while the opening offer runs |
+
+- **The opening offer** runs until `BUSINESS_OPENING_OFFER_UNTIL` (YYYY-MM-DD,
+  that day included); unset, it runs. Each payment costs the price of its day.
+- **What it buys:** the business check, the badge and the public profile while
+  the plan runs. **Not** a place in search (results are ordered by the deal, the
+  same for everyone), and not a verdict: a business must pass every check
+  first, and one upheld fake-product report suspends it, paid or not. A business
+  that passed but hasn't paid is `unpaid` ("Plan not active"), and its badge
+  isn't shown.
+- **How it's paid:** USDC on Solana, from the wallet that holds the badges, to
+  the operator: the euro price at the ECB rate, rounded up like the checkout.
+  No automatic renewal; paying ahead adds to the end of the plan (a month = 30
+  days, a year = 365).
+- **How it's checked:** the transfer carries a one-time reference key (the
+  Solana Pay pattern). The server signs a quote (wallet, period, USDC, reference;
+  its own HMAC domain), then finds the transaction on chain by that key and
+  extends the plan only if the wallet spent and the operator received at least
+  the quoted USDC. Each transaction counts once. A payment whose page was closed
+  before it confirmed is picked up on the next visit (the quote is kept in the
+  browser and accepted for a week). `POST /api/business/plan/start`, `/confirm`.
 
 ### Check a supplier — before ordering in bulk
 

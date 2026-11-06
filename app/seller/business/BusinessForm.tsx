@@ -6,9 +6,10 @@
  *   2. see the accounts it links (verify one first if there are none)
  *   3. check the VAT number against the EU register (signed by the wallet)
  *   4. optionally, prove the website with a DNS record (signed again)
+ *   5. pay the Verified business plan, monthly or yearly, in USDC (lib/sellers/plan.ts)
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import WalletButton from "../../components/WalletButton";
 import type { ConnectedWallet } from "../../components/wallet";
 import { useWalletChange, useWalletErrorText } from "../../components/WalletProvider";
@@ -16,6 +17,8 @@ import { useWalletChange, useWalletErrorText } from "../../components/WalletProv
 import { businessMessage, domainAction, vatAction } from "@/lib/sellers/business-message";
 import type { BusinessStatus } from "@/lib/sellers/business-api";
 import type { BusinessView } from "@/lib/sellers/business";
+import type { PlanStart } from "@/lib/sellers/business-api";
+import type { Period } from "@/lib/sellers/plan";
 import { useLang } from "../../components/I18n";
 import { countryName } from "@/lib/i18n/countries";
 
@@ -41,6 +44,27 @@ async function postJson<T>(url: string, body: unknown): Promise<{ ok: true; valu
   return res.ok ? { ok: true, value: json as T } : { ok: false, error: (json as { error?: string }).error ?? "Something went wrong." };
 }
 
+/** "7,99 €" / "€7.99" */
+function euros(cents: number, lang: string): string {
+  return new Intl.NumberFormat(lang === "de" ? "de-DE" : "en-IE", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+// A payment sent but not yet confirmed survives a closed tab: the token is kept here and confirmed on the next visit.
+const PENDING = "sigpath-plan-pending";
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Ask the server to find the payment on chain, for up to a minute. Null: not seen yet. */
+async function confirmPayment(token: string): Promise<{ ok: true; value: BusinessView } | { ok: false; error: string } | null> {
+  for (let i = 0; i < 20; i++) {
+    const res = await fetch("/api/business/plan/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 200) return { ok: true, value: json as BusinessView };
+    if (res.status !== 202) return { ok: false, error: (json as { error?: string }).error ?? "Something went wrong." };
+    await wait(3000);
+  }
+  return null;
+}
+
 export default function BusinessForm() {
   const lang = useLang();
   const T = (en: string, german: string) => (lang === "de" ? german : en);
@@ -54,7 +78,28 @@ export default function BusinessForm() {
   const [record, setRecord] = useState<{ domain: string; record: { name: string; value: string } } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planNote, setPlanNote] = useState<string | null>(null);
   const describe = useWalletErrorText();
+
+  // A payment left unconfirmed last time (the tab closed while it landed): confirm it now.
+  useEffect(() => {
+    let token: string | null = null;
+    try {
+      token = localStorage.getItem(PENDING);
+    } catch {
+      return;
+    }
+    if (!token) return;
+    void confirmPayment(token).then((r) => {
+      if (!r) return;
+      try {
+        localStorage.removeItem(PENDING);
+      } catch {
+        // nothing kept, nothing to remove
+      }
+      if (r.ok) setBusiness(r.value);
+    });
+  }, []);
 
   // Everything below is for one wallet's badges. Another wallet starts from its own.
   useWalletChange(wallet, () => {
@@ -122,7 +167,55 @@ export default function BusinessForm() {
       } else setError(r.error);
     });
 
+  const payPlan = (period: Period) =>
+    run(async () => {
+      if (!connected || !wallet) return;
+      setPlanNote(T("Preparing the payment…", "Zahlung wird vorbereitet …"));
+      const r = await postJson<PlanStart>("/api/business/plan/start", { wallet, period });
+      if (!r.ok) {
+        setPlanNote(null);
+        setError(r.error);
+        return;
+      }
+      setPlanNote(T(`Approve ${euros(r.value.eurCents, lang)} in ${connected.name}…`, `Bestätige ${euros(r.value.eurCents, lang)} in ${connected.name} …`));
+      try {
+        localStorage.setItem(PENDING, r.value.token);
+      } catch {
+        // without storage, a closed tab means confirming by paying again; the open page still confirms
+      }
+      try {
+        await connected.signAndSend(r.value.transaction);
+      } catch (err) {
+        try {
+          localStorage.removeItem(PENDING);
+        } catch {
+          // nothing kept
+        }
+        setPlanNote(null);
+        throw err;
+      }
+      setPlanNote(T("Paid. Waiting for the network to confirm it…", "Bezahlt. Warte auf die Bestätigung im Netzwerk …"));
+      const c = await confirmPayment(r.value.token);
+      if (!c) {
+        setPlanNote(T(
+          "The payment is sent but not confirmed yet. Come back to this page in a few minutes: it's picked up then.",
+          "Die Zahlung ist gesendet, aber noch nicht bestätigt. Öffne diese Seite in ein paar Minuten wieder: Dann wird sie übernommen.",
+        ));
+        return;
+      }
+      try {
+        localStorage.removeItem(PENDING);
+      } catch {
+        // nothing kept
+      }
+      setPlanNote(null);
+      if (c.ok) setBusiness(c.value);
+      else setError(c.error);
+    });
+
   const activeAccounts = status?.accounts.filter((a) => a.active) ?? [];
+  const prices = status?.prices;
+  const day = (s: number) => new Date(s * 1000).toLocaleDateString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium" });
 
   return (
     <div className="business-form">
@@ -220,6 +313,46 @@ export default function BusinessForm() {
               </button>
             </>
           )}
+        </section>
+      )}
+
+      {wallet && prices && business && (business.status === "unpaid" || business.status === "verified") && (
+        <section className="step">
+          <h2>{T("5. Your plan", "5. Dein Abo")}</h2>
+          {business.status === "verified" && business.paidUntil ? (
+            <p className="notice">✓ {T(`Active until ${day(business.paidUntil)}. Paying now adds to that.`, `Aktiv bis ${day(business.paidUntil)}. Jetzt zahlen verlängert ab dann.`)}</p>
+          ) : (
+            <p className="hint">
+              {T(
+                "Your business passed the checks. The badge and your public profile show once the plan runs.",
+                "Dein Unternehmen hat die Prüfungen bestanden. Abzeichen und öffentliches Profil erscheinen, sobald das Abo läuft.",
+              )}
+            </p>
+          )}
+          {prices.opening && (
+            <p className="hint">
+              <strong>{T("Opening offer:", "Eröffnungsangebot:")}</strong>{" "}
+              {T(
+                `${euros(prices.month, lang)} a month instead of ${euros(prices.regular.month, lang)}.`,
+                `${euros(prices.month, lang)} im Monat statt ${euros(prices.regular.month, lang)}.`,
+              )}
+            </p>
+          )}
+          <div className="form-row">
+            <button type="button" className="primary" disabled={busy} onClick={() => payPlan("year")}>
+              {T(`Yearly: ${euros(prices.year, lang)} (save 10%)`, `Jährlich: ${euros(prices.year, lang)} (10 % gespart)`)}
+            </button>
+            <button type="button" disabled={busy} onClick={() => payPlan("month")}>
+              {T(`Monthly: ${euros(prices.month, lang)}`, `Monatlich: ${euros(prices.month, lang)}`)}
+            </button>
+          </div>
+          <p className="hint">
+            {T(
+              "Paid in USDC from this wallet, at the day's ECB euro rate. No automatic renewal: you pay again when you want to continue. Your verified-seller badge stays free.",
+              "Bezahlt in USDC aus dieser Wallet, zum EZB-Euro-Kurs des Tages. Keine automatische Verlängerung: Du zahlst erneut, wenn du weitermachen willst. Dein Abzeichen als verifizierter Verkäufer bleibt kostenlos.",
+            )}
+          </p>
+          {planNote && <p className="notice">{planNote}</p>}
         </section>
       )}
 
