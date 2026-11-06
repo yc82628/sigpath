@@ -69,7 +69,10 @@ import {
   planPrices,
   planTransaction,
   signPlanQuote,
+  eurcBaseUnits,
+  PAY_TOKENS,
   type ChainPayment,
+  type PayToken,
   type Period,
   type PlanPrices,
 } from "./plan";
@@ -181,9 +184,13 @@ export interface PlanStart {
   /** Signed by the server: hand it back to confirm. */
   token: string;
   period: Period;
+  /** The stablecoin paid in. */
+  coin: PayToken;
   eurCents: number;
-  usdc: string;
-  rate: string;
+  /** Base units of the coin. */
+  amount: string;
+  /** The ECB rate, for USDC; EURC needs none. */
+  rate: string | null;
 }
 
 /**
@@ -191,10 +198,12 @@ export interface PlanStart {
  * have run out) or already runs (paying ahead extends it). Nothing to sign
  * here: the transfer itself is the wallet's approval.
  */
-export async function startPlan(input: { wallet: string; period: string }, deps: BusinessDeps): Promise<Reply<PlanStart>> {
+export async function startPlan(input: { wallet: string; period: string; token?: string }, deps: BusinessDeps): Promise<Reply<PlanStart>> {
   if (!deps.plan) return { ok: false, status: 503, error: "Plans can't be paid on this server." };
   const period = input.period as Period;
   if (!PERIODS.includes(period)) return { ok: false, status: 400, error: "Choose monthly or yearly." };
+  const token = (input.token ?? "USDC") as PayToken;
+  if (!(token in PAY_TOKENS)) return { ok: false, status: 400, error: "Pay in EURC or USDC." };
   let wallet: PublicKey;
   try {
     wallet = new PublicKey(input.wallet);
@@ -214,22 +223,35 @@ export async function startPlan(input: { wallet: string; period: string }, deps:
     };
   }
   const eurCents = planPrices(deps.env, now)[period];
-  const rate = await deps.plan.rate();
-  const usdc = toUsdcBaseUnits(eurCents, "EUR", rate);
-  if (usdc === null || !rate) return { ok: false, status: 503, error: "There's no euro exchange rate right now. Please try again in a few minutes." };
+  // EURC is the euro price itself; USDC needs the day's rate.
+  let amount: bigint;
+  let rateShown: string | null = null;
+  if (token === "EURC") {
+    amount = eurcBaseUnits(eurCents);
+  } else {
+    const rate = await deps.plan.rate();
+    const usdc = toUsdcBaseUnits(eurCents, "EUR", rate);
+    if (usdc === null || !rate) return { ok: false, status: 503, error: "There's no euro exchange rate right now. Please try again in a few minutes, or pay in EURC." };
+    amount = usdc;
+    rateShown = rate.display;
+  }
   const reference = Keypair.generate().publicKey;
-  const token = signPlanQuote({ w: input.wallet, p: period, u: usdc.toString(), c: eurCents, r: reference.toBase58(), e: nowS + PAY_WINDOW_SECS }, deps.env);
-  if (!token) return { ok: false, status: 503, error: "Plans can't be paid on this server." };
-  const tx = planTransaction({ wallet, usdc, reference, ...(await deps.plan.latestBlockhash()) });
+  const signed = signPlanQuote(
+    { w: input.wallet, p: period, t: token, u: amount.toString(), c: eurCents, r: reference.toBase58(), e: nowS + PAY_WINDOW_SECS },
+    deps.env,
+  );
+  if (!signed) return { ok: false, status: 503, error: "Plans can't be paid on this server." };
+  const tx = planTransaction({ wallet, token, amount, reference, ...(await deps.plan.latestBlockhash()) });
   return {
     ok: true,
     value: {
       transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
-      token,
+      token: signed,
       period,
+      coin: token,
       eurCents,
-      usdc: usdc.toString(),
-      rate: rate.display,
+      amount: amount.toString(),
+      rate: rateShown,
     },
   };
 }
@@ -259,7 +281,7 @@ export async function confirmPlan(input: { token: string }, deps: BusinessDeps):
                 ...cur,
                 plan: {
                   paidUntil: extendedUntil(cur, q.p, nowS),
-                  payments: [...(cur.plan?.payments ?? []), { signature: paid.signature, period: q.p, usdc: q.u, eurCents: q.c, at: nowS }],
+                  payments: [...(cur.plan?.payments ?? []), { signature: paid.signature, period: q.p, token: q.t, amount: q.u, eurCents: q.c, at: nowS }],
                 },
               },
         nowS,

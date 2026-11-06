@@ -509,10 +509,10 @@ test("all four prioritised marketplaces are covered", () => {
   }
 });
 
-test("idealo and Kleinanzeigen are link-outs, never sources", () => {
+test("idealo, Kleinanzeigen and Back Market are link-outs, never sources", () => {
   // If either were ever wired up as a MarketplaceSource it would mean we had
   // started extracting data we are not permitted to extract.
-  for (const id of ["idealo", "kleinanzeigen"] as const) {
+  for (const id of ["idealo", "kleinanzeigen", "backmarket"] as const) {
     assert.equal(MARKETPLACES.find((m) => m.id === id)?.access, "link_out");
   }
 });
@@ -526,6 +526,7 @@ test("link-out URLs are built correctly and escaped", () => {
   assert.ok(idealo.url.includes("thinkpad%20x1%20carbon"));
   // Path-style search: /s-<slug>/k0
   assert.equal(kl.url, "https://www.kleinanzeigen.de/s-thinkpad-x1-carbon/k0");
+  assert.equal(targets.find((t) => t.id === "backmarket")!.url, "https://www.backmarket.de/de-de/search?q=thinkpad%20x1%20carbon");
 });
 
 test("a query that slugs to nothing still yields a usable URL", () => {
@@ -538,8 +539,8 @@ test("link-out targets never contribute listings or prices", async () => {
   // median. Claiming a cross-marketplace comparison that silently included a
   // site we never queried would be the worst kind of wrong.
   const r = await searchAll("thinkpad x1", [new StubSource()]);
-  assert.deepEqual(r.linkOut.map((t) => t.id), ["amazon", "idealo", "kleinanzeigen"]);
-  assert.ok(r.listings.every((l) => l.source !== "idealo" && l.source !== "kleinanzeigen"));
+  assert.deepEqual(r.linkOut.map((t) => t.id), ["amazon", "idealo", "kleinanzeigen", "backmarket"]);
+  assert.ok(r.listings.every((l) => l.source !== "idealo" && l.source !== "kleinanzeigen" && l.source !== "backmarket"));
   assert.ok(!r.analysis.coverage.includes("idealo" as never));
 });
 

@@ -39,6 +39,8 @@ export type MarketplaceId =
   | "aliexpress"
   | "idealo"
   | "kleinanzeigen"
+  /** Back Market, refurbished electronics: a link to its own search, never a source. */
+  | "backmarket"
   /**
    * A licensed affiliate product feed (Awin, CJ, Tradedoubler, or any
    * Google-Shopping-style CSV). One integration that carries many merchants at

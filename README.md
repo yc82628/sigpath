@@ -230,7 +230,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 652 tests, as of 2026-11-06
+npm test                                   # 653 tests, as of 2026-11-06
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -1628,15 +1628,19 @@ verified badge stays free, and shoppers pay nothing anywhere.
   first, and one upheld fake-product report suspends it, paid or not. A business
   that passed but hasn't paid is `unpaid` ("Plan not active"), and its badge
   isn't shown.
-- **How it's paid:** USDC on Solana, from the wallet that holds the badges, to
-  the operator: the euro price at the ECB rate, rounded up like the checkout.
+- **How it's paid:** on Solana, from the wallet that holds the badges, to the
+  operator, in **EURC** (Circle's euro coin: the euro price one to one, no
+  exchange rate; `HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr` on both devnet
+  and mainnet) or **USDC** (the euro price at the ECB rate, rounded up like the
+  checkout). EURC is the default. The shop checkout's escrow program still
+  accepts USDC only: EURC there needs a program upgrade.
   No automatic renewal; paying ahead adds to the end of the plan (a month = 30
   days, a year = 365).
 - **How it's checked:** the transfer carries a one-time reference key (the
   Solana Pay pattern). The server signs a quote (wallet, period, USDC, reference;
   its own HMAC domain), then finds the transaction on chain by that key and
   extends the plan only if the wallet spent and the operator received at least
-  the quoted USDC. Each transaction counts once. A payment whose page was closed
+  the quoted amount of the quoted coin (7.99 USDC is not 7.99 EURC). Each transaction counts once. A payment whose page was closed
   before it confirmed is picked up on the next visit (the quote is kept in the
   browser and accepted for a week). `POST /api/business/plan/start`, `/confirm`.
 

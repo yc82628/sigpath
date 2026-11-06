@@ -1339,6 +1339,9 @@ a.chat-card-title:hover { text-decoration: underline; }
 .qs-install h2 { margin: 0 0 4px; font-size: 1.1rem; }
 .qs-install ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .store-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 6px; }
+.pay-coin { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin: 8px 0; padding: 0; border: 0; }
+.pay-coin legend { float: left; margin-right: 6px; padding: 0; }
+.pay-coin label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .qs-by-hand { margin-top: 12px; }
 .qs-by-hand summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
 @media (max-width: 640px) {

@@ -111,6 +111,16 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     // Path-style search: /s-<slug>/k0, where k0 is the all-categories id.
     searchUrl: (q) => `https://www.kleinanzeigen.de/s-${slug(q) || "suche"}/k0`,
   },
+  {
+    // Refurbished phones, laptops and consoles. Its prices reach publishers only
+    // through an affiliate network's feed (Awin), which SigPath doesn't use, so
+    // it is a link to Back Market's own search, like idealo.
+    id: "backmarket",
+    label: "Back Market",
+    access: "link_out",
+    note: "Refurbished electronics. No public search API, so its prices aren't compared.",
+    searchUrl: (q) => `https://www.backmarket.de/de-de/search?q=${encodeURIComponent(q)}`,
+  },
 ];
 
 export interface LinkOut {

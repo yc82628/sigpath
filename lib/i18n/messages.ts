@@ -197,6 +197,7 @@ const en = {
       amazon: "Amazon's product API isn't open to SigPath yet, so its prices aren't compared.",
       idealo: "No public search API — idealo's developer API is for retailers submitting offers.",
       kleinanzeigen: "No public API, and the terms do not permit automated access.",
+      backmarket: "Refurbished electronics. No public search API, so its prices aren't compared.",
     } as Record<string, string>,
     /** A marketplace's status detail (the chip's tooltip), translated; English shows the source's own. */
     sourceDetail: (d: string) => d,
@@ -638,6 +639,7 @@ const de: Messages = {
       amazon: "Amazons Produkt-API steht SigPath noch nicht offen, daher werden die Preise dort nicht verglichen.",
       idealo: "Keine öffentliche Such-API: idealos Entwickler-API ist für Händler, die Angebote einstellen.",
       kleinanzeigen: "Keine öffentliche API, und die Nutzungsbedingungen erlauben keinen automatisierten Zugriff.",
+      backmarket: "Generalüberholte Elektronik. Keine öffentliche Such-API, daher werden die Preise nicht verglichen.",
     },
     sourceDetail: (d) =>
       ({

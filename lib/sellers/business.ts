@@ -43,7 +43,7 @@ import { VIES_COUNTRIES } from "../i18n/countries";
 import { businessMessage } from "./business-message";
 import { dataDir } from "../data-dir";
 import { asTable, tableFromEnv, type Table } from "../kv/table";
-import type { Period } from "./plan";
+import type { PayToken, Period } from "./plan";
 
 type Env = Record<string, string | undefined>;
 
@@ -182,8 +182,9 @@ export interface PlanPayment {
   /** The Solana transaction that paid. One payment, one extension. */
   signature: string;
   period: Period;
-  /** USDC base units, and the euro cents they stood for. */
-  usdc: string;
+  /** The coin, its base units, and the euro cents they stood for. */
+  token: PayToken;
+  amount: string;
   eurCents: number;
   at: number;
 }

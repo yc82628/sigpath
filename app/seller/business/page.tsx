@@ -76,8 +76,8 @@ export default function BusinessPage() {
           </li>
           <li>
             {T(
-              "Paid in USDC, no automatic renewal. It pays for the checks, the badge and your profile, never for a place in search: results are ordered by the deal, the same for everyone. Your verified-seller badge stays free.",
-              "Bezahlt in USDC, ohne automatische Verlängerung. Bezahlt werden die Prüfungen, das Abzeichen und dein Profil, nie ein Platz in der Suche: Ergebnisse sind nach dem Angebot sortiert, für alle gleich. Dein Abzeichen als verifizierter Verkäufer bleibt kostenlos.",
+              "Paid in EURC (euro, one to one) or USDC, no automatic renewal. It pays for the checks, the badge and your profile, never for a place in search: results are ordered by the deal, the same for everyone. Your verified-seller badge stays free.",
+              "Bezahlt in EURC (Euro, eins zu eins) oder USDC, ohne automatische Verlängerung. Bezahlt werden die Prüfungen, das Abzeichen und dein Profil, nie ein Platz in der Suche: Ergebnisse sind nach dem Angebot sortiert, für alle gleich. Dein Abzeichen als verifizierter Verkäufer bleibt kostenlos.",
             )}
           </li>
         </ul>

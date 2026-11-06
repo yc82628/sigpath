@@ -21,9 +21,13 @@
  * costs the price of that day.
  *
  * HOW IT IS PAID
- * In USDC on Solana, from the wallet that holds the business's badges, to
- * SigPath's operator wallet: the euro price at the ECB rate, the same rate and
- * rounding as the checkout (lib/checkout/fx.ts). The transfer carries a
+ * On Solana, from the wallet that holds the business's badges, to SigPath's
+ * operator wallet, in either of Circle's stablecoins:
+ *   EURC  the euro price, one to one: no exchange rate, nothing rounded. EU
+ *         e-money under MiCA, and what a German business thinks in.
+ *   USDC  the euro price at the ECB rate, the same rate and rounding as the
+ *         checkout (lib/checkout/fx.ts).
+ * The transfer carries a
  * one-time reference key (the Solana Pay pattern), so the server finds the
  * payment on chain by that key and checks it there, never trusting the
  * browser's word that it paid.
@@ -36,6 +40,22 @@ import { associatedTokenAddress, createAtaIdempotentIx, transferCheckedIx } from
 import type { Business } from "./business";
 
 type Env = Record<string, string | undefined>;
+
+/**
+ * Circle's EURC: the same address on Solana devnet and mainnet (checked on both,
+ * 2026-11-06: classic SPL Token, 6 decimals), so nothing changes at launch.
+ */
+export const EURC_MINT = new PublicKey("HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr");
+export type PayToken = "EURC" | "USDC";
+export const PAY_TOKENS: Record<PayToken, { mint: PublicKey; decimals: number }> = {
+  EURC: { mint: EURC_MINT, decimals: 6 },
+  USDC: { mint: orders.USDC_MINT, decimals: orders.USDC_DECIMALS },
+};
+
+/** Euro cents in EURC base units: one euro is one EURC, six decimals. */
+export function eurcBaseUnits(eurCents: number): bigint {
+  return BigInt(eurCents) * 10_000n;
+}
 
 export type Period = "month" | "year";
 export const PERIODS: Period[] = ["month", "year"];
@@ -89,12 +109,14 @@ export function extendedUntil(b: Pick<Business, "plan">, period: Period, nowS: n
 
 // --- the payment request -------------------------------------------------------------
 
-/** What the server signed when it built a payment: who pays, how much, for what, found by which key. */
+/** What the server signed when it built a payment: who pays, how much, in what, for what, found by which key. */
 export interface PlanQuote {
   /** Business wallet. */
   w: string;
   p: Period;
-  /** USDC base units, as a string (bigint). */
+  /** The stablecoin paid in. */
+  t: PayToken;
+  /** Its base units, as a string (bigint). */
   u: string;
   /** Euro cents charged. */
   c: number;
@@ -130,12 +152,14 @@ export function openPlanQuote(token: unknown, env: Env = process.env, nowS = Mat
   if (!k || typeof token !== "string") return null;
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
-  const want = mac(k, payload);
-  const got = Buffer.from(sig, "base64url");
+  // Compared as text, not decoded bytes: base64url's last character has spare bits, and a token
+  // differing only in those must not count as the same token.
+  const want = Buffer.from(mac(k, payload).toString("base64url"), "utf8");
+  const got = Buffer.from(sig, "utf8");
   if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
   try {
     const q = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as PlanQuote;
-    if (!PERIODS.includes(q.p) || typeof q.e !== "number" || !/^\d+$/.test(q.u)) return null;
+    if (!PERIODS.includes(q.p) || !(q.t in PAY_TOKENS) || typeof q.e !== "number" || !/^\d+$/.test(q.u)) return null;
     return nowS <= q.e + CONFIRM_GRACE_SECS ? q : null;
   } catch {
     return null;
@@ -143,21 +167,29 @@ export function openPlanQuote(token: unknown, env: Env = process.env, nowS = Mat
 }
 
 /**
- * The payment, unsigned, for the business's wallet to sign and send: USDC from
- * its token account to the operator's, with the reference key riding along as
- * a read-only account so the payment can be found by it.
+ * The payment, unsigned, for the business's wallet to sign and send: the
+ * stablecoin from its token account to the operator's, with the reference key
+ * riding along as a read-only account so the payment can be found by it.
  */
-export function planTransaction(args: { wallet: PublicKey; usdc: bigint; reference: PublicKey; blockhash: string; lastValidBlockHeight: number }): Transaction {
+export function planTransaction(args: {
+  wallet: PublicKey;
+  token: PayToken;
+  amount: bigint;
+  reference: PublicKey;
+  blockhash: string;
+  lastValidBlockHeight: number;
+}): Transaction {
+  const { mint, decimals } = PAY_TOKENS[args.token];
   const tx = new Transaction({ feePayer: args.wallet, blockhash: args.blockhash, lastValidBlockHeight: args.lastValidBlockHeight });
-  // The operator's USDC account exists once it has been paid anything; creating it is a no-op then.
-  tx.add(createAtaIdempotentIx(args.wallet, orders.OPERATOR, orders.USDC_MINT));
+  // The operator's account for this coin exists once it has been paid anything; creating it is a no-op then.
+  tx.add(createAtaIdempotentIx(args.wallet, orders.OPERATOR, mint));
   const transfer = transferCheckedIx({
-    source: associatedTokenAddress(args.wallet, orders.USDC_MINT),
-    mint: orders.USDC_MINT,
-    destination: associatedTokenAddress(orders.OPERATOR, orders.USDC_MINT),
+    source: associatedTokenAddress(args.wallet, mint),
+    mint,
+    destination: associatedTokenAddress(orders.OPERATOR, mint),
     owner: args.wallet,
-    amount: args.usdc,
-    decimals: orders.USDC_DECIMALS,
+    amount: args.amount,
+    decimals,
   });
   transfer.keys.push({ pubkey: args.reference, isSigner: false, isWritable: false });
   tx.add(transfer);
@@ -190,14 +222,14 @@ function delta(p: ChainPayment, owner: string, mint: string): bigint {
 
 /**
  * Whether a transaction is the quoted payment: it succeeded, the business's
- * wallet spent at least the quoted USDC and the operator received at least
- * that, and it landed before the quote ran out.
+ * wallet spent at least the quoted amount of the quoted coin and the operator
+ * received at least that, and it landed before the quote ran out.
  */
 export function isPlanPayment(p: ChainPayment, q: PlanQuote): boolean {
   if (p.err) return false;
-  const usdc = BigInt(q.u);
-  const mint = orders.USDC_MINT.toBase58();
-  if (delta(p, q.w, mint) > -usdc) return false;
-  if (delta(p, orders.OPERATOR.toBase58(), mint) < usdc) return false;
+  const amount = BigInt(q.u);
+  const mint = PAY_TOKENS[q.t].mint.toBase58();
+  if (delta(p, q.w, mint) > -amount) return false;
+  if (delta(p, orders.OPERATOR.toBase58(), mint) < amount) return false;
   return p.blockTime == null || p.blockTime <= q.e + 120;
 }

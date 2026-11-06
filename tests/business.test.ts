@@ -327,7 +327,7 @@ test("plan: paid on chain, found by its reference, counted once, and only for th
     const start = await startPlan({ wallet, period: "year" }, d);
     assert.ok(start.ok, JSON.stringify(start));
     assert.strictEqual(start.value.eurCents, 8629);
-    assert.strictEqual(start.value.usdc, "96644800", "€86.29 at 1.12 USD/EUR, in USDC base units");
+    assert.strictEqual(start.value.amount, "96644800", "€86.29 at 1.12 USD/EUR, in USDC base units");
     const q = openPlanQuote(start.value.token, ENV, NOW_S)!;
     assert.strictEqual(q.w, wallet);
 
@@ -349,12 +349,60 @@ test("plan: paid on chain, found by its reference, counted once, and only for th
     // A month more, paid ahead: added after the year, not from today.
     const month = await startPlan({ wallet, period: "month" }, d);
     assert.ok(month.ok);
-    landed = [{ signature: "Paid2", amount: BigInt(month.value.usdc) }];
+    landed = [{ signature: "Paid2", amount: BigInt(month.value.amount) }];
     const more = await confirmPlan({ token: month.value.token }, d);
     assert.ok(more.ok && more.value.paidUntil === NOW_S + 395 * 86400);
 
     const forged = await confirmPlan({ token: month.value.token.replace(/.$/, (c) => (c === "A" ? "B" : "A")) }, d);
     assert.ok(!forged.ok && forged.status === 400);
+  } finally {
+    cleanup();
+  }
+});
+
+test("plan: paid in EURC, the euro price one to one, and only EURC counts", async () => {
+  const { OPERATOR, USDC_MINT } = await import("../lib/chains/solana/orders");
+  const { EURC_MINT } = await import("../lib/sellers/plan");
+  const { startPlan, confirmPlan } = await import("../lib/sellers/business-api");
+  const { wallet, sign } = signer();
+  let landed: { mint: string; amount: bigint }[] = [];
+  let rateAsked = 0;
+  const plan = {
+    latestBlockhash: async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 100 }),
+    rate: async () => (rateAsked++, null),
+    paymentsFor: async () =>
+      landed.map((p, i) => ({
+        signature: `Sig${i}`,
+        err: null,
+        blockTime: NOW_S,
+        pre: [{ accountIndex: 1, mint: p.mint, owner: wallet, amount: "500000000" }],
+        post: [
+          { accountIndex: 1, mint: p.mint, owner: wallet, amount: String(500_000_000n - p.amount) },
+          { accountIndex: 2, mint: p.mint, owner: OPERATOR.toBase58(), amount: String(p.amount) },
+        ],
+      })),
+  };
+  const { d, cleanup } = deps({ badgesFor: { "ebay:shop": badge(wallet) }, plan });
+  try {
+    assert.ok((await submitVat({ ...sign(vatAction("IE", "6388047V")), country: "IE", vatNumber: "6388047V" }, d)).ok);
+    const usdcNoRate = await startPlan({ wallet, period: "month", token: "USDC" }, d);
+    assert.ok(!usdcNoRate.ok && usdcNoRate.status === 503 && /EURC/.test(usdcNoRate.error), "no rate: USDC waits, EURC is offered");
+
+    const start = await startPlan({ wallet, period: "month", token: "EURC" }, d);
+    assert.ok(start.ok, JSON.stringify(start));
+    assert.deepStrictEqual([start.value.coin, start.value.amount, start.value.rate], ["EURC", "7990000", null], "€7.99 is 7.99 EURC");
+    assert.strictEqual(rateAsked, 1, "EURC needs no exchange rate");
+
+    landed = [{ mint: USDC_MINT.toBase58(), amount: 7_990_000n }];
+    const wrongCoin = await confirmPlan({ token: start.value.token }, d);
+    assert.strictEqual(wrongCoin.ok ? 0 : wrongCoin.status, 202, "7.99 USDC is not 7.99 EURC");
+
+    landed = [{ mint: EURC_MINT.toBase58(), amount: 7_990_000n }];
+    const paid = await confirmPlan({ token: start.value.token }, d);
+    assert.ok(paid.ok && paid.value.status === "verified" && paid.value.paidUntil === NOW_S + 30 * 86400);
+    const record = await d.log.byWallet(wallet);
+    assert.deepStrictEqual(record?.plan?.payments.map((p) => [p.token, p.amount, p.eurCents]), [["EURC", "7990000", 799]]);
+    assert.ok(!(await startPlan({ wallet, period: "month", token: "DOGE" }, d)).ok);
   } finally {
     cleanup();
   }

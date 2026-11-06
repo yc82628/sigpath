@@ -6,7 +6,7 @@
  *   2. see the accounts it links (verify one first if there are none)
  *   3. check the VAT number against the EU register (signed by the wallet)
  *   4. optionally, prove the website with a DNS record (signed again)
- *   5. pay the Verified business plan, monthly or yearly, in USDC (lib/sellers/plan.ts)
+ *   5. pay the Verified business plan, monthly or yearly, in EURC or USDC (lib/sellers/plan.ts)
  */
 
 import { useEffect, useState } from "react";
@@ -18,7 +18,7 @@ import { businessMessage, domainAction, vatAction } from "@/lib/sellers/business
 import type { BusinessStatus } from "@/lib/sellers/business-api";
 import type { BusinessView } from "@/lib/sellers/business";
 import type { PlanStart } from "@/lib/sellers/business-api";
-import type { Period } from "@/lib/sellers/plan";
+import type { PayToken, Period } from "@/lib/sellers/plan";
 import { useLang } from "../../components/I18n";
 import { countryName } from "@/lib/i18n/countries";
 
@@ -79,6 +79,8 @@ export default function BusinessForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [planNote, setPlanNote] = useState<string | null>(null);
+  // EURC first: the euro price itself, no exchange rate.
+  const [coin, setCoin] = useState<PayToken>("EURC");
   const describe = useWalletErrorText();
 
   // A payment left unconfirmed last time (the tab closed while it landed): confirm it now.
@@ -171,13 +173,19 @@ export default function BusinessForm() {
     run(async () => {
       if (!connected || !wallet) return;
       setPlanNote(T("Preparing the payment…", "Zahlung wird vorbereitet …"));
-      const r = await postJson<PlanStart>("/api/business/plan/start", { wallet, period });
+      const r = await postJson<PlanStart>("/api/business/plan/start", { wallet, period, token: coin });
       if (!r.ok) {
         setPlanNote(null);
         setError(r.error);
         return;
       }
-      setPlanNote(T(`Approve ${euros(r.value.eurCents, lang)} in ${connected.name}…`, `Bestätige ${euros(r.value.eurCents, lang)} in ${connected.name} …`));
+      // What the wallet will show: the coin amount, six decimals, and for USDC the rate behind it.
+      const shown = `${(Number(r.value.amount) / 1e6).toLocaleString(lang === "de" ? "de-DE" : "en", { maximumFractionDigits: 6 })} ${r.value.coin}`;
+      setPlanNote(
+        r.value.rate
+          ? T(`Approve ${shown} (${euros(r.value.eurCents, lang)} at ${r.value.rate} USD/EUR) in ${connected.name}…`, `Bestätige ${shown} (${euros(r.value.eurCents, lang)} zu ${r.value.rate.replace(".", ",")} USD/EUR) in ${connected.name} …`)
+          : T(`Approve ${shown} in ${connected.name}…`, `Bestätige ${shown} in ${connected.name} …`),
+      );
       try {
         localStorage.setItem(PENDING, r.value.token);
       } catch {
@@ -338,6 +346,17 @@ export default function BusinessForm() {
               )}
             </p>
           )}
+          <fieldset className="pay-coin" disabled={busy}>
+            <legend className="hint">{T("Pay in", "Zahlen in")}</legend>
+            <label>
+              <input type="radio" name="coin" checked={coin === "EURC"} onChange={() => setCoin("EURC")} /> EURC{" "}
+              <span className="hint">{T("(euro, one to one)", "(Euro, eins zu eins)")}</span>
+            </label>
+            <label>
+              <input type="radio" name="coin" checked={coin === "USDC"} onChange={() => setCoin("USDC")} /> USDC{" "}
+              <span className="hint">{T("(at the day's ECB rate)", "(zum EZB-Kurs des Tages)")}</span>
+            </label>
+          </fieldset>
           <div className="form-row">
             <button type="button" className="primary" disabled={busy} onClick={() => payPlan("year")}>
               {T(`Yearly: ${euros(prices.year, lang)} (save 10%)`, `Jährlich: ${euros(prices.year, lang)} (10 % gespart)`)}
@@ -348,8 +367,8 @@ export default function BusinessForm() {
           </div>
           <p className="hint">
             {T(
-              "Paid in USDC from this wallet, at the day's ECB euro rate. No automatic renewal: you pay again when you want to continue. Your verified-seller badge stays free.",
-              "Bezahlt in USDC aus dieser Wallet, zum EZB-Euro-Kurs des Tages. Keine automatische Verlängerung: Du zahlst erneut, wenn du weitermachen willst. Dein Abzeichen als verifizierter Verkäufer bleibt kostenlos.",
+              "Paid from this wallet. No automatic renewal: you pay again when you want to continue. Your verified-seller badge stays free.",
+              "Bezahlt aus dieser Wallet. Keine automatische Verlängerung: Du zahlst erneut, wenn du weitermachen willst. Dein Abzeichen als verifizierter Verkäufer bleibt kostenlos.",
             )}
           </p>
           {planNote && <p className="notice">{planNote}</p>}
