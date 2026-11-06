@@ -28,7 +28,7 @@ import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
 import { applyFilters, filterHref, isFiltered, parseFilters, type Filters } from "@/lib/marketplace/filters";
-import { dealScore, dealTone, marketSnapshot, suggestNarrower, type MarketGroup } from "@/lib/marketplace/market";
+import { dealScore, dealTone, marketSnapshot, newMedianHasRefurbished, suggestNarrower, type MarketGroup } from "@/lib/marketplace/market";
 
 const marketLabel = (id: string) =>
   MARKETPLACES.find((m) => m.id === id)?.label ?? (id === "stub" ? "Demo" : id === "feed" ? "Partner feeds" : id);
@@ -605,7 +605,11 @@ async function SearchResults({
                     newGroup.count,
                   )
                 : a.median !== undefined
-                  ? m.search.newAcross(money({ amount: a.median, currency: a.currency! }), a.sampleSize ?? 0)
+                  ? // The overall median pools refurbished with new (anomaly.ts): say so when it does.
+                    (newMedianHasRefurbished(result.listings, a) ? m.search.newRefurbishedAcross : m.search.newAcross)(
+                      money({ amount: a.median, currency: a.currency! }),
+                      a.sampleSize ?? 0,
+                    )
                   : null,
               a.used ? m.search.usedAcross(money({ amount: a.used.median, currency: a.currency! }), a.used.sampleSize) : null,
             ]

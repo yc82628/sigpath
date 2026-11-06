@@ -138,3 +138,15 @@ test("the new market is new listings alone when there are enough, else new and r
   assert.strictEqual(h.count, 7);
   assert.strictEqual(h.withRefurbished, true, "and it says so");
 });
+
+test("the overall new median says when it pools refurbished listings", async () => {
+  const { newMedianHasRefurbished } = await import("../lib/marketplace/market");
+  const fresh = [250, 255, 260].map((p, i) => at(`n${i}`, p));
+  const refurb = [180, 185, 190].map((p, i) => at(`r${i}`, p, "refurbished"));
+  const pooled = [...fresh, ...refurb];
+  assert.ok(newMedianHasRefurbished(pooled, analyse([ok(pooled)], { query: "Nintendo Switch OLED" })));
+  assert.ok(!newMedianHasRefurbished(fresh, analyse([ok(fresh)], { query: "Nintendo Switch OLED" })), "new only: just new");
+  // A refurbished charger isn't in the median.
+  const charger = at("c", 15, "refurbished", "Ladegerät für Nintendo Switch OLED");
+  assert.ok(!newMedianHasRefurbished([...fresh, charger], analyse([ok([...fresh, charger])], { query: "Nintendo Switch OLED" })));
+});

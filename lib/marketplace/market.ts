@@ -91,6 +91,22 @@ export function marketSnapshot(listings: Listing[], analysis: Analysis): MarketG
 }
 
 /**
+ * Whether the search's overall "new" median (analysis.median) pools in
+ * refurbished listings: the products of a compared marketplace, in its
+ * currency, sold as refurbished. When the market box has no new group of its
+ * own, the line under it falls back to that median, and must not call a pool of
+ * mostly refurbished iPhones "new".
+ */
+export function newMedianHasRefurbished(listings: Listing[], analysis: Analysis): boolean {
+  return listings.some((l) => {
+    if (l.condition !== "refurbished" || l.price.currency !== analysis.currency) return false;
+    if (!analysis.coverage.includes(l.source)) return false;
+    const id = analysis.identities[listingKey(l)];
+    return !id || (id.kind === "product" && id.named !== false);
+  });
+}
+
+/**
  * How far a listing's price is from the typical price of the listings it was
  * compared with, in whole percent: -22 is 22% below. Null when it wasn't
  * compared, so no listing gets a score it didn't earn.

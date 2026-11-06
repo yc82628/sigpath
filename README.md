@@ -97,7 +97,10 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   The "New" box is new listings alone when there are at least five; with
   fewer, it is the pool the check compares (new and refurbished) and says so,
   "New & refurbished" ("Neu: 206 € typisch" was eight Switch OLEDs, most of
-  them refurbished). The median line under it uses the same numbers. A title
+  them refurbished). The median line under it uses the same numbers; when the
+  box has no new group (too few of one storage size, as with "iPhone 15"), it
+  falls back to the search's overall median and says "new and refurbished"
+  whenever refurbished listings are pooled in it (`newMedianHasRefurbished`). A title
   naming dead pixels ("Pixelfehler", "dead pixel") is a fault, not a cheap
   working unit; "ohne/keine/frei von Pixelfehlern" isn't.
   The words follow the score: a checked price 10% or more under the median says
@@ -230,7 +233,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 653 tests, as of 2026-11-06
+npm test                                   # 654 tests, as of 2026-11-06
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
