@@ -54,6 +54,13 @@ Both are true of 0.3.0 (in review) and 0.4.0.
 **Privacy policy:** https://sigpath.vercel.app/privacy#extension
 **Homepage / support:** https://sigpath.vercel.app/extension
 
+**Store icon** (dashboard → Store listing → Graphic assets): upload
+`store-assets/store-icon-128.png`. The store does NOT take the icon from the
+extension package; without this upload the listing shows none, though the
+toolbar shows `icon.png`. It's the same logo, 96×96 artwork with 16px of
+transparent space on each side, as Google asks. Store images live in
+`store-assets/`, outside `extension/`, so they never go into the zip.
+
 **Screenshots** (1280×800 or 640×400, at least one): take them on the real
 shops. A product page on Amazon.de with the panel open; an Amazon results page
 with the "Check with SigPath" buttons; the menu with "Check this page".
