@@ -128,6 +128,9 @@ export default function Home() {
           </Suspense>
           <p className="hero-more">
             {m.home.foundElsewhere} <Link href="/check">{m.home.checkThatPrice}</Link>
+            {/* The same check without leaving the shop: the extension's page, with its store buttons. */}
+            <span> · {m.home.onTheShop} </span>
+            <Link href="/extension">{m.home.extensionLink}</Link>
           </p>
         </div>
         <HeroDevices label={m.home.devices} caption={m.home.devicesCaption} lang={getLang()} />

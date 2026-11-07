@@ -76,6 +76,8 @@ const en = {
     soonTag: "coming soon",
     foundElsewhere: "Found it on Amazon or AliExpress?",
     checkThatPrice: "Check that price →",
+    onTheShop: "Right on the shop's page:",
+    extensionLink: "the browser extension →",
     proofLive: "Live on Solana",
     devnet: "devnet",
     proofLine: (paid: number, refunded: number, findings: number) =>
@@ -517,6 +519,8 @@ const de: Messages = {
     soonTag: "demnächst",
     foundElsewhere: "Bei Amazon oder AliExpress gefunden?",
     checkThatPrice: "Diesen Preis prüfen →",
+    onTheShop: "Direkt auf der Shopseite:",
+    extensionLink: "die Browser-Erweiterung →",
     proofLive: "Live auf Solana",
     devnet: "Devnet",
     proofLine: (paid, refunded, findings) =>
