@@ -123,6 +123,51 @@ interface EbayItemSummary {
   categories?: { categoryId?: string; categoryName?: string }[];
   seller?: { username?: string; feedbackScore?: number; feedbackPercentage?: string };
   itemCreationDate?: string;
+  /** A single item (get_item) gives its leaf category as an id and a path ("Konsolen & Spiele|Konsolen"). */
+  categoryId?: string;
+  categoryPath?: string;
+}
+
+/** What a listing page asked about came to (listingByItemNumber). */
+export type ItemLookup =
+  | { status: "ok"; listing: Listing }
+  | { status: "not_configured" | "not_found" | "variations" | "error"; detail: string };
+
+/**
+ * One eBay item, from a search or a single lookup, as a SigPath listing. Null
+ * when its price can't be read: a guessed price becomes a wrong median for
+ * everyone else. With a campaign, eBay's affiliate link replaces the plain one,
+ * only ever if it is an https link to eBay.
+ */
+export function ebayListing(it: EbayItemSummary, campaign: string | null): Listing | null {
+  const price = money(it.price);
+  if (!price || !it.itemId || !it.itemWebUrl) return null;
+  const pct = it.seller?.feedbackPercentage;
+  const affiliateUrl = campaign && /^https:\/\/([a-z0-9-]+\.)*ebay\.[a-z.]+\//i.test(it.itemAffiliateWebUrl ?? "") ? it.itemAffiliateWebUrl : undefined;
+  const leaf = it.categoryPath?.split("|").pop()?.trim();
+  return {
+    id: it.itemId,
+    source: "ebay",
+    title: it.title ?? "(untitled)",
+    url: affiliateUrl ?? it.itemWebUrl,
+    ...(affiliateUrl ? { affiliate: true } : {}),
+    price,
+    shipping: money(it.shippingOptions?.[0]?.shippingCost),
+    condition: mapCondition(it.condition, it.conditionId),
+    imageUrl: it.image?.imageUrl,
+    category:
+      it.categories?.[0]?.categoryId && it.categories[0].categoryName
+        ? { id: it.categories[0].categoryId, name: it.categories[0].categoryName }
+        : it.categoryId && leaf
+          ? { id: it.categoryId, name: leaf }
+          : undefined,
+    seller: {
+      handle: it.seller?.username ?? "unknown",
+      feedbackScore: it.seller?.feedbackScore,
+      feedbackPercentage: pct === undefined ? undefined : Number(pct),
+    },
+    listedAt: it.itemCreationDate ? Math.floor(Date.parse(it.itemCreationDate) / 1000) : undefined,
+  };
 }
 
 export class EbaySource implements MarketplaceSource {
@@ -260,6 +305,44 @@ export class EbaySource implements MarketplaceSource {
   }
 
   /**
+   * For the extension on an eBay listing page: that listing, by the item number
+   * in its address, read the same way as a search result (ebayListing). A
+   * listing with variations (sizes, colours) has no single price without the
+   * variation, so it is said so, not guessed.
+   */
+  async listingByItemNumber(itemNumber: string, timeoutMs = 8000): Promise<ItemLookup> {
+    const creds = this.credentials();
+    if (!creds) return { status: "not_configured", detail: "eBay isn't configured on this SigPath instance." };
+    if (!/^\d{9,15}$/.test(itemNumber)) return { status: "not_found", detail: "That isn't an eBay item number." };
+    try {
+      const token = await this.accessToken(creds.id, creds.secret, creds.env);
+      const campaign = ebayCampaignId(this.env);
+      const res = await this.fetchImpl(`${HOSTS[creds.env]}/buy/browse/v1/item/get_item_by_legacy_id?legacy_item_id=${itemNumber}`, {
+        headers: {
+          authorization: `Bearer ${token}`,
+          "X-EBAY-C-MARKETPLACE-ID": creds.marketplace,
+          ...(campaign ? { "X-EBAY-C-ENDUSERCTX": `affiliateCampaignId=${campaign}` } : {}),
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status === 404) return { status: "not_found", detail: "eBay has no live listing with that item number." };
+      if (!res.ok) {
+        const text = (await res.text()).slice(0, 400);
+        // 11006: a listing with variations needs the variation's own id.
+        if (/11006|variation/i.test(text)) return { status: "variations", detail: "This listing has several variations (size, colour) with their own prices." };
+        return { status: "error", detail: `eBay returned ${res.status}.` };
+      }
+      const listing = ebayListing((await res.json()) as EbayItemSummary, campaign);
+      if (!listing) return { status: "error", detail: "eBay gave no price for that listing." };
+      await checkPhotos([listing], this.fetchImpl);
+      return { status: "ok", listing };
+    } catch (err) {
+      return { status: "error", detail: err instanceof Error ? err.message.slice(0, 200) : "eBay couldn't be reached." };
+    }
+  }
+
+  /**
    * For the cart: one listing's price now, by the id search returned
    * ("v1|123456789012|0"). `gone` when eBay no longer has it, `soldOut` when
    * it's listed but none are available.
@@ -347,37 +430,8 @@ export class EbaySource implements MarketplaceSource {
       const listings: Listing[] = [];
 
       for (const it of body.itemSummaries ?? []) {
-        const price = money(it.price);
-        // A listing whose price we cannot parse is dropped rather than guessed
-        // at. A wrong price here becomes a wrong median for everyone else.
-        if (!price || !it.itemId || !it.itemWebUrl) continue;
-
-        const pct = it.seller?.feedbackPercentage;
-        // eBay's own affiliate link for the item, only ever an https link to eBay.
-        const affiliateUrl = campaign && /^https:\/\/([a-z0-9-]+\.)*ebay\.[a-z.]+\//i.test(it.itemAffiliateWebUrl ?? "") ? it.itemAffiliateWebUrl : undefined;
-        listings.push({
-          id: it.itemId,
-          source: this.id,
-          title: it.title ?? "(untitled)",
-          url: affiliateUrl ?? it.itemWebUrl,
-          ...(affiliateUrl ? { affiliate: true } : {}),
-          price,
-          shipping: money(it.shippingOptions?.[0]?.shippingCost),
-          condition: mapCondition(it.condition, it.conditionId),
-          imageUrl: it.image?.imageUrl,
-          category:
-            it.categories?.[0]?.categoryId && it.categories[0].categoryName
-              ? { id: it.categories[0].categoryId, name: it.categories[0].categoryName }
-              : undefined,
-          seller: {
-            handle: it.seller?.username ?? "unknown",
-            feedbackScore: it.seller?.feedbackScore,
-            feedbackPercentage: pct === undefined ? undefined : Number(pct),
-          },
-          listedAt: it.itemCreationDate
-            ? Math.floor(Date.parse(it.itemCreationDate) / 1000)
-            : undefined,
-        });
+        const listing = ebayListing(it, campaign);
+        if (listing) listings.push(listing);
       }
 
       await checkPhotos(listings, this.fetchImpl);

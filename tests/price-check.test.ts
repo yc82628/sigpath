@@ -24,6 +24,9 @@ test("a long shop title becomes a short eBay search", () => {
   assert.equal(shortQuery("Playstation®5 Digital Edition – 825 GB"), "Playstation 5 Digital Edition", "a real Amazon.de title");
   assert.equal(shortQuery("Wireless Charger Pad"), "Wireless Charger Pad", "a generic word in the first two is kept");
   assert.equal(shortQuery("Sony WF-1000XM5 Premium True Wireless In-Ear Headphones with Noise"), "Sony WF-1000XM5", "marketing words aren't the model");
+  assert.equal(shortQuery("Nintendo Switch OLED-Modell 64GB weiß Sehr Gut – Refurbished"), "Nintendo Switch OLED-Modell", "an eBay title: no storage, colour or condition");
+  assert.equal(shortQuery("Apple iPhone 15 128 GB Schwarz TOP Zustand"), "Apple iPhone 15");
+  assert.equal(shortQuery("Samsung Galaxy S24 Ultra 256GB Titanium Black"), "Samsung Galaxy S24 Ultra Titanium", "Ultra stays: a model word");
   assert.equal(shortQuery("Bose QuietComfort Ultra Earbuds, Active Noise Cancelling"), "Bose QuietComfort Ultra", "Ultra is a model word; Earbuds describes it");
   assert.equal(shortQuery("one two three four five six seven eight nine ten"), "one two three four five six");
 });

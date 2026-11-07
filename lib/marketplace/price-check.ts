@@ -11,7 +11,7 @@
  * and condition, and flagged if it's far below them.
  */
 
-import { searchAll } from "./search";
+import { searchAll, type SearchResponse } from "./search";
 import { defaultSources } from "./sources";
 import type { MarketplaceSource } from "./sources/types";
 import { bestCheckedDeals, withLabels } from "./label";
@@ -53,7 +53,15 @@ const GENERIC = new Set([
   // Marketing words shops put before the features: "Sony WF-1000XM5 Premium True Wireless…" searched eBay
   // for "Sony WF-1000XM5 Premium True", which almost no listing says, and wasn't compared at all.
   "premium", "true", "truly", "noise", "cancelling", "canceling", "active", "aktive", "aktiver", "geräuschunterdrückung",
+  // eBay titles add the condition and the colour: "Nintendo Switch OLED-Modell 64GB weiß Sehr Gut" searched
+  // for "… weiß Sehr" and found almost nothing to compare with. The condition comes from eBay's own field.
+  "sehr", "gut", "top", "zustand", "ovp", "wie", "neuwertig", "gebraucht", "refurbished", "generalüberholt", "used",
+  "weiß", "weiss", "white", "schwarz", "black", "blau", "blue", "rot", "red", "grau", "grey", "gray", "silber", "silver",
+  "grün", "green", "rosa", "pink", "gold", "lila", "purple", "gelb", "yellow",
 ]);
+
+/** "64GB", "1TB", "128 GB": the storage, read from every title by identity.ts, so not needed in the search. */
+const STORAGE = /^\d+(?:[.,]\d+)?(gb|tb)$/i;
 
 /** Words after a dash or in brackets that change which model it is: "Nintendo Switch – OLED-Modell". */
 const QUALIFIERS = new Set([...VARIANT_WORDS, "digital"]);
@@ -73,10 +81,12 @@ const QUALIFIERS = new Set([...VARIANT_WORDS, "digital"]);
  * "PlayStation 5 Digital Edition Slim" in any order, and a longer search
  * names fewer of them.
  */
-export function shortQuery(title: string): string {
+export function shortQuery(title: string, opts: { keepStorage?: boolean } = {}): string {
   const clean = title.replace(/[®™©]/g, " ");
   const [first, ...rest] = clean.split(",")[0].split(/\(|\)|\[|\]|\s[-–—|]\s/);
-  const words = first.trim().split(/\s+/).filter(Boolean);
+  // A storage size isn't searched for: listings that don't spell it out are still the same product, and
+  // identity.ts compares only listings whose storage doesn't conflict.
+  const words = first.trim().replace(/(\d)\s+(gb|tb)\b/gi, "$1$2").split(/\s+/).filter((w) => w && (opts.keepStorage || !STORAGE.test(w)));
   const cut = words.findIndex((w, i) => i >= 2 && GENERIC.has(w.toLowerCase()));
   const base = (cut >= 0 ? words.slice(0, cut) : words).slice(0, 6);
   const has = new Set(base.flatMap((w) => w.toLowerCase().split("-")));
@@ -99,6 +109,56 @@ export const SHOPS: Record<string, { source: MarketplaceId; label: string }> = {
   saturn: { source: "feed", label: "Saturn" },
   other: { source: "feed", label: "another shop" },
 };
+
+export type MarketBasis = "new" | "new-refurbished" | "used";
+export interface Market {
+  /** In minor units: the usual range, the typical (median) price, and how many listings they come from. */
+  low: number;
+  high: number;
+  typical: number;
+  count: number;
+  currency: string;
+  basis: MarketBasis;
+}
+
+/**
+ * The eBay market a price is measured against: the listings of the same
+ * product it was compared with, in one condition. For new, NEW ones only when
+ * there are enough of them. The scam check pools refurbished with new
+ * (anomaly.ts), which is right for "far too cheap" but not for a deal score:
+ * an iPhone 15 at 699 € read "+53%" against eight refurbished phones. With too
+ * few new ones the pool is used, and says so (basis "new-refurbished").
+ * `exclude` leaves out the listing being judged, when it is on eBay itself;
+ * `pooled` asks for new and refurbished together whatever the counts, for a
+ * refurbished listing, which against new prices alone always looks a bargain.
+ */
+export function ebayMarket(
+  listings: Listing[],
+  analysis: SearchResponse["analysis"],
+  same: (l: Listing) => boolean,
+  currency: string,
+  group: "new" | "used",
+  exclude?: string,
+  pooled = false,
+): Market | null {
+  const pool = listings.filter(
+    (l) =>
+      l.source === "ebay" &&
+      (group === "used" ? l.condition === "used" : l.condition !== "used") &&
+      analysis.comparisons[listingKey(l)] &&
+      same(l) &&
+      totalPrice(l).currency === currency &&
+      listingKey(l) !== exclude,
+  );
+  const fresh = pool.filter((l) => l.condition === "new");
+  const basis: MarketBasis = group === "used" ? "used" : !pooled && fresh.length >= MIN_SAMPLE ? "new" : "new-refurbished";
+  const totals = (basis === "new" ? fresh : pool).map((l) => totalPrice(l).amount).sort((a, b) => a - b);
+  if (totals.length < MIN_SAMPLE) return null;
+  // The usual range: the middle 80% of ten or more prices, the middle half of fewer, where one
+  // odd listing would otherwise be the whole bottom of the range.
+  const [lo, hi] = totals.length >= 10 ? [0.1, 0.9] : [0.25, 0.75];
+  return { low: quantile(totals, lo), high: quantile(totals, hi), count: totals.length, typical: median(totals), currency, basis };
+}
 
 export interface PriceCheckInput {
   title: string;
@@ -161,24 +221,7 @@ export async function checkPrice(
   };
   const currency = input.price.currency;
 
-  // The market a shop's new product is measured against: the eBay listings of the same product it
-  // was compared with, NEW ones only when there are enough of them. The scam check pools refurbished
-  // with new (anomaly.ts), which is right for "far too cheap" but not for a deal score: an iPhone 15
-  // at 699 € read "+53%" against eight refurbished phones. With too few new ones, the pool is used
-  // and says so (basis "new-refurbished").
-  const pool = labelled.listings.filter(
-    (l) => l.source === "ebay" && l.condition !== "used" && raw.analysis.comparisons[listingKey(l)] && same(l) && totalPrice(l).currency === currency,
-  );
-  const fresh = pool.filter((l) => l.condition === "new");
-  const basis: "new" | "new-refurbished" = fresh.length >= MIN_SAMPLE ? "new" : "new-refurbished";
-  const totals = (basis === "new" ? fresh : pool).map((l) => totalPrice(l).amount).sort((a, b) => a - b);
-  // The usual range: the middle 80% of ten or more prices, the middle half of fewer, where one
-  // odd listing would otherwise be the whole bottom of the range.
-  const [lo, hi] = totals.length >= 10 ? [0.1, 0.9] : [0.25, 0.75];
-  const market =
-    comparison && totals.length >= MIN_SAMPLE
-      ? { low: quantile(totals, lo), high: quantile(totals, hi), count: totals.length, typical: median(totals), currency, basis }
-      : null;
+  const market = comparison ? ebayMarket(labelled.listings, raw.analysis, same, currency, "new") : null;
 
   // Only for a price SigPath checked, as on the search page: a flagged price 60% under the market is no deal.
   const checked = labelled.listings.find((l) => listingKey(l) === key)!;

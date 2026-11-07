@@ -2,7 +2,7 @@
 
 const DE = (navigator.language || "").toLowerCase().startsWith("de");
 const T = DE
-  ? { intro: "Auf Amazon, AliExpress, OTTO, MediaMarkt und Saturn prüft SigPath jede Produktseite von selbst.",
+  ? { intro: "Auf eBay, Amazon, AliExpress, OTTO, MediaMarkt und Saturn prüft SigPath jede Produktseite von selbst.",
       check: "Diese Seite prüfen", show: "Prüfung auf der Seite zeigen",
       autoTitle: "Das Fenster von selbst öffnen",
       autoNote: "Aus: das Ergebnis steht nur am Symbol (z. B. −22 %), bis du hier klickst. Warnungen öffnen es immer.",
@@ -10,9 +10,9 @@ const T = DE
       shareNote: "Hilft anderen beim Vergleichen: Produkte und Preise auf Amazon.de-Seiten, die du öffnest, erscheinen in SigPaths Suche als „auf Amazon gesehen“. Nichts über dich wird gesendet.",
       more: "Was geteilt wird, im Detail", notShop: "Öffne zuerst die Produktseite eines Shops.", cant: "Diese Seite lässt sich nicht prüfen: ",
       pct: (n) => `${n} %`, good: "Gutes Angebot", fair: "Etwa der übliche Preis", high: "Anderswo vielleicht günstiger",
-      usually: (lo, hi, mixed) => `${mixed ? "Neu und generalüberholt" : "Neu"} auf eBay meist ${lo} – ${hi}`, full: "Ganze Prüfung →",
+      usually: (lo, hi, basis) => `${basis === "used" ? "Gebraucht" : basis === "new-refurbished" ? "Neu und generalüberholt" : "Neu"} auf eBay meist ${lo} – ${hi}`, full: "Ganze Prüfung →",
       allow: "SigPath auf den Shop-Seiten erlauben", allowNote: "Ohne diese Erlaubnis kann die Prüfung auf Amazon, OTTO und den anderen nicht erscheinen." }
-  : { intro: "On Amazon, AliExpress, OTTO, MediaMarkt and Saturn, SigPath checks every product page by itself.",
+  : { intro: "On eBay, Amazon, AliExpress, OTTO, MediaMarkt and Saturn, SigPath checks every product page by itself.",
       check: "Check this page", show: "Show the check on the page",
       autoTitle: "Open the panel by itself",
       autoNote: "Off: the result shows on the icon only (e.g. −22%) until you click here. Warnings always open it.",
@@ -20,7 +20,7 @@ const T = DE
       shareNote: "Helps other shoppers compare: the products and prices on Amazon.de pages you open go into SigPath's search as \"seen on Amazon\". Nothing about you is sent.",
       more: "What's shared, in full", notShop: "Open a shop's product page first.", cant: "This page can't be checked: ",
       pct: (n) => `${n}%`, good: "Good deal", fair: "About the usual price", high: "You may find it cheaper",
-      usually: (lo, hi, mixed) => `${mixed ? "New and refurbished" : "New"} on eBay, usually ${lo} – ${hi}`, full: "Full check →",
+      usually: (lo, hi, basis) => `${basis === "used" ? "Used" : basis === "new-refurbished" ? "New and refurbished" : "New"} on eBay, usually ${lo} – ${hi}`, full: "Full check →",
       allow: "Allow SigPath on the shop sites", allowNote: "Without it, the check can't appear on Amazon, OTTO and the others." };
 
 // Firefox names the extension API browser.*, Chrome, Brave and Edge chrome.*; both return promises.
@@ -93,7 +93,7 @@ function showResult(r) {
   box.append(line);
   if (r.market) {
     const p = document.createElement("p");
-    p.textContent = `${r.price} · ${T.usually(r.market.low, r.market.high, r.market.basis === "new-refurbished")}`;
+    p.textContent = `${r.price} · ${T.usually(r.market.low, r.market.high, r.market.basis)}`;
     box.append(p);
   } else if (r.deal && r.headline) {
     const p = document.createElement("p");

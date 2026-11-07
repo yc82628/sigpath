@@ -6,12 +6,15 @@ import { moneyText } from "@/lib/i18n/money";
 import { translateCheck } from "@/lib/i18n/checks";
 import { pickLang } from "@/lib/i18n/lang";
 import { SeenStore } from "@/lib/extension/seen";
+import { checkEbayListing, listingCheckDeps } from "@/lib/marketplace/listing-check";
+import { listingKey } from "@/lib/marketplace/types";
 
 // POST /api/extension/check
 //   { from, title, price, url?, asin?, imageUrl?, share?, lang? }
 //
 // Extension 0.3.0 reads verdict, headline, points, typical, ebayOk, bestEbay
-// and checkUrl; 0.4.0 also deal, market and elsewhere. Fields are only added,
+// and checkUrl; 0.4.0 also deal, market and elsewhere; 0.5.0 sends
+//   { from: "ebay", itemId, lang } from an eBay listing page, and reads seller. Fields are only added,
 // never renamed, while older versions are still installed.
 //
 // The SigPath extension (extension/) asking about the product page a shopper
@@ -24,12 +27,71 @@ export const runtime = "nodejs";
 
 const SITE = "https://sigpath.vercel.app";
 
+/**
+ * The panel's answer for an eBay listing, in the same shape as a shop's product
+ * (fields only added): its verdict and every point, the deal score against the
+ * same product in its condition, and a cheaper checked listing if there is one.
+ */
+async function ebayListingAnswer(itemId: string, lang: ReturnType<typeof pickLang>) {
+  if (!/^\d{9,15}$/.test(itemId)) return NextResponse.json({ error: "Send the eBay item number." }, { status: 400 });
+  const r = await checkEbayListing(itemId, listingCheckDeps());
+  if (!r.ok) {
+    const status = r.status === "not_found" ? 404 : r.status === "variations" ? 422 : 503;
+    return NextResponse.json({ error: r.detail, reason: r.status }, { status, headers: { "Cache-Control": "no-store" } });
+  }
+  const tc = (t: string) => translateCheck(t, lang);
+  const formatMoney = (x: Money) => moneyText(x, lang);
+  const searchUrl = `${SITE}/search?q=${encodeURIComponent(r.query)}`;
+  return NextResponse.json(
+    {
+      shop: "eBay",
+      price: formatMoney(r.total),
+      seller: r.listing.seller.displayName ?? r.listing.seller.handle,
+      verdict: r.listing.check.verdict,
+      headline: tc(r.listing.check.headline),
+      points: r.listing.check.points.map((p) => ({ tone: p.tone, text: tc(p.text) })),
+      typical: r.comparison
+        ? {
+            price: formatMoney({ amount: r.comparison.median, currency: r.total.currency }),
+            listings: r.comparison.sampleSize,
+            diffPct: Math.round(((r.total.amount - r.comparison.median) / r.comparison.median) * 100),
+          }
+        : null,
+      deal: r.deal,
+      market: r.market
+        ? { low: formatMoney({ amount: r.market.low, currency: r.market.currency }), high: formatMoney({ amount: r.market.high, currency: r.market.currency }), listings: r.market.count, basis: r.market.basis }
+        : null,
+      elsewhere: null,
+      ebayOk: r.ebay.status === "ok",
+      // The panel's "best deal" line: here, only a cheaper checked listing of the same product and condition.
+      bestEbay: r.cheaper
+        ? [
+            {
+              title: r.cheaper.listing.title,
+              url: r.cheaper.listing.url,
+              price: formatMoney(r.cheaper.total),
+              // Its own condition: refurbished shares the "new" group but isn't new.
+              group: r.cheaper.listing.condition === "used" ? "used" : r.cheaper.listing.condition === "refurbished" ? "refurbished" : "new",
+              affiliate: !!r.cheaper.listing.affiliate,
+            },
+          ]
+        : [],
+      // The full check: SigPath's search for the product, opened at this listing.
+      checkUrl: `${searchUrl}#l-${encodeURIComponent(listingKey(r.listing))}`,
+      searchUrl,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function POST(req: NextRequest) {
   const tooMany = await limited(req.headers, RULES.extension);
   if (tooMany) return tooMany;
 
   const b = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+  // An eBay listing page: only the item number is sent; the listing comes from eBay's API (listing-check.ts).
+  if (b.from === "ebay") return ebayListingAnswer(str(b.itemId, 20), pickLang(typeof b.lang === "string" ? b.lang : undefined));
   const title = str(b.title, 300);
   const priceText = str(b.price, 40);
   const from = (typeof b.from === "string" && b.from in SHOPS ? b.from : "other") as keyof typeof SHOPS;

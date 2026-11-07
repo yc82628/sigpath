@@ -82,6 +82,7 @@ test("the extension runs by itself only on the listed shops, elsewhere only when
     "https://www.otto.de/*",
     "https://www.mediamarkt.de/*",
     "https://www.saturn.de/*",
+    "https://www.ebay.de/*",
   ]);
 });
 

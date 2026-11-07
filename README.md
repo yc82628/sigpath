@@ -238,7 +238,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 654 tests, as of 2026-11-06
+npm test                                   # 663 tests, as of 2026-11-07
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -775,6 +775,27 @@ other shop only when the shopper clicks "Check this page" in its menu
   offer for the same product when there is a believable one. The toolbar
   icon shows the same score (−22%, +15%), "!" on a warning, "?" when it
   couldn't be checked.
+- **On an eBay listing page** (0.5.0, `lib/marketplace/listing-check.ts`). Where
+  SigPath's verdicts come from in the first place. The page sends only the item
+  number from its address; the listing itself (price, shipping, condition,
+  seller and ratings, photo, category) comes from eBay's own API
+  (`get_item_by_legacy_id`), read exactly like a search result (`ebayListing`).
+  It is then checked as the search checks it: the product searched by its own
+  title, the listing added if eBay's search didn't return it, every flag and
+  the verdict from the whole set. The panel shows the verdict and any warning
+  (the scam check where people actually buy), the deal score against the same
+  product in its own condition without itself (a refurbished listing against new
+  and refurbished together; against new alone it always looks a bargain), and a
+  cheaper checked listing of the same product and condition, with its own
+  condition word. A listing with variations (sizes, colours) or one that's gone
+  is said so, not shown as an outage.
+- **Search words from long titles** (`shortQuery`). Shop and eBay titles pad the
+  model with marketing words ("Premium True Wireless"), the condition ("Sehr
+  Gut", "TOP Zustand", "OVP"), colours and the storage size; searched for, they
+  matched almost nothing. They now end the model name, and the storage is left
+  out (identity.ts still compares only listings whose storage doesn't conflict);
+  a pasted shop link keeps its storage. "Ohne Joy-Con" makes a Switch incomplete,
+  not the console.
 - **The market a shop's product is measured against** (`price-check.ts`): the
   eBay listings of the same product, NEW ones only when there are at least
   five. The scam check pools refurbished with new, which is right for "far

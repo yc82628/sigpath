@@ -172,7 +172,7 @@ export default function PrivacyDe() {
       </Part>
       <Part title="Die SigPath-Browsererweiterung" id="extension">
         <p>
-          Die Erweiterung läuft von selbst nur auf Seiten von Amazon, AliExpress, OTTO, MediaMarkt und Saturn, die du öffnest,
+          Die Erweiterung läuft von selbst nur auf Seiten von eBay.de, Amazon, AliExpress, OTTO, MediaMarkt und Saturn, die du öffnest,
           und auf der Seite eines anderen Shops nur, wenn du in ihrem Menü auf &bdquo;Diese Seite prüfen&ldquo; klickst. Auf
           einer Produktseite liest sie Namen und Preis des Produkts (bei Amazon auch Produktnummer, Fotoadresse und Namen des
           Verkäufers) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. SigPath sucht dann

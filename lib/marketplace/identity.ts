@@ -93,6 +93,10 @@ const PARTIAL_PHRASES = [
   // One earbud of a pair: "AirPods Pro 2 ... Links Original" is the left one alone.
   "links", "rechts", "left earbud", "right earbud", "left airpod", "right airpod", "left only", "right only",
   "ohne ovp und zubehör",
+  // A Switch without its controllers isn't the console it's compared with: "… | OHNE JOY CONS" was offered
+  // as the cheaper alternative to a complete one.
+  "ohne joy cons", "ohne joy-cons", "ohne joycons", "ohne joy con", "ohne joy-con", "ohne joycon", "ohne controller",
+  "without joy cons", "without joy-cons", "without joycons", "without controllers", "no joy cons", "no joy-cons",
 ];
 
 /**

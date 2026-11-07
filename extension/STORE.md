@@ -4,6 +4,10 @@ What to paste into the Chrome Web Store (and Microsoft Edge Add-ons) forms. The
 upload is a zip of this folder with `manifest.json` at its root (not the folder
 itself), e.g. `sigpath-check-0.4.0.zip`.
 
+**0.5.0 adds eBay.de listing pages** (a new site in the content scripts, so a
+new review). Upload it only once 0.4.1 is approved: a new upload during a
+review sends it back to the start of the queue.
+
 **Rejected 2026-11-07 (0.4.0) for keyword spam** ("Yellow Argon"): the short
 description listed five shop names in a row ("On Amazon, AliExpress, OTTO,
 MediaMarkt and Saturn: the price against eBay"). Google reads a row of brand
@@ -82,7 +86,7 @@ with the "Check with SigPath" buttons; the menu with "Check this page".
 - `activeTab`: "Check this page" runs the check on the tab the user has open, only when they click it.
 - `scripting`: runs the check script on that tab after that click (on shops it doesn't cover by itself).
 - Host permission `https://sigpath.vercel.app/*`: sends the product's name and price to SigPath's own service for the check.
-- Content scripts on the listed Amazon, AliExpress, OTTO, MediaMarkt and Saturn sites: read the product's name and price from the page the user opened, and show the panel.
+- Content scripts on the listed shop sites: read the product's name and price from the page the user opened (on eBay.de, only the item number in the page's address), and show the panel.
 
 **Remote code:** No. All code is in the package; the extension only exchanges JSON with sigpath.vercel.app.
 

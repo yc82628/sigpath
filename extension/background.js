@@ -43,7 +43,7 @@ async function post(path, body) {
   const data = await res.json().catch(() => null);
   // A SigPath without the extension's routes answers its "page not found" page.
   if (res.status === 404 || data === null) throw new Error(SAY.odd(server));
-  if (!res.ok) throw new Error(data.error || `SigPath answered ${res.status}.`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `SigPath answered ${res.status}.`), { reason: data.reason });
   return data;
 }
 
@@ -72,7 +72,7 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
     throw new Error("unknown message");
   })().then(
     (data) => reply({ ok: true, data }),
-    (err) => reply({ ok: false, error: String(err && err.message ? err.message : err) }),
+    (err) => reply({ ok: false, error: String(err && err.message ? err.message : err), reason: err && err.reason }),
   );
   return true; // the answer comes later
 });

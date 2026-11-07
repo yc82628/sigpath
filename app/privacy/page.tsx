@@ -177,7 +177,7 @@ function PrivacyEn() {
       </Part>
       <Part title="The SigPath browser extension" id="extension">
         <p>
-          The extension runs by itself only on Amazon, AliExpress, OTTO, MediaMarkt and Saturn pages you open, and on another
+          The extension runs by itself only on eBay.de, Amazon, AliExpress, OTTO, MediaMarkt and Saturn pages you open, and on another
           shop&apos;s page only when you click &ldquo;Check this page&rdquo; in its menu. On a product page
           it reads the product&apos;s name and price (on Amazon also its product number, photo address and seller name) and
           sends them, with the page&apos;s address, to SigPath for the same check as /check. SigPath then searches eBay and

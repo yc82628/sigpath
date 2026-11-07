@@ -23,7 +23,7 @@ const en = {
   lede: "How good the deal is, and SigPath's check, right on the shop's page.",
   steps: [
     { icon: "plus" as IconName, tone: "purple" as Tone, title: "Add it", line: "To Chrome or Edge, once." },
-    { icon: "shopping-cart-simple" as IconName, tone: "blue" as Tone, title: "Shop as usual", line: "Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
+    { icon: "shopping-cart-simple" as IconName, tone: "blue" as Tone, title: "Shop as usual", line: "eBay, Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
     { icon: "seal-check" as IconName, tone: "green" as Tone, title: "See the deal", line: "How far from the market, red flags, the best deal." },
   ],
   picture: "The SigPath panel on an Amazon product page",
@@ -65,7 +65,7 @@ const de: typeof en = {
   lede: "Wie gut das Angebot ist, und SigPaths Prüfung, direkt auf der Seite des Shops.",
   steps: [
     { icon: "plus", tone: "purple", title: "Hinzufügen", line: "Zu Chrome oder Edge, einmal." },
-    { icon: "shopping-cart-simple", tone: "blue", title: "Einkaufen wie immer", line: "Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
+    { icon: "shopping-cart-simple", tone: "blue", title: "Einkaufen wie immer", line: "eBay, Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
     { icon: "seal-check", tone: "green", title: "Angebot sehen", line: "Wie weit vom Markt, Warnsignale, das beste Angebot." },
   ],
   picture: "Das SigPath-Fenster auf einer Amazon-Produktseite",

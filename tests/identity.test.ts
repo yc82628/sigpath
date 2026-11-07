@@ -248,3 +248,15 @@ test("dead pixels are a fault; a screen without them isn't", () => {
     assert.strictEqual(identify(title, Q).kind, "product", title);
   }
 });
+
+test("a Switch without its Joy-Cons isn't the whole console", () => {
+  const Q = "Nintendo Switch OLED";
+  for (const title of [
+    "Nintendo Switch OLED-Modell | WEIß | SEHR GUT | HEIMKONSOLE | OHNE JOY CONS",
+    "Nintendo Switch OLED Konsole ohne Joy-Con, nur Tablet",
+    "Nintendo Switch OLED console without Joy-Cons",
+  ]) {
+    assert.notStrictEqual(identify(title, Q).kind, "product", title);
+  }
+  assert.strictEqual(identify("Nintendo Switch OLED mit Joy-Con, weiß", Q).kind, "product", "with them is the console");
+});

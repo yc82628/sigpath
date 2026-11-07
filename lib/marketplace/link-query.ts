@@ -71,6 +71,7 @@ export function queryFromLink(raw: string): LinkQuery | null {
     .filter((w) => w.length >= 2 && w.some((x) => /[a-zäöüß]/i.test(x)))
     .sort((a, b) => b.length - a.length)[0];
   if (!best) return null;
-  const query = shortQuery(best.join(" ")) || best.slice(0, 6).join(" ");
+  // A pasted link names one model, storage included ("iphone 15 128gb"): the search keeps it.
+  const query = shortQuery(best.join(" "), { keepStorage: true }) || best.slice(0, 6).join(" ");
   return query.length >= 3 ? { query, shop, asin } : null;
 }

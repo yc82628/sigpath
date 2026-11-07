@@ -10,7 +10,7 @@ test("the product name in an Amazon link, and its ASIN", () => {
 });
 
 test("OTTO, MediaMarkt and Saturn links", () => {
-  assert.equal(queryFromLink("https://www.otto.de/p/apple-iphone-15-128gb-schwarz-1834567890/#variationId=1834567891")?.query, "apple iphone 15 128gb schwarz");
+  assert.equal(queryFromLink("https://www.otto.de/p/apple-iphone-15-128gb-schwarz-1834567890/#variationId=1834567891")?.query, "apple iphone 15 128gb", "the storage stays, the colour goes");
   assert.equal(queryFromLink("https://www.mediamarkt.de/de/product/_sony-wh-1000xm5-kopfhorer-2817466.html")?.query, "sony wh 1000xm5");
   assert.equal(queryFromLink("https://www.saturn.de/de/product/_nintendo-switch-oled-modell-2766455.html")?.shop, "Saturn");
 });

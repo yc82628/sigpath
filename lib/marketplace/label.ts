@@ -87,7 +87,7 @@ const HEADLINE: Record<Verdict, string> = {
 export const CHECKED_MEANS =
   "SigPath-checked means its price was compared with listings of the same model, configuration and condition and isn't suspiciously low, and none of the seller and photo checks we could run raised a flag. Each listing says which checks ran. It isn't a guarantee the item is genuine — if it isn't, report it.";
 
-function conditionGroup(l: Listing): "new" | "used" {
+export function conditionGroup(l: Listing): "new" | "used" {
   return l.condition === "used" ? "used" : "new";
 }
 

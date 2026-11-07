@@ -26,22 +26,27 @@
         best: "Bestes geprüftes eBay-Angebot", full: "Ganze Prüfung auf SigPath →", soldBy: "Verkauf durch", ebayDown: "eBay hat gerade nicht geantwortet: kein Vergleich.",
         error: "SigPath ist gerade nicht erreichbar.", close: "Schließen", reload: "Die Erweiterung wurde neu geladen: lade diese Seite neu.",
         noAnswer: "Keine Antwort von der Erweiterung.", button: "Mit SigPath prüfen →", on: "SigPath ist an: „Mit SigPath prüfen“ bei jedem Ergebnis, oder ein Produkt öffnen.",
-        nothing: "Auf dieser Seite hat SigPath kein Produkt mit Preis gefunden.", noPrice: "Den Preis auf dieser Seite konnte SigPath nicht lesen: vielleicht ist der Artikel nicht verfügbar, oder erst eine Variante (Farbe, Größe) wählen.", checked: "Geprüft", caution: "Vorsicht", unchecked: "Nicht geprüft", newW: "neu", usedW: "gebraucht",
+        nothing: "Auf dieser Seite hat SigPath kein Produkt mit Preis gefunden.", noPrice: "Den Preis auf dieser Seite konnte SigPath nicht lesen: vielleicht ist der Artikel nicht verfügbar, oder erst eine Variante (Farbe, Größe) wählen.", checked: "Geprüft", caution: "Vorsicht", unchecked: "Nicht geprüft", newW: "neu", usedW: "gebraucht", refurbW: "generalüberholt",
         retry: "Erneut versuchen", pct: (n) => `${n} %`, under: (p) => `${p} unter dem Markt`, over: (p) => `${p} über dem Markt`,
         good: "Gutes Angebot", fair: "Etwa der übliche Preis", high: "Anderswo vielleicht günstiger",
-        usually: (lo, hi, n, mixed) => `${mixed ? "Neu und generalüberholt" : "Neu"} auf eBay meist ${lo} – ${hi} (${n} Angebote).`, also: "Auch auf", notChecked: "nicht von SigPath geprüft" }
+        usually: (lo, hi, n, basis) => `${basis === "used" ? "Gebraucht" : basis === "new-refurbished" ? "Neu und generalüberholt" : "Neu"} auf eBay meist ${lo} – ${hi} (${n} Angebote).`, also: "Auch auf", notChecked: "nicht von SigPath geprüft",
+        cheaper: "Günstigeres geprüftes Angebot", variations: "Dieses Angebot hat mehrere Varianten (Größe, Farbe) mit eigenen Preisen: wähle eine, oder sieh dir die ganze Suche auf SigPath an.",
+        gone: "eBay kennt dieses Angebot nicht mehr: vielleicht verkauft oder beendet.", search: "Auf SigPath suchen →" }
     : { checking: "SigPath is checking…", typical: "Typical on eBay", listings: "listings", below: "below", above: "above", same: "exactly the typical price",
         best: "Best checked eBay deal", full: "Full check on SigPath →", soldBy: "Sold by", ebayDown: "eBay didn't answer just now: no comparison.",
         error: "SigPath can't be reached right now.", close: "Close", reload: "The extension was reloaded: reload this page.",
         noAnswer: "No answer from the extension.", button: "Check with SigPath →", on: "SigPath is on: “Check with SigPath” on any result, or open a product.",
-        nothing: "SigPath found no product with a price on this page.", noPrice: "SigPath couldn't read the price on this page: the item may be unavailable, or choose an option (colour, size) first.", checked: "Checked", caution: "Caution", unchecked: "Not checked", newW: "new", usedW: "used",
+        nothing: "SigPath found no product with a price on this page.", noPrice: "SigPath couldn't read the price on this page: the item may be unavailable, or choose an option (colour, size) first.", checked: "Checked", caution: "Caution", unchecked: "Not checked", newW: "new", usedW: "used", refurbW: "refurbished",
         retry: "Try again", pct: (n) => `${n}%`, under: (p) => `${p} under the market`, over: (p) => `${p} over the market`,
         good: "Good deal", fair: "About the usual price", high: "You may find it cheaper",
-        usually: (lo, hi, n, mixed) => `${mixed ? "New and refurbished" : "New"} on eBay, usually ${lo} – ${hi} (${n} listings).`, also: "Also on", notChecked: "not checked by SigPath" };
+        usually: (lo, hi, n, basis) => `${basis === "used" ? "Used" : basis === "new-refurbished" ? "New and refurbished" : "New"} on eBay, usually ${lo} – ${hi} (${n} listings).`, also: "Also on", notChecked: "not checked by SigPath",
+        cheaper: "Cheaper checked listing", variations: "This listing has several variations (size, colour) with their own prices: pick one, or see the whole search on SigPath.",
+        gone: "eBay no longer has this listing: it may have sold or ended.", search: "Search on SigPath →" };
 
   const host = location.hostname;
   const manual = () => !!window.__sigpathManual; // "Check this page" in the extension's menu
   const SHOP = /(^|\.)amazon\.(de|com|co\.uk|fr|it|es|nl)$/.test(host) ? "amazon" : /aliexpress\.com$/.test(host) ? "aliexpress"
+    : /(^|\.)ebay\.de$/.test(host) ? "ebay"
     : /otto\.de$/.test(host) ? "otto" : /mediamarkt\.de$/.test(host) ? "mediamarkt" : /saturn\.de$/.test(host) ? "saturn" : manual() ? "other" : null;
   if (!SHOP) return;
   // Sightings are euro prices from Amazon.de only (lib/extension/seen.ts).
@@ -240,7 +245,7 @@
     const words = d.pct < 0 ? T.under(T.pct(-d.pct)) : d.pct > 0 ? T.over(T.pct(d.pct)) : T.same;
     let html = `<div class="deal ${esc(d.tone)}"><span class="big">${esc(big)}</span><span class="tone">${esc(T[d.tone] || "")}</span></div>
       <p class="muted">${esc(r.price)}: ${esc(words)}.</p>`;
-    if (r.market) html += `<p>${esc(T.usually(r.market.low, r.market.high, r.market.listings, r.market.basis === "new-refurbished"))}</p>`;
+    if (r.market) html += `<p>${esc(T.usually(r.market.low, r.market.high, r.market.listings, r.market.basis))}</p>`;
     return html;
   }
 
@@ -270,13 +275,14 @@
     }
     if (r.bestEbay?.length) {
       const b = r.bestEbay[0];
-      html += `<p><strong>${T.best}:</strong> <a href="${safeUrl(b.url)}" target="_blank" rel="${b.affiliate ? "sponsored " : ""}noopener noreferrer">${esc(short(b.title))}</a> — ${esc(b.price)} (${b.group === "used" ? T.usedW : T.newW})</p>`;
+      html += `<p><strong>${SHOP === "ebay" ? T.cheaper : T.best}:</strong> <a href="${safeUrl(b.url)}" target="_blank" rel="${b.affiliate ? "sponsored " : ""}noopener noreferrer">${esc(short(b.title))}</a> — ${esc(b.price)} (${b.group === "used" ? T.usedW : b.group === "refurbished" ? T.refurbW : T.newW})</p>`;
     }
     if (r.elsewhere) {
       const e = r.elsewhere;
       html += `<p><strong>${T.also} ${esc(e.shop)}:</strong> <a href="${safeUrl(e.url)}" target="_blank" rel="${e.affiliate ? "sponsored " : ""}noopener noreferrer">${esc(short(e.title))}</a> — ${esc(e.price)} <span class="muted">(${T.notChecked})</span></p>`;
     }
-    if (product.seller) html += `<p class="muted">${T.soldBy}: ${esc(product.seller)}</p>`;
+    const seller = product.seller || r.seller;
+    if (seller) html += `<p class="muted">${T.soldBy}: ${esc(seller)}</p>`;
     html += `<p><a href="${safeUrl(r.checkUrl)}" target="_blank" rel="noopener">${T.full}</a></p>`;
     showPanel().body.innerHTML = html;
   }
@@ -284,7 +290,41 @@
   // ---- Running it ---------------------------------------------------------
 
   let lastChecked = "";
+
+  /**
+   * An eBay item page: only the item number is sent (from the address, /itm/123… or /itm/title/123…);
+   * SigPath reads the listing itself from eBay's API, seller and ratings included.
+   */
+  async function runEbay() {
+    const itemId = location.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,15})/)?.[1];
+    if (!itemId) return;
+    const key = `ebay|${itemId}`;
+    if (key === lastChecked) return;
+    lastChecked = key;
+    const open = visible();
+    if (open) showPanel().body.innerHTML = `<p class="muted">${T.checking}</p>`;
+    const res = await ask({ type: "check", product: { from: "ebay", itemId, url: location.origin + location.pathname, lang: DE ? "de" : "en" } });
+    if (lastChecked !== key) return;
+    if (!res.ok) {
+      if (!open && !panel) return;
+      const body = showPanel().body;
+      // Not an outage: a listing with variations, or one that's gone. Said as it is, no "try again".
+      if (res.reason === "variations" || res.reason === "not_found") {
+        body.innerHTML = `<p class="muted">${res.reason === "variations" ? T.variations : T.gone}</p>`;
+        return;
+      }
+      body.innerHTML = `<p class="muted">${T.error}</p><p class="muted">${esc(res.error)}</p><button class="retry" type="button">${T.retry}</button>`;
+      body.querySelector(".retry").addEventListener("click", () => {
+        lastChecked = "";
+        runEbay();
+      });
+      return;
+    }
+    render(res.data, {}, open || !!panel);
+  }
+
   async function run() {
+    if (SHOP === "ebay") return runEbay();
     if (SHOP === "amazon" && /^\/s$|^\/s\//.test(location.pathname)) {
       searchResults();
       return;
