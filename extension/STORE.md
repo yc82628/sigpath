@@ -29,30 +29,28 @@ German (111):
 
 **Category:** Shopping. **Languages:** English, German.
 
-**Description:**
-> SigPath shows how good the deal you're looking at really is, before you buy.
->
-> When you open a product page, a small SigPath panel shows:
-> • the deal score: how far the price is from the market for the same product
->   ("−22 %, good deal"), and the usual price range
-> • warnings: a price too good to be true, or a seller with upheld
->   fake-product reports
-> • a cheaper offer for the same product that SigPath has checked
-> • who actually sells it, where the shop says so
->
-> Prefer it quiet? Turn off "Open the panel by itself": the score shows on the
-> toolbar icon only, and a warning still opens the panel.
->
-> It works by itself on the product pages of the large online shops it
-> supports (currently Amazon, OTTO, MediaMarkt, Saturn and AliExpress), and on
-> any other shop when you click the icon and "Check this page".
->
-> Optional, off until you turn it on: share the Amazon.de prices you see, so
-> SigPath's search can show them to other shoppers. Only the product and its
-> price, never anything about you.
->
-> No account, no tracking. SigPath is open source:
-> https://github.com/yc82628/sigpath
+**Description** (paste as plain text; each "•" on its own line):
+```
+SigPath shows how good the deal you're looking at really is, before you buy.
+
+When you open a product page, a small SigPath panel shows:
+• the deal score: how far the price is from the market for the same product ("−22 %, good deal"), and the usual price range
+• warnings: a price too good to be true, or a seller with upheld fake-product reports
+• a cheaper offer for the same product that SigPath has checked
+• who actually sells it, where the shop says so
+
+Prefer it quiet? Turn off "Open the panel by itself": the score shows on the toolbar icon only, and a warning still opens the panel.
+
+It works by itself on the product pages of Amazon and several large German online shops (the full list is at https://sigpath.vercel.app/extension), and on any other shop when you click the icon and "Check this page".
+
+Optional, off until you turn it on: share the Amazon.de prices you see, so SigPath's search can show them to other shoppers. Only the product and its price, never anything about you.
+
+No account, no tracking. SigPath is open source: https://github.com/yc82628/sigpath
+
+SigPath is independent and not affiliated with any of the shops it works on.
+```
+One shop named, the rest linked: after the keyword-spam rejection, no row of
+brand names anywhere in the listing.
 
 **Privacy policy:** https://sigpath.vercel.app/privacy#extension
 **Homepage / support:** https://sigpath.vercel.app/extension
