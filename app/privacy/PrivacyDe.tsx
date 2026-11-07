@@ -37,9 +37,9 @@ import { Part } from "./Part";
 const days = (secs: number) => Math.round(secs / 86400);
 const minutes = (secs: number) => Math.round(secs / 60);
 
-/** lib/legal/site.ts writes its provider phrases in English. */
-const modelDe = (provider: string) =>
-  modelPhrase(provider).startsWith("an AI model on") ? "ein KI-Modell auf SigPaths eigenem Server" : `ein KI-Modell von ${provider}`;
+/** lib/legal/site.ts writes its provider phrases in English. After "an" it's "ein", after "von" (dative) "einem". */
+const modelDe = (provider: string, dative = false) =>
+  `${dative ? "einem" : "ein"} KI-Modell ${modelPhrase(provider).startsWith("an AI model on") ? "auf SigPaths eigenem Server" : `von ${provider}`}`;
 const rpcDe = (s: string) =>
   s === "the Solana Foundation's public RPC service" ? "den öffentlichen RPC-Dienst der Solana Foundation" : s === "a Solana RPC service" ? "einen Solana-RPC-Dienst" : s;
 
@@ -187,7 +187,9 @@ export default function PrivacyDe() {
           Die Erweiterung läuft von selbst nur auf Seiten von eBay.de, Amazon, AliExpress, OTTO, MediaMarkt und Saturn, die du öffnest,
           und auf der Seite eines anderen Shops nur, wenn du in ihrem Menü auf &bdquo;Diese Seite prüfen&ldquo; klickst. Auf
           einer Produktseite liest sie Namen und Preis des Produkts (bei Amazon auch Produktnummer, Fotoadresse und Namen des
-          Verkäufers) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. SigPath sucht dann
+          Verkäufers) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. Auf einem
+          eBay-Angebot sendet sie nur die Angebotsnummer und die Adresse der Seite; das Angebot selbst liest SigPath über die
+          API von eBay. SigPath sucht dann
           auf eBay und AliExpress nach dem Namen des Produkts und behält deren Antwort eine halbe Stunde lang, für alle, die
           dasselbe Produkt prüfen: die Angebote der Marktplätze, nichts über dich. Die Erweiterung merkt sich die letzte
           Prüfung je Tab nur in deinem Browser, bis du den Tab oder den Browser schließt. Nur wenn du
@@ -254,7 +256,7 @@ export default function PrivacyDe() {
               Eine Meldung braucht deine Beschreibung, ein Live-Foto des Artikels und eine Signatur der Wallet, die bezahlt
               hat. Sie werden für die prüfende Person verschlüsselt gespeichert und gelöscht, sobald über die Meldung
               entschieden ist, in jedem Fall nach {days(PENDING_REPORT_MAX_SECS)} Tagen.
-              {photos ? ` Das Foto wird von ${modelDe(photos)} geprüft.` : ""} Wird die Meldung bestätigt, wird ein Befund über
+              {photos ? ` Das Foto wird von ${modelDe(photos, true)} geprüft.` : ""} Wird die Meldung bestätigt, wird ein Befund über
               den Verkäufer auf Solana veröffentlicht: Er enthält nichts über dich, weder deine Wallet noch deine Worte oder
               dein Foto.
             </p>
@@ -266,7 +268,7 @@ export default function PrivacyDe() {
         <ul>
           <li>
             <strong>Verkäufer-Abzeichen:</strong> SigPath speichert den Namen deines Marktplatzkontos, deine Wallet-Adresse und
-            die Daten des Abzeichens. Das Live-Foto wird{photos ? ` von ${modelDe(photos)}` : ""} geprüft und dann verworfen:
+            die Daten des Abzeichens. Das Live-Foto wird{photos ? ` von ${modelDe(photos, true)}` : ""} geprüft und dann verworfen:
             Es werden keine Bilder oder Gesichtsdaten gespeichert. Das Abzeichen ist ein Token in deiner Wallet und ein
             Datensatz auf Solana, beides öffentlich; es gilt ein Jahr und wird vorzeitig beendet, wenn eine Fälschungsmeldung
             bestätigt wird.
