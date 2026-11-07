@@ -8,6 +8,12 @@ import { pickLang } from "@/lib/i18n/lang";
 import { SeenStore } from "@/lib/extension/seen";
 import { checkEbayListing, listingCheckDeps } from "@/lib/marketplace/listing-check";
 import { listingKey } from "@/lib/marketplace/types";
+import { count, type StatEvent } from "@/lib/stats/counter";
+
+/** What a check showed, as counted events (lib/stats/counter.ts): totals only, nothing about the product. */
+function shown(verdict: string, deal: { tone: string } | null | undefined): StatEvent[] {
+  return [...(verdict === "caution" ? ["caution" as const] : []), ...(verdict === "checked" && deal?.tone === "good" ? ["good-deal" as const] : [])];
+}
 
 // POST /api/extension/check
 //   { from, title, price, url?, asin?, imageUrl?, share?, lang? }
@@ -32,9 +38,10 @@ const SITE = "https://sigpath.vercel.app";
  * (fields only added): its verdict and every point, the deal score against the
  * same product in its condition, and a cheaper checked listing if there is one.
  */
-async function ebayListingAnswer(itemId: string, lang: ReturnType<typeof pickLang>) {
+async function ebayListingAnswer(itemId: string, lang: ReturnType<typeof pickLang>, userAgent: string | null) {
   if (!/^\d{9,15}$/.test(itemId)) return NextResponse.json({ error: "Send the eBay item number." }, { status: 400 });
   const r = await checkEbayListing(itemId, listingCheckDeps());
+  await count(["ext-ebay", ...(r.ok ? shown(r.listing.check.verdict, r.deal) : [])], { userAgent });
   if (!r.ok) {
     const status = r.status === "not_found" ? 404 : r.status === "variations" ? 422 : 503;
     return NextResponse.json({ error: r.detail, reason: r.status }, { status, headers: { "Cache-Control": "no-store" } });
@@ -91,7 +98,7 @@ export async function POST(req: NextRequest) {
   const b = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
   // An eBay listing page: only the item number is sent; the listing comes from eBay's API (listing-check.ts).
-  if (b.from === "ebay") return ebayListingAnswer(str(b.itemId, 20), pickLang(typeof b.lang === "string" ? b.lang : undefined));
+  if (b.from === "ebay") return ebayListingAnswer(str(b.itemId, 20), pickLang(typeof b.lang === "string" ? b.lang : undefined), req.headers.get("user-agent"));
   const title = str(b.title, 300);
   const priceText = str(b.price, 40);
   const from = (typeof b.from === "string" && b.from in SHOPS ? b.from : "other") as keyof typeof SHOPS;
@@ -101,6 +108,7 @@ export async function POST(req: NextRequest) {
   if (!title || !price) return NextResponse.json({ error: "Send the product's title and price." }, { status: 400 });
 
   const result = await checkPrice({ title, price, from, url });
+  await count(["ext-shop", ...shown(result.product.check.verdict, result.deal)], { userAgent: req.headers.get("user-agent") });
   const tc = (t: string) => translateCheck(t, lang);
   const formatMoney = (x: Money) => moneyText(x, lang);
 

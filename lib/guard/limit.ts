@@ -75,6 +75,8 @@ export const RULES = {
   /** The browser extension: each check is an eBay search; each "seen" report a database write. */
   extension: { name: "extension", limit: 60, windowSecs: TEN_MIN, message: "Too many checks. Try again in a few minutes." },
   extensionSeen: { name: "extension-seen", limit: 60, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
+  /** A click on a search result, counted (lib/stats/counter.ts): enough for a person, too few to pad the totals. */
+  click: { name: "click", limit: 60, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
 } satisfies Record<string, Rule>;
 
 type Env = Record<string, string | undefined>;

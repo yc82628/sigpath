@@ -8,6 +8,7 @@ import PopIcon from "../components/PopIcon";
 import { getLang } from "@/lib/i18n/server";
 import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
+import { count } from "@/lib/stats/counter";
 
 /**
  * app/check — check a price from any shop (Amazon, AliExpress, anywhere)
@@ -43,6 +44,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   // A check is an eBay search too, against the same daily quota.
   const tooMany = title && price && (await limitedMessage(h, RULES.search)) ? m.search.tooMany : null;
   const result = title && price && !tooMany ? await checkPrice({ title, price, from, url }) : null;
+  if (result) await count(["check"], { userAgent: h.get("user-agent") });
 
   return (
     <main className="container">

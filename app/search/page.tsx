@@ -6,6 +6,8 @@ import { limitedMessage, RULES } from "@/lib/guard/limit";
 import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
 import { cachedSources } from "@/lib/marketplace/search-cache";
+import { count } from "@/lib/stats/counter";
+import ClickCounter from "../components/ClickCounter";
 import { totalPrice, type Listing, type Money, type SourceResult } from "@/lib/marketplace/types";
 import { decimalText, moneyText } from "@/lib/i18n/money";
 import type { Flag } from "@/lib/marketplace/anomaly";
@@ -279,6 +281,8 @@ export default async function SearchPage({
   // Kept three minutes (search-cache.ts): changing a filter re-asks nobody.
   const sources = q && !tooMany ? cachedSources(defaultSources()) : [];
   const pending = q && !tooMany ? startSearch(q, sources, { limit: 20 }) : [];
+  // Counted once per search (lib/stats/counter.ts): a filter changed on the same results isn't another one.
+  if (q && !tooMany && !isFiltered(filters)) await count(["search"], { userAgent: headers().get("user-agent") });
 
   return (
     <main className="container wide">
@@ -307,6 +311,7 @@ export default async function SearchPage({
           <SearchResults q={q} filters={filters} vapidKey={vapidKey} pending={pending} />
         </Suspense>
       )}
+      <ClickCounter />
     </main>
   );
 }

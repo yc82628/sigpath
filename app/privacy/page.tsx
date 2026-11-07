@@ -169,6 +169,17 @@ function PrivacyEn() {
         </>
       )}
 
+      <Part title="Counting use" id="stats">
+        <p>
+          To show how much SigPath is used, it keeps daily totals: how many searches, price checks and extension checks
+          there were, how many good deals and warnings the extension showed, and how many times a search result was
+          opened. Only a number goes up. Nothing is kept with it: no search words, product, price, page address, IP
+          address, cookie or identifier, so no total can be traced to anyone. A click on a search result sends only
+          &ldquo;a click happened&rdquo;, limited per connection like every other request (see above). Crawlers aren&apos;t
+          counted. Each day&apos;s totals are kept for 400 days, and anyone can see them at <a href="/stats">/stats</a>.
+        </p>
+      </Part>
+
       <Part title="Searching">
         <p>
           Your search words are sent to eBay&apos;s{ali ? " and AliExpress’s" : ""} official API{ali ? "s" : ""} to fetch listings. No information about you is sent with them,

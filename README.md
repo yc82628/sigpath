@@ -238,7 +238,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 666 tests, as of 2026-11-07
+npm test                                   # 671 tests, as of 2026-11-07
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -842,6 +842,20 @@ other shop only when the shopper clicks "Check this page" in its menu
   never price-checked, never in the median or the checkout, never passed to
   the paid API or Ai-chan (`site-only.ts`), and gone after a week. Amazon's
   own search link stays, since sightings aren't a live source.
+
+## Usage in numbers — counted without knowing by whom (`/stats`)
+
+`lib/stats/counter.ts` keeps one total per event per day (Berlin time) in the
+shared database: `sigpath:stats:2026-11-07`, a hash of event → count, dropped
+after 400 days, plus the first day counted. Events: site searches (a new one,
+not a filter changed), site price checks, extension checks on shop pages and on
+eBay listings, the good deals and warnings the extension showed, and search
+results opened (`ClickCounter` → `POST /api/stats/click`, no body, rate-limited).
+Nothing else is written with a count: no words, product, price, address, IP,
+cookie or id. Crawlers aren't counted, and only the live site counts
+(`VERCEL_ENV=production`): local runs and previews share the database. A count
+that fails is skipped, never in the shopper's way. `/stats` shows today, 7 and
+30 days, in public and unlinked from the menu; the privacy page explains it.
 
 ## The menu, the footer and the fonts
 
