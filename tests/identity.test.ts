@@ -260,3 +260,8 @@ test("a Switch without its Joy-Cons isn't the whole console", () => {
   }
   assert.strictEqual(identify("Nintendo Switch OLED mit Joy-Con, weiß", Q).kind, "product", "with them is the console");
 });
+
+test("the accessories without the console aren't the console", () => {
+  assert.notStrictEqual(identify("Nintendo Switch OLED Model - Nur Zubehör OHNE KONSOLE", "Nintendo Switch OLED").kind, "product");
+  assert.strictEqual(identify("Nintendo Switch OLED Konsole mit Zubehör", "Nintendo Switch OLED").kind, "product", "with them is the console");
+});

@@ -99,7 +99,7 @@ export function marketSnapshot(listings: Listing[], analysis: Analysis): MarketG
  */
 export function newMedianHasRefurbished(listings: Listing[], analysis: Analysis): boolean {
   return listings.some((l) => {
-    if (l.condition !== "refurbished" || l.price.currency !== analysis.currency) return false;
+    if (l.condition !== "refurbished" || l.variations || l.price.currency !== analysis.currency) return false;
     if (!analysis.coverage.includes(l.source)) return false;
     const id = analysis.identities[listingKey(l)];
     return !id || (id.kind === "product" && id.named !== false);

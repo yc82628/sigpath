@@ -124,7 +124,7 @@ function checkLines(listing: Listing, analysis: Analysis, now: number): LabelPoi
     lines.push({ tone: "good", text: `Seller account is ${age(s.memberSince, now)} old.` });
   } else if (s.feedbackScore !== undefined) {
     const pct = s.feedbackPercentage !== undefined && s.feedbackScore > 0 ? ` (${s.feedbackPercentage}% positive)` : "";
-    lines.push({ tone: "info", text: `Seller has ${s.feedbackScore} ratings${pct} on ${market}; account age isn't published, so it wasn't checked.` });
+    lines.push({ tone: "info", text: `Seller has ${s.feedbackScore} ${s.feedbackScore === 1 ? "rating" : "ratings"}${pct} on ${market}; account age isn't published, so it wasn't checked.` });
   } else {
     lines.push({ tone: "info", text: `Seller history not checked: ${market} doesn't publish it.` });
   }

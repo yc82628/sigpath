@@ -122,6 +122,12 @@ export interface Listing {
    */
   category?: { id: string; name: string };
   seller: SellerRef;
+  /**
+   * One listing with several variations at their own prices (eBay: "Nintendo Switch OLED | V1/V2 |
+   * Auswahl", from a Switch Lite to an OLED). A search returns the price of one of them, which may
+   * not be the product searched for, so it is shown but never compared (anomaly.ts).
+   */
+  variations?: boolean;
   /** The link pays SigPath a commission (an affiliate link): marked rel="sponsored". */
   affiliate?: boolean;
   /** Unix seconds the listing went up, if published. */

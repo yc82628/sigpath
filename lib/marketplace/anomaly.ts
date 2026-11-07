@@ -381,6 +381,12 @@ export function analyse(
   const name = opts.query?.trim();
   const candidates = sameCurrency.filter((l) => {
     if (idOf(l).kind !== "product") return false;
+    // A listing with several variations: its price is one of them, maybe a Switch Lite under a
+    // "Switch OLED" title. Compared, it was a false "best deal".
+    if (l.variations) {
+      notCompared[listingKey(l)] = "The listing has several variations at their own prices; this price is for one of them, maybe not the one searched for, so it isn't compared.";
+      return false;
+    }
     if (name && idOf(l).named === false) {
       notCompared[listingKey(l)] = `Its title doesn't name the ${name}, so it isn't compared with listings that do.`;
       return false;

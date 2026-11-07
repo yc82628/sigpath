@@ -132,6 +132,10 @@ const RULES: Rule[] = [
     (n) => `Der Titel nennt „${n}“ nicht, daher wird es nicht mit Angeboten verglichen, die das tun.`,
   ],
   [
+    /^The listing has several variations at their own prices; this price is for one of them, maybe not the one searched for, so it isn't compared\.$/,
+    () => "Das Angebot hat mehrere Varianten mit eigenen Preisen; dieser Preis gilt für eine davon, vielleicht nicht die gesuchte, daher wird er nicht verglichen.",
+  ],
+  [
     /^Listed under "(.+)", not "(.+)" like most results, so its price isn't compared\.$/,
     (a, b) => `Unter „${a}“ gelistet, nicht unter „${b}“ wie die meisten Ergebnisse, daher wird der Preis nicht verglichen.`,
   ],
@@ -176,8 +180,8 @@ const RULES: Rule[] = [
   ],
   [/^Seller account is (\d+) (days?|months?|years?) old\.$/, (n, u) => `Das Verkäuferkonto ist ${age(n, u)} alt.`],
   [
-    /^Seller has (\d+) ratings(?: \((\d+(?:\.\d+)?)% positive\))? on (.+); account age isn't published, so it wasn't checked\.$/,
-    (n, pct, m) => `Der Verkäufer hat ${n} Bewertungen${pct ? ` (${pct} % positiv)` : ""} auf ${market(m)}; das Kontoalter ist nicht veröffentlicht und wurde daher nicht geprüft.`,
+    /^Seller has (\d+) ratings?(?: \((\d+(?:\.\d+)?)% positive\))? on (.+); account age isn't published, so it wasn't checked\.$/,
+    (n, pct, m) => `Der Verkäufer hat ${n} ${n === "1" ? "Bewertung" : "Bewertungen"}${pct ? ` (${pct} % positiv)` : ""} auf ${market(m)}; das Kontoalter ist nicht veröffentlicht und wurde daher nicht geprüft.`,
   ],
   [/^Seller history not checked: (.+) doesn't publish it\.$/, (m) => `Verkäuferhistorie nicht geprüft: ${market(m)} veröffentlicht sie nicht.`],
   [/^No upheld fake-product reports against this seller\.$/, () => "Keine bestätigten Fälschungsmeldungen gegen diesen Verkäufer."],

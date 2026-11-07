@@ -1391,3 +1391,30 @@ test("with an eBay Partner Network campaign, eBay links are eBay's affiliate lin
   assert.equal(ebayCampaignId({ EBAY_CAMPAIGN_ID: "abc" }), null, "not a campaign id: off");
   assert.equal(ebayCampaignId({}), null);
 });
+
+// ---------------------------------------------------------------------------
+// A listing with several variations: shown, never compared
+// ---------------------------------------------------------------------------
+
+test("eBay's one-variation-of-many listing is marked, and never compared or offered as a deal", async () => {
+  const { ebayListing } = await import("../lib/marketplace/sources/ebay");
+  const summary = {
+    itemId: "v1|388466984208|655608459468",
+    title: "Nintendo Switch OLED | V1/V2 | verschiedene Farben | Auswahl",
+    itemWebUrl: "https://www.ebay.de/itm/388466984208",
+    price: { value: "144.95", currency: "EUR" },
+    conditionId: "2500",
+    seller: { username: "shop" },
+  };
+  assert.strictEqual(ebayListing({ ...summary, itemGroupType: "SELLER_DEFINED_VARIATIONS" }, null)?.variations, true);
+  assert.strictEqual(ebayListing(summary, null)?.variations, undefined, "a plain listing isn't marked");
+
+  // The price is a grey Switch V1's, under a "Switch OLED" title: 23 % "below" the OLED market.
+  const market = honest(7, 18800).map((l) => ({ ...l, title: "Nintendo Switch OLED" }));
+  const pick = listing({ id: "var", title: summary.title, price: { amount: 14495, currency: "EUR" }, seller: { handle: "shop" }, variations: true });
+  const a = analyse([ok([...market, pick])], { query: "Nintendo Switch OLED" });
+  assert.strictEqual(a.comparisons[listingKey(pick)], undefined, "not compared");
+  assert.match(a.notCompared[listingKey(pick)], /several variations/, "and the shopper is told why");
+  assert.ok(!a.flags.some((f) => f.listingId === pick.id), "no underpriced flag either");
+  assert.strictEqual(a.median, 18800, "and not in the typical price");
+});

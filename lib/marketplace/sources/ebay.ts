@@ -126,6 +126,9 @@ interface EbayItemSummary {
   /** A single item (get_item) gives its leaf category as an id and a path ("Konsolen & Spiele|Konsolen"). */
   categoryId?: string;
   categoryPath?: string;
+  /** Set on one variation of a listing with several (SELLER_DEFINED_VARIATIONS): its price is that variation's. */
+  itemGroupType?: string;
+  itemGroupHref?: string;
 }
 
 /** What a listing page asked about came to (listingByItemNumber). */
@@ -151,6 +154,9 @@ export function ebayListing(it: EbayItemSummary, campaign: string | null): Listi
     title: it.title ?? "(untitled)",
     url: affiliateUrl ?? it.itemWebUrl,
     ...(affiliateUrl ? { affiliate: true } : {}),
+    // A search shows one variation's price under the whole listing's title: the 144,95 € "Switch OLED"
+    // was a grey Switch V1, the cheapest of thirty versions.
+    ...(it.itemGroupType || it.itemGroupHref ? { variations: true } : {}),
     price,
     shipping: money(it.shippingOptions?.[0]?.shippingCost),
     condition: mapCondition(it.condition, it.conditionId),

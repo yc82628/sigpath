@@ -166,3 +166,17 @@ test("the used-from-title note reads in German", () => {
     "Im Titel steht „zustand gut“, daher gilt es als gebraucht, egal welcher Zustand im Angebot steht.",
   );
 });
+
+test("one rating is one Bewertung, and a variation listing's note reads in German", () => {
+  assert.strictEqual(MESSAGES.de.listing.ratingsUnverified(1), "1 Bewertung, ungeprüft");
+  assert.strictEqual(MESSAGES.de.listing.ratingsUnverified(36310), "36310 Bewertungen, ungeprüft");
+  assert.strictEqual(MESSAGES.en.listing.ratingsUnverified(1), "1 rating, unverified");
+  assert.strictEqual(
+    translateCheck("Seller has 1 rating (100% positive) on eBay; account age isn't published, so it wasn't checked.", "de"),
+    "Der Verkäufer hat 1 Bewertung (100 % positiv) auf eBay; das Kontoalter ist nicht veröffentlicht und wurde daher nicht geprüft.",
+  );
+  assert.match(
+    translateCheck("The listing has several variations at their own prices; this price is for one of them, maybe not the one searched for, so it isn't compared.", "de"),
+    /^Das Angebot hat mehrere Varianten/,
+  );
+});
