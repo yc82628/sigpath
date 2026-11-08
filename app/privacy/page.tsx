@@ -82,7 +82,7 @@ function PrivacyEn() {
         <li>
           <PopIcon name="prohibit" tone="blue" size={28} />
           <strong>No tracking</strong>
-          <span>No ad or tracking cookies.{counter ? " Visits counted as totals." : ""}</span>
+          <span>No ad or tracking cookies.{counter ? " Visits and use counted as totals." : " Use counted as totals."}</span>
         </li>
         <li>
           <PopIcon name="magnifying-glass" tone="green" size={28} />
@@ -175,8 +175,9 @@ function PrivacyEn() {
           there were, how many good deals and warnings the extension showed, and how many times a search result was
           opened. Only a number goes up. Nothing is kept with it: no search words, product, price, page address, IP
           address, cookie or identifier, so no total can be traced to anyone. A click on a search result sends only
-          &ldquo;a click happened&rdquo;, limited per connection like every other request (see above). Crawlers aren&apos;t
-          counted. Each day&apos;s totals are kept for 400 days, and anyone can see them at <a href="/stats">/stats</a>.
+          &ldquo;a click happened&rdquo;. Crawlers aren&apos;t counted. Each day&apos;s totals are kept for 400 days, and
+          anyone can see them at <a href="/stats">/stats</a>. The totals aren&apos;t personal data; the request itself and its
+          limit per connection fall under &ldquo;Visiting the site&rdquo; above (legal basis: Art. 6(1)(f) GDPR).
         </p>
       </Part>
 

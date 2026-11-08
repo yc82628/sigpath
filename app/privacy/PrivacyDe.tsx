@@ -59,7 +59,6 @@ export default function PrivacyDe() {
   return (
     <main className="container legal">
       <h1>Datenschutzerklärung</h1>
-      <p className="hint">Privacy policy</p>
 
       <p className="lede">Die Kurzfassung in Bildern. Tippe unten auf ein Thema für alle Einzelheiten.</p>
       <ul className="privacy-glance">
@@ -71,7 +70,7 @@ export default function PrivacyDe() {
         <li>
           <PopIcon name="prohibit" tone="blue" size={28} />
           <strong>Kein Tracking</strong>
-          <span>Keine Werbe- oder Tracking-Cookies.{counter ? " Besuche nur als Summen gezählt." : ""}</span>
+          <span>Keine Werbe- oder Tracking-Cookies.{counter ? " Besuche und Nutzung nur als Summen gezählt." : " Nutzung nur als Summen gezählt."}</span>
         </li>
         <li>
           <PopIcon name="magnifying-glass" tone="green" size={28} />
@@ -160,15 +159,17 @@ export default function PrivacyDe() {
         </>
       )}
 
-      <Part title="Nutzung zählen" id="stats">
+      <Part title="Zählung der Nutzung" id="stats">
         <p>
           Um zu zeigen, wie viel SigPath genutzt wird, führt es Tagessummen: wie viele Suchen, Preisprüfungen und
           Prüfungen der Erweiterung es gab, wie viele gute Angebote und Warnungen die Erweiterung gezeigt hat und wie oft
           ein Suchergebnis geöffnet wurde. Es wird nur eine Zahl erhöht. Nichts wird dazu gespeichert: keine Suchbegriffe,
           kein Produkt, kein Preis, keine Seitenadresse, keine IP-Adresse, kein Cookie und keine Kennung, daher lässt sich
-          keine Summe einer Person zuordnen. Ein Klick auf ein Suchergebnis sendet nur &bdquo;ein Klick&ldquo; und ist wie
-          jede andere Anfrage pro Verbindung begrenzt (siehe oben). Crawler werden nicht gezählt. Die Summen eines Tages
-          werden 400 Tage aufbewahrt, und jeder kann sie unter <a href="/stats">/stats</a> sehen.
+          keine Summe einer Person zuordnen. Ein Klick auf ein Suchergebnis sendet nur &bdquo;ein Klick ist erfolgt&ldquo;.
+          Crawler werden nicht gezählt. Die Summen eines Tages werden 400 Tage aufbewahrt, und jeder kann sie unter{" "}
+          <a href="/stats">/stats</a> sehen. Die Summen sind keine personenbezogenen Daten; die Anfrage selbst und ihre
+          Begrenzung pro Verbindung fallen unter &bdquo;Besuch der Website&ldquo; oben (Rechtsgrundlage: Art. 6 Abs. 1 lit. f
+          DSGVO).
         </p>
       </Part>
 
