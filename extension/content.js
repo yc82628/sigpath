@@ -269,7 +269,7 @@
     if (r.typical && !r.deal) {
       const d = r.typical.diffPct;
       const rel = d === 0 ? T.same : `${T.pct(Math.abs(d))} ${d < 0 ? T.below : T.above}`;
-      html += `<p><strong>${T.typical}:</strong> ${esc(r.typical.price)} <span class="muted">(${r.typical.listings} ${T.listings}) · ${esc(r.price)} = ${esc(rel)}</span></p>`;
+      html += `<p><strong>${T.typical}:</strong> ${esc(r.typical.price)} <span class="muted">(${esc(r.typical.listings)} ${T.listings}) · ${esc(r.price)} = ${esc(rel)}</span></p>`;
     } else if (!r.typical && !r.ebayOk) {
       html += `<p class="muted">${T.ebayDown}</p>`;
     }
