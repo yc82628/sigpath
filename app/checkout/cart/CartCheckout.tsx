@@ -47,7 +47,7 @@ function itemFromToken(token: string): CartItem | null {
   };
 }
 
-export default function CartCheckout({ max, moonPay }: { max: number; moonPay: boolean }) {
+export default function CartCheckout({ max, moonPay, escrowInfo }: { max: number; moonPay: boolean; escrowInfo?: React.ReactNode }) {
   const m = useMessages();
   const lang = useLang();
   const tc = useCheckText();
@@ -206,6 +206,7 @@ export default function CartCheckout({ max, moonPay }: { max: number; moonPay: b
           usdcDisplay={usdc(invoice.totalUsdc, lang)}
           totalUsdc={invoice.totalUsdc}
           moonPay={moonPay}
+          escrowInfo={escrowInfo}
           onRefresh={refresh}
           onPaid={(orders, confirmed, wallet) => {
             // Paid items leave the cart; their order pages, and this invoice, are the record now.

@@ -64,6 +64,7 @@ export default function CheckoutForm({
   quotes,
   onPaid,
   onRefresh,
+  escrowInfo,
   usdcDisplay,
   totalUsdc,
   localDisplay,
@@ -77,6 +78,8 @@ export default function CheckoutForm({
   onPaid?: (orders: { order: string; source: string; id: string }[], confirmed: boolean, wallet?: string) => void;
   /** For the cart: fetch current prices for every item; resolves to a reason if it couldn't. */
   onRefresh?: () => Promise<string | null>;
+  /** "What happens to your money": about the escrow, so shown only once a way that pays into it is chosen. */
+  escrowInfo?: React.ReactNode;
   usdcDisplay: string;
   /** The total in USDC base units (the invoice's), to compare with the wallet's balance before Pay. */
   totalUsdc?: string;
@@ -343,7 +346,8 @@ export default function CheckoutForm({
             {ebayLinks.map((l) => (
               <li key={l.url}>
                 {ebayLinks.length > 1 && <span>{l.title}</span>}
-                <a className="button primary" href={l.url} target="_blank" rel="sponsored noopener noreferrer">
+                {/* "sponsored" only when eBay's link carries SigPath's partner code (the EPN campaign). */}
+                <a className="button primary" href={l.url} target="_blank" rel={/[?&](campid|mkcid)=/.test(l.url) ? "sponsored noopener noreferrer" : "noopener noreferrer"}>
                   {m.checkout.openOn("eBay")}
                 </a>
               </li>
@@ -354,6 +358,7 @@ export default function CheckoutForm({
 
       {method && method !== "ebay" && (
         <>
+          {escrowInfo}
           <fieldset disabled={busy}>
             <legend>{m.checkout.address}</legend>
             {FIELDS.map((f) => (

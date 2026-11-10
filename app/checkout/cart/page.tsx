@@ -38,16 +38,22 @@ export default function CartCheckoutPage() {
     <main className="container checkout-page">
       <h1>{m.checkout.title}</h1>
       <p className="lede">{m.checkout.lede}</p>
-      <CartCheckout max={MAX_CART_ORDERS} moonPay={moonPayAvailable() !== null} />
-      <section className="guarantees">
-        <h2>{m.checkout.moneyTitle}</h2>
-        <ul>
-          <li>{m.checkout.money1}</li>
-          <li>{m.checkout.money2(days(checkoutWindowSecs()))}</li>
-          <li>{m.checkout.money3}</li>
-        </ul>
-        <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
-      </section>
+      <CartCheckout
+        max={MAX_CART_ORDERS}
+        moonPay={moonPayAvailable() !== null}
+        // About the escrow: shown once the shopper picks a way that pays into it, not for eBay.
+        escrowInfo={
+          <section className="guarantees">
+            <h2>{m.checkout.moneyTitle}</h2>
+            <ul>
+              <li>{m.checkout.money1}</li>
+              <li>{m.checkout.money2(days(checkoutWindowSecs()))}</li>
+              <li>{m.checkout.money3}</li>
+            </ul>
+            <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
+          </section>
+        }
+      />
     </main>
   );
 }

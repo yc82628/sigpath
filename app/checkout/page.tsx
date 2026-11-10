@@ -57,7 +57,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
 
   return (
     <main className="container checkout-page">
-      <h1>{m.listing.pay}</h1>
+      <h1>{m.checkout.title}</h1>
 
       {!invoice.ok ? (
         <p className="notice withheld">{translateCheck(invoice.error, lang)}</p>
@@ -65,17 +65,24 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
         <>
           <Invoice data={invoice} />
 
-          <section className="guarantees">
-            <h2>{m.checkout.moneyTitle}</h2>
-            <ul>
-              <li>{m.checkout.money1}</li>
-              <li>{m.checkout.money2(days(checkoutWindowSecs()))}</li>
-              <li>{m.checkout.money3}</li>
-            </ul>
-            <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
-          </section>
-
-          <CheckoutForm quote={token} usdcDisplay={usdc(invoice.totalUsdc, lang)} totalUsdc={invoice.totalUsdc} moonPay={moonPayAvailable() !== null} />
+          <CheckoutForm
+            quote={token}
+            usdcDisplay={usdc(invoice.totalUsdc, lang)}
+            totalUsdc={invoice.totalUsdc}
+            moonPay={moonPayAvailable() !== null}
+            // About the escrow: the form shows it once the shopper picks a way that pays into it, not for eBay.
+            escrowInfo={
+              <section className="guarantees">
+                <h2>{m.checkout.moneyTitle}</h2>
+                <ul>
+                  <li>{m.checkout.money1}</li>
+                  <li>{m.checkout.money2(days(checkoutWindowSecs()))}</li>
+                  <li>{m.checkout.money3}</li>
+                </ul>
+                <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
+              </section>
+            }
+          />
         </>
       )}
     </main>
