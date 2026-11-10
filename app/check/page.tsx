@@ -1,12 +1,13 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { headers } from "next/headers";
-import { checkPrice, parsePrice, SHOPS } from "@/lib/marketplace/price-check";
+import { checkPrice, parsePrice, SHOPS, type Market } from "@/lib/marketplace/price-check";
 import { type Money } from "@/lib/marketplace/types";
 import { moneyText } from "@/lib/i18n/money";
 import { limitedMessage, RULES } from "@/lib/guard/limit";
 import PopIcon from "../components/PopIcon";
 import { getLang } from "@/lib/i18n/server";
-import { MESSAGES } from "@/lib/i18n/messages";
+import { MESSAGES, type Messages } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
 import { count } from "@/lib/stats/counter";
 
@@ -15,6 +16,11 @@ import { count } from "@/lib/stats/counter";
  * against live eBay listings of the same product. See
  * lib/marketplace/price-check.ts. The shopper brings the title and price, typed
  * in or read from the page they're on by the "SigPath check" bookmark below.
+ *
+ * The answer reads top to bottom, plainest first: one word and one sentence
+ * anyone can follow ("Good price: that's 27 € less than it usually costs"),
+ * then a ruler showing where the price sits, the warnings, cheaper checked
+ * offers, and last, folded away, the numbers behind it for sellers and shops.
  */
 
 export const metadata = { title: "Check a price — SigPath" };
@@ -26,13 +32,28 @@ function bookmarklet(origin: string): string {
   return "javascript:" + encodeURIComponent(code);
 }
 
-const pct = (a: number, b: number) => Math.round((Math.abs(a - b) / b) * 100);
+type Result = NonNullable<Awaited<ReturnType<typeof checkPrice>>>;
+
+/**
+ * The answer in one word. A deal label only for a price SigPath checked (as on
+ * the search page); a warning always wins; no comparison, no label.
+ */
+type Tone = "good" | "fair" | "high" | "caution" | "ok" | "unknown";
+function toneOf(r: Result): Tone {
+  const verdict = r.product.check.verdict;
+  if (verdict === "caution") return "caution";
+  if (verdict === "checked") return r.deal ? r.deal.tone : "ok";
+  return "unknown";
+}
+
+const GLYPH: Record<Tone, string> = { good: "✓", fair: "=", high: "↑", caution: "!", ok: "✓", unknown: "?" };
 
 export default async function CheckPage({ searchParams }: { searchParams: { title?: string; price?: string; from?: string; url?: string } }) {
   const h = headers();
   const lang = getLang();
   const m = MESSAGES[lang];
-  const tc = (t: string) => translateCheck(t, lang);
+  const t = m.check;
+  const tc = (s: string) => translateCheck(s, lang);
   const money = (x: Money) => moneyText(x, lang);
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
   const title = (searchParams.title ?? "").trim().slice(0, 300);
@@ -45,107 +66,345 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   const tooMany = title && price && (await limitedMessage(h, RULES.search)) ? m.search.tooMany : null;
   const result = title && price && !tooMany ? await checkPrice({ title, price, from, url }) : null;
   if (result) await count(["check"], { userAgent: h.get("user-agent") });
+  const example = `/check?${new URLSearchParams({ title: "Sony WH-1000XM5", price: "279,00 €", from: "amazon" })}`;
 
   return (
-    <main className="container">
-      <h1>{m.check.title}</h1>
-      <p className="lede">{m.check.lede}</p>
+    <main className="container check-page">
+      <h1>{t.title}</h1>
+      <p className="lede">{t.lede}</p>
 
       {asked && !result && (
         <p className="notice withheld">
-          {tooMany ?? (!title ? m.check.addName : m.check.badPrice(priceText))}
+          {tooMany ?? (!title ? t.addName : t.badPrice(priceText))}
         </p>
       )}
 
-      {result && (
-        <section className="price-check" aria-live="polite">
-          <h2>
-            {m.check.shopNames[result.shop] ?? result.shop}: {result.product.title}
-          </h2>
-          <p className="deal-price">{money(result.product.price)}</p>
-          <div className={`check-label ${result.product.check.verdict}`}>
-            <span className="check-head">
-              {result.product.check.verdict === "checked" ? "✓ " : result.product.check.verdict === "caution" ? "! " : ""}
-              {tc(result.product.check.headline)}
-            </span>
-            <ul>
-              {result.product.check.points.map((p, i) => (
-                <li key={i} className={p.tone}>
-                  {tc(p.text)}
-                </li>
-              ))}
-            </ul>
-          </div>
-          {result.comparison && (
-            <p>
-              {m.check.median(result.comparison.sampleSize)}{" "}
-              <strong>{money({ amount: result.comparison.median, currency: result.product.price.currency })}</strong>
-              {result.product.price.amount === result.comparison.median
-                ? m.check.exactly
-                : m.check.diff(pct(result.product.price.amount, result.comparison.median), result.product.price.amount < result.comparison.median)}
-            </p>
-          )}
-          {result.ebay.status !== "ok" && <p className="notice withheld">{m.check.ebayDown}</p>}
-          {result.bestEbay.length > 0 && (
-            <>
-              <h3>{m.check.best(result.bestEbay.length)}</h3>
-              <ul>
-                {result.bestEbay.map((d) => (
-                  <li key={d.listing.id}>
-                    <a href={d.listing.url} target="_blank" rel={d.listing.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}>
-                      {d.listing.title}
-                    </a>{" "}
-                    — {money(d.total)} ({d.group === "used" ? m.search.usedWord : m.search.newWord})
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+      {result && <Answer r={result} t={t} tc={tc} money={money} />}
+
+      <form className="supplier-form check-form" action="/check" method="get">
+        {result && <h2>{t.again}</h2>}
+        <label>
+          <span>
+            {t.name} <span className="hint">({t.nameHint})</span>
+          </span>
+          <input name="title" defaultValue={title} placeholder="Apple AirPods Pro 2" required />
+        </label>
+        <div className="check-form-row">
+          <label>
+            {t.price}
+            <input name="price" defaultValue={priceText} placeholder="249,00 €" required inputMode="decimal" />
+          </label>
+          <label>
+            {t.shop}
+            <select name="from" defaultValue={from}>
+              <option value="amazon">Amazon</option>
+              <option value="aliexpress">AliExpress</option>
+              <option value="other">{t.another}</option>
+            </select>
+          </label>
+        </div>
+        {url && <input type="hidden" name="url" value={url} />}
+        <button type="submit" className="primary">
+          {t.button}
+        </button>
+        {!result && (
           <p className="hint">
-            {m.check.searched(result.query, result.ebay.count)}{" "}
-            <Link href={`/search?q=${encodeURIComponent(result.query)}`}>{m.check.seeAll}</Link>
+            {t.example} <Link href={example}>{t.exampleLink}</Link>
           </p>
+        )}
+      </form>
+
+      <section className="guarantees check-faster">
+        <h2 className="with-icon">
+          <PopIcon name="storefront" tone="green" size={24} />
+          {t.faster}
+        </h2>
+        <p>
+          {t.extension} <Link href="/extension">{t.extensionLink}</Link>
+        </p>
+        <details>
+          <summary>{t.bookmark}</summary>
+          <p>
+            {t.drag}{" "}
+            <span
+              dangerouslySetInnerHTML={{
+                __html: `<a class="button" href="${bookmarklet(origin).replace(/"/g, "&quot;")}" title="${t.dragTitle}">SigPath check</a>`,
+              }}
+            />
+          </p>
+          <p className="hint">{t.thenClick}</p>
+        </details>
+      </section>
+    </main>
+  );
+}
+
+type T = Messages["check"];
+
+function Answer({ r, t, tc, money }: { r: Result; t: T; tc: (s: string) => string; money: (x: Money) => string }) {
+  const tone = toneOf(r);
+  const cur = r.product.price.currency;
+  const at = (amount: number) => money({ amount, currency: cur });
+  const price = r.product.price.amount;
+  // The usual price: the market's (same condition) when there is one, else the whole comparison's median.
+  const typical = r.market?.typical ?? r.comparison?.median ?? null;
+  const gap = typical === null ? 0 : price - typical;
+  const points = r.product.check.points;
+  const warns = points.filter((p) => p.tone === "warn");
+  const goods = points.filter((p) => p.tone === "good");
+
+  const say =
+    tone === "good"
+      ? t.say.good(at(Math.abs(gap)))
+      : tone === "high"
+        ? t.say.high(at(Math.abs(gap)))
+        : tone === "fair"
+          ? gap === 0
+            ? t.say.exact
+            : t.say.fair(at(Math.abs(gap)), gap < 0)
+          : tone === "caution"
+            ? t.say.caution
+            : tone === "ok"
+              ? typical !== null
+                ? t.say.okTypical(at(typical))
+                : t.say.ok
+              : // Not compared: the reason as the check gives it ("There weren't enough new listings…").
+                points[0]?.tone === "info"
+                ? tc(points[0].text)
+                : t.say.unknown;
+
+  const cheaper = r.bestEbay.filter((d) => d.total.amount < price);
+
+  return (
+    <div className="check-answer" aria-live="polite">
+      <section className={`answer-card ${tone}`}>
+        <p className="answer-found">
+          {t.found(t.shopNames[r.shop] ?? r.shop)}
+        </p>
+        <h2 className="answer-product">{r.product.title}</h2>
+        <div className="answer-main">
+          <span className="answer-glyph" aria-hidden="true">
+            {GLYPH[tone]}
+          </span>
+          <div className="answer-words">
+            <p className="answer-verdict">{t.verdict[tone]}</p>
+            <p className="answer-say">{say}</p>
+          </div>
+          <p className="answer-price">
+            {money(r.product.price)}
+            {r.deal && <span className={`deal-chip ${r.deal.tone}`}>{t.pct(r.deal.pct)}</span>}
+          </p>
+        </div>
+      </section>
+
+      {r.ebay.status !== "ok" && <p className="notice withheld">{t.ebayDown}</p>}
+
+      {r.market && <PriceRuler market={r.market} price={price} tone={tone} t={t} at={at} />}
+
+      {(warns.length > 0 || goods.length > 0 || tone === "ok" || tone === "good" || tone === "fair" || tone === "high") && (
+        <section className="answer-box">
+          <h3>{t.why}</h3>
+          <ul className="answer-checks">
+            {warns.map((p, i) => (
+              <li key={`w${i}`} className="warn">
+                {tc(p.text)}
+              </li>
+            ))}
+            {goods.map((p, i) => (
+              <li key={`g${i}`} className="good">
+                {tc(p.text)}
+              </li>
+            ))}
+            {!warns.length && !goods.length && <li className="good">{t.allFine}</li>}
+          </ul>
         </section>
       )}
 
-      <form className="supplier-form" action="/check" method="get">
-        <label>
-          {m.check.name}
-          <input name="title" defaultValue={title} placeholder="Apple AirPods Pro 2" required />
-        </label>
-        <label>
-          {m.check.price}
-          <input name="price" defaultValue={priceText} placeholder="249,00 €" required />
-        </label>
-        <label>
-          {m.check.shop}
-          <select name="from" defaultValue={from}>
-            <option value="amazon">Amazon</option>
-            <option value="aliexpress">AliExpress</option>
-            <option value="other">{m.check.another}</option>
-          </select>
-        </label>
-        {url && <input type="hidden" name="url" value={url} />}
-        <button type="submit" className="primary">
-          {m.check.button}
-        </button>
-      </form>
+      {r.bestEbay.length > 0 && (
+        <section className="answer-box">
+          <h3>{t.better(cheaper.length > 0)}</h3>
+          <div className="offers">
+            {r.bestEbay.map((d) => (
+              <article key={d.listing.id} className="offer">
+                <div className="thumb" aria-hidden="true">
+                  {d.listing.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={d.listing.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                  ) : (
+                    "e"
+                  )}
+                </div>
+                <div className="offer-body">
+                  <p className="offer-price">
+                    {money(d.total)} <span className="chip">{t.basis[d.group] ?? d.group}</span>
+                    {d.total.amount < price && <span className="deal-chip good">{t.less(at(price - d.total.amount))}</span>}
+                  </p>
+                  <p className="offer-title">{d.listing.title}</p>
+                  <a
+                    className="button ghost offer-go"
+                    href={d.listing.url}
+                    target="_blank"
+                    rel={d.listing.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}
+                  >
+                    {t.onEbay}
+                  </a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <section className="guarantees">
-        <h2 className="with-icon">
-          <PopIcon name="bookmark-simple" tone="green" size={24} />
-          {m.check.oneClick}
-        </h2>
-        <p>
-          {m.check.drag}{" "}
-          <span
-            dangerouslySetInnerHTML={{
-              __html: `<a class="button" href="${bookmarklet(origin).replace(/"/g, "&quot;")}" title="${m.check.dragTitle}">SigPath check</a>`,
-            }}
-          />
-        </p>
-        <p>{m.check.thenClick}</p>
-      </section>
-    </main>
+      {r.elsewhere && (
+        <section className="answer-box">
+          <h3>{t.alsoOn}</h3>
+          <article className="offer">
+            <div className="thumb" aria-hidden="true">
+              {r.elsewhere.listing.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={r.elsewhere.listing.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+              ) : (
+                "A"
+              )}
+            </div>
+            <div className="offer-body">
+              <p className="offer-price">{money(r.elsewhere.total)}</p>
+              <p className="offer-title">{r.elsewhere.listing.title}</p>
+              <p className="hint">{t.alsoNote}</p>
+              <a
+                className="button ghost offer-go"
+                href={r.elsewhere.listing.url}
+                target="_blank"
+                rel={r.elsewhere.listing.affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"}
+              >
+                {t.onAli}
+              </a>
+            </div>
+          </article>
+        </section>
+      )}
+
+      <p className="hint">{t.wrong}</p>
+
+      <Numbers r={r} t={t} tc={tc} at={at} typical={typical} gap={gap} />
+    </div>
+  );
+}
+
+/**
+ * Where the price sits: a bar from cheaper to more expensive, the usual range
+ * shaded, the usual price and this price marked. Labels at the ends of the bar
+ * hold to its edges so they never run off a phone screen.
+ */
+function PriceRuler({ market, price, tone, t, at }: { market: Market; price: number; tone: Tone; t: T; at: (n: number) => string }) {
+  const lo = Math.min(market.low, price);
+  const hi = Math.max(market.high, price);
+  const span = hi - lo || market.typical * 0.2 || 1;
+  const min = lo - span * 0.15;
+  const max = hi + span * 0.15;
+  const pos = (x: number) => ((x - min) / (max - min)) * 100;
+  const place = (x: number): CSSProperties => {
+    const p = pos(x);
+    return { left: `${p.toFixed(1)}%`, transform: p < 14 ? "none" : p > 86 ? "translateX(-100%)" : "translateX(-50%)" };
+  };
+  return (
+    <section className="answer-box">
+      <h3>{t.ruler.title}</h3>
+      <div className="ruler" role="img" aria-label={t.ruler.aria(at(price), at(market.low), at(market.high))}>
+        <span className={`ruler-label here ${tone}`} style={place(price)}>
+          <b>{t.ruler.here}</b> {at(price)}
+        </span>
+        <div className="ruler-track">
+          <span className="ruler-band" style={{ left: `${pos(market.low)}%`, width: `${pos(market.high) - pos(market.low)}%` }} />
+          <span className="ruler-tick" style={{ left: `${pos(market.typical)}%` }} />
+          <span className={`ruler-dot ${tone}`} style={{ left: `${pos(price)}%` }} />
+        </div>
+        <span className="ruler-label usual" style={place(market.typical)}>
+          <b>{t.ruler.usual}</b> {at(market.typical)}
+        </span>
+      </div>
+      <p className="ruler-ends" aria-hidden="true">
+        <span>← {t.ruler.cheaper}</span>
+        <span>{t.ruler.dearer} →</span>
+      </p>
+      <p className="hint">
+        {t.ruler.most(at(market.low), at(market.high))} {t.ruler.based(market.count, t.basis[market.basis] ?? market.basis)}
+      </p>
+    </section>
+  );
+}
+
+/** The numbers behind the answer, folded away: what a seller or shop needs to see how the price was judged. */
+function Numbers({
+  r,
+  t,
+  tc,
+  at,
+  typical,
+  gap,
+}: {
+  r: Result;
+  t: T;
+  tc: (s: string) => string;
+  at: (n: number) => string;
+  typical: number | null;
+  gap: number;
+}) {
+  const n = t.numbers;
+  const pct = typical ? Math.round((gap / typical) * 100) : null;
+  return (
+    <details className="answer-numbers">
+      <summary>{n.title}</summary>
+      <dl>
+        {(r.market || r.comparison) && (
+          <>
+            <dt>{n.compared}</dt>
+            <dd>{r.market ? n.comparedMarket(r.market.count, t.basis[r.market.basis] ?? r.market.basis) : n.comparedAll(r.comparison!.sampleSize)}</dd>
+          </>
+        )}
+        {typical !== null && (
+          <>
+            <dt>{n.typical}</dt>
+            <dd>{at(typical)}</dd>
+          </>
+        )}
+        {r.market && (
+          <>
+            <dt>{n.range}</dt>
+            <dd>
+              {at(r.market.low)} – {at(r.market.high)} <span className="hint">({n.rangeNote(r.market.count)})</span>
+            </dd>
+          </>
+        )}
+        {pct !== null && (
+          <>
+            <dt>{n.gap}</dt>
+            <dd>
+              {t.pct(r.deal?.pct ?? pct)} ({gap > 0 ? "+" : gap < 0 ? "−" : "±"}
+              {at(Math.abs(gap))})
+            </dd>
+          </>
+        )}
+        <dt>{n.rule}</dt>
+        <dd>{n.ruleText}</dd>
+        <dt>{n.search}</dt>
+        <dd>
+          {n.searchValue(r.query, r.ebay.count)} · <Link href={`/search?q=${encodeURIComponent(r.query)}`}>{n.seeAll}</Link>
+        </dd>
+        <dt>{n.notes}</dt>
+        <dd>
+          <ul className="answer-checks small">
+            {r.product.check.points.map((p, i) => (
+              <li key={i} className={p.tone}>
+                {tc(p.text)}
+              </li>
+            ))}
+          </ul>
+        </dd>
+      </dl>
+      <p>
+        <Link href="/how">{n.how}</Link>
+      </p>
+    </details>
   );
 }
