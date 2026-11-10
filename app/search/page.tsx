@@ -29,7 +29,19 @@ import { getLang } from "@/lib/i18n/server";
 import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck, translateWhere } from "@/lib/i18n/checks";
 import { MARKETPLACES } from "@/lib/marketplace/registry";
-import { applyFilters, filterHref, isFiltered, parseFilters, type Filters } from "@/lib/marketplace/filters";
+import {
+  activeCount,
+  applyFilters,
+  facets,
+  filterHref,
+  isFiltered,
+  NO_FILTERS,
+  parseFilters,
+  type Facets,
+  type FacetOption,
+  type Filters,
+} from "@/lib/marketplace/filters";
+import AutoSubmit from "../components/AutoSubmit";
 import { dealScore, dealTone, marketSnapshot, newMedianHasRefurbished, suggestNarrower, type MarketGroup } from "@/lib/marketplace/market";
 
 const marketLabel = (id: string) =>
@@ -254,7 +266,7 @@ function ListingRow({
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: { q?: string; checked?: string; link?: string; cond?: string; market?: string; min?: string; max?: string; products?: string; sort?: string };
+  searchParams: Record<string, string | undefined>;
 }) {
   // A pasted product link: search for the product named in it (lib/marketplace/link-query.ts). The shop's page is
   // never fetched. A link with no name in it is said so, rather than searched for as text.
@@ -285,7 +297,7 @@ export default async function SearchPage({
   if (q && !tooMany && !isFiltered(filters)) await count(["search"], { userAgent: headers().get("user-agent") });
 
   return (
-    <main className="container wide">
+    <main className="container wide search-page">
       <h1>{m.search.title}</h1>
       <p className="lede">{m.search.lede}</p>
 
@@ -437,66 +449,210 @@ function MarketOverview({ groups, currency, query }: { groups: MarketGroup[]; cu
   );
 }
 
+/** "iPhone 15 Pro Max": the search's own words, then the model's, as people write them. */
+function modelName(q: string, key: string): string {
+  if (key === "base") return q;
+  const word = (w: string) => (["se", "fe", "xl", "oled"].includes(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1));
+  return `${q} ${key.split("-").map(word).join(" ")}`;
+}
+
 /**
- * Filters and sort, as a plain GET form: the choices land in the address, so
+ * The filters, in a column beside the results (a drawer behind a "Filter"
+ * button on a phone), as a plain GET form: the choices land in the address, so
  * they can be shared and work without JavaScript (lib/marketplace/filters.ts).
+ * Every choice says how many listings it would show.
  */
-function FilterBar({ q, filters, markets }: { q: string; filters: Filters; markets: string[] }) {
+function FilterSidebar({ q, filters, fc }: { q: string; filters: Filters; fc: Facets }) {
   const { m } = i18n();
   const f = m.search.filters;
+  const active = activeCount(filters);
   const eur = (cents: number | null) => (cents === null ? "" : String(cents / 100));
-  return (
-    <form className="filter-bar" method="GET" action="/search" aria-label={f.title}>
-      <input type="hidden" name="q" value={q} />
-      <label>
-        <span>{f.condition}</span>
-        <select name="cond" aria-label={f.condition} defaultValue={filters.condition}>
-          <option value="any">{f.any}</option>
-          <option value="new">{f.new}</option>
-          <option value="refurbished">{f.refurbished}</option>
-          <option value="used">{f.used}</option>
-        </select>
+  const radios = <V extends string | number>(
+    name: string,
+    legend: string,
+    current: V | null,
+    options: FacetOption<V>[],
+    label: (v: V) => string,
+    anyCount?: number,
+  ) => (
+    <fieldset className="facet-group">
+      <legend>{legend}</legend>
+      <label className="facet">
+        <input type="radio" name={name} value="" defaultChecked={current === null} />
+        <span>{f.any}</span>
+        {anyCount !== undefined && <span className="facet-n">{anyCount}</span>}
       </label>
-      {markets.length > 1 && (
-        <label>
-          <span>{f.market}</span>
-          <select name="market" aria-label={f.market} defaultValue={filters.market ?? ""}>
-            <option value="">{f.allMarkets}</option>
-            {markets.map((id) => (
-              <option key={id} value={id}>
-                {marketLabel(id)}
-              </option>
-            ))}
-          </select>
+      {options.map((o) => (
+        <label key={String(o.value)} className="facet">
+          <input type="radio" name={name} value={String(o.value)} defaultChecked={current === o.value} />
+          <span>{label(o.value)}</span>
+          <span className="facet-n">{o.count}</span>
         </label>
+      ))}
+    </fieldset>
+  );
+  return (
+    <aside className="search-side">
+      {/* The phone's drawer: a checkbox the button toggles, so it opens without JavaScript. */}
+      <input type="checkbox" id="filter-open" className="filter-open" />
+      <label htmlFor="filter-open" className="filter-toggle">
+        <span aria-hidden="true">☰</span> {f.toggle}
+        {active > 0 && <span className="filter-count">{active}</span>}
+      </label>
+      <form className="filter-side" method="GET" action="/search" aria-label={f.title}>
+        <AutoSubmit />
+        <input type="hidden" name="q" value={q} />
+        {filters.model && <input type="hidden" name="model" value={filters.model} />}
+        {filters.sort !== "best" && <input type="hidden" name="sort" value={filters.sort} />}
+
+        <fieldset className="facet-group">
+          <legend>{f.condition}</legend>
+          {(["any", "new", "refurbished", "used"] as const)
+            .filter((c) => c === "any" || fc.condition[c] > 0 || filters.condition === c)
+            .map((c) => (
+              <label key={c} className="facet">
+                <input type="radio" name="cond" value={c} defaultChecked={filters.condition === c} />
+                <span>{f[c]}</span>
+                <span className="facet-n">{fc.condition[c]}</span>
+              </label>
+            ))}
+        </fieldset>
+
+        {(fc.market.length > 1 || filters.market) &&
+          radios("market", f.market, filters.market, fc.market, marketLabel, fc.market.reduce((n, o) => n + o.count, 0))}
+
+        <fieldset className="facet-group facet-price">
+          <legend>{f.price}</legend>
+          <div>
+            <input name="min" inputMode="decimal" placeholder={f.min} aria-label={`${f.price} ${f.min}`} defaultValue={eur(filters.min)} />
+            <span aria-hidden="true">–</span>
+            <input name="max" inputMode="decimal" placeholder={f.max} aria-label={`${f.price} ${f.max}`} defaultValue={eur(filters.max)} />
+          </div>
+        </fieldset>
+
+        {(fc.storage.length > 0 || filters.storage !== null) && radios("storage", f.storage, filters.storage, fc.storage, f.size)}
+        {(fc.ram.length > 0 || filters.ram !== null) && radios("ram", f.ram, filters.ram, fc.ram, f.size)}
+        {(fc.gen.length > 0 || filters.gen !== null) && radios("gen", f.gen, filters.gen, fc.gen, f.genValue)}
+
+        <fieldset className="facet-group">
+          <legend>{f.show}</legend>
+          <label className="facet">
+            <input type="checkbox" name="checked" value="1" defaultChecked={filters.checkedOnly} />
+            <span>{f.checkedOnly}</span>
+          </label>
+          <label className="facet">
+            <input type="checkbox" name="products" value="1" defaultChecked={filters.productsOnly} />
+            <span>{f.productsOnly}</span>
+          </label>
+          {(fc.freeShipping > 0 || filters.freeShipping) && (
+            <label className="facet">
+              <input type="checkbox" name="ship" value="free" defaultChecked={filters.freeShipping} />
+              <span>{f.freeShipping}</span>
+              <span className="facet-n">{fc.freeShipping}</span>
+            </label>
+          )}
+        </fieldset>
+
+        <div className="filter-actions">
+          <button type="submit" className="primary">
+            {f.showResults}
+          </button>
+          {active > 0 && <a href={filterHref(q, { ...NO_FILTERS, sort: filters.sort })}>{f.clearAll}</a>}
+        </div>
+        <p className="hint filter-note">{f.note}</p>
+      </form>
+    </aside>
+  );
+}
+
+/** The models found, as cards: one click shows only that model's offers (and another click, all again). */
+function ModelCards({ q, filters, fc, currency }: { q: string; filters: Filters; fc: Facets; currency: string }) {
+  const { m } = i18n();
+  const f = m.search.filters;
+  if (!fc.models.length) return null;
+  return (
+    <section className="model-cards" aria-labelledby="models-title">
+      <h2 id="models-title">{f.models}</h2>
+      <ul>
+        {fc.models.map((c) => {
+          const on = filters.model === c.key;
+          return (
+            <li key={c.key}>
+              <a className={`model-card${on ? " on" : ""}`} href={filterHref(q, { ...filters, model: on ? null : c.key })} aria-current={on ? "true" : undefined}>
+                <b>{modelName(q, c.key)}</b>
+                {c.storages.length > 0 && <span className="model-sizes">{c.storages.map(f.size).join(" · ")}</span>}
+                <span className="model-meta">
+                  {f.offers(c.count)} · {c.from && c.from.currency === currency ? f.from(money(c.from)) : f.noneChecked}
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** Above the results: how many, the sort, and each filter in use with an × to take it off. */
+function ResultsBar({ q, filters, shown, total, currency }: { q: string; filters: Filters; shown: number; total: number; currency: string }) {
+  const { m } = i18n();
+  const f = m.search.filters;
+  const at = (cents: number) => money({ amount: cents, currency });
+  const off = (patch: Partial<Filters>) => filterHref(q, { ...filters, ...patch });
+  const chips: { label: string; href: string }[] = [
+    filters.condition !== "any" && { label: f[filters.condition], href: off({ condition: "any" }) },
+    filters.market && { label: marketLabel(filters.market), href: off({ market: null }) },
+    (filters.min !== null || filters.max !== null) && {
+      label: `${filters.min !== null ? at(filters.min) : ""} – ${filters.max !== null ? at(filters.max) : ""}`.trim(),
+      href: off({ min: null, max: null }),
+    },
+    filters.model && { label: modelName(q, filters.model), href: off({ model: null }) },
+    filters.storage !== null && { label: f.size(filters.storage), href: off({ storage: null }) },
+    filters.ram !== null && { label: `${f.size(filters.ram)} RAM`, href: off({ ram: null }) },
+    filters.gen !== null && { label: f.genValue(filters.gen), href: off({ gen: null }) },
+    filters.checkedOnly && { label: f.checkedOnly, href: off({ checkedOnly: false }) },
+    filters.productsOnly && { label: f.productsOnly, href: off({ productsOnly: false }) },
+    filters.freeShipping && { label: f.freeShipping, href: off({ freeShipping: false }) },
+  ].filter((c): c is { label: string; href: string } => !!c);
+  const sorts = [
+    ["best", f.best],
+    ["price", f.priceUp],
+    ["price-desc", f.priceDown],
+  ] as const;
+  return (
+    <div className="results-bar">
+      <div className="results-top">
+        <p className="results-count">
+          {shown === total ? <b>{f.offers(shown)}</b> : f.showing(shown, total)}
+        </p>
+        <nav className="sort-links" aria-label={f.sortedBy}>
+          <span className="hint">{f.sortedBy}:</span>
+          {sorts.map(([v, label]) => (
+            <a key={v} href={off({ sort: v })} aria-current={filters.sort === v ? "true" : undefined}>
+              {label}
+            </a>
+          ))}
+        </nav>
+      </div>
+      {chips.length > 0 && (
+        <ul className="active-chips">
+          {chips.map((c) => (
+            <li key={c.label}>
+              <a href={c.href} aria-label={f.remove(c.label)}>
+                {c.label} <span aria-hidden="true">×</span>
+              </a>
+            </li>
+          ))}
+          {chips.length > 1 && (
+            <li>
+              <a className="clear" href={filterHref(q, { ...NO_FILTERS, sort: filters.sort })}>
+                {f.clearAll}
+              </a>
+            </li>
+          )}
+        </ul>
       )}
-      <fieldset>
-        <legend>{f.price}</legend>
-        <input name="min" inputMode="decimal" placeholder={f.min} aria-label={`${f.price} ${f.min}`} defaultValue={eur(filters.min)} />
-        <span aria-hidden="true">–</span>
-        <input name="max" inputMode="decimal" placeholder={f.max} aria-label={`${f.price} ${f.max}`} defaultValue={eur(filters.max)} />
-      </fieldset>
-      <label>
-        <span>{f.sort}</span>
-        <select name="sort" aria-label={f.sort} defaultValue={filters.sort}>
-          <option value="best">{f.best}</option>
-          <option value="price">{f.priceUp}</option>
-          <option value="price-desc">{f.priceDown}</option>
-        </select>
-      </label>
-      <label className="filter-check">
-        <input type="checkbox" name="checked" value="1" aria-label={f.checkedOnly} defaultChecked={filters.checkedOnly} />
-        <span>{f.checkedOnly}</span>
-      </label>
-      <label className="filter-check">
-        <input type="checkbox" name="products" value="1" aria-label={f.productsOnly} defaultChecked={filters.productsOnly} />
-        <span>{f.productsOnly}</span>
-      </label>
-      <button type="submit" className="primary">
-        {f.apply}
-      </button>
-      <p className="hint filter-note">{f.note}</p>
-    </form>
+    </div>
   );
 }
 
@@ -579,25 +735,12 @@ async function SearchResults({
   };
 
   const { m, tc, lang } = i18n();
-  return (
-    <>
-      {/* Which marketplaces this answer actually rests on. */}
-      <ul className="coverage">
-        {/* Only marketplaces that were searched: a list of what isn't connected yet is noise. */}
-        {result.sources.filter((s) => s.status !== "not_configured").map((s) => (
-          <li
-            key={s.source}
-            className={
-              s.status === "ok" ? "ok" : s.status === "not_configured" ? "" : "degraded"
-            }
-            title={m.search.sourceDetail(s.detail ?? "")}
-          >
-            {marketLabel(s.source)}: {m.search.status[s.status] ?? s.status}
-            {s.status === "ok" && ` (${s.count})`}
-          </li>
-        ))}
-      </ul>
+  const fc = facets(checkedFirst(result.listings, labelOf), filters, labelOf, a.identities ?? {});
+  const currency = a.currency ?? result.listings[0]?.price.currency ?? "EUR";
 
+  // What the search found for the product as a whole: the same whatever the filters say.
+  const overview = (
+    <>
       {a?.status === "ok" && <MarketOverview groups={groups} currency={a.currency!} query={q} />}
       {a?.status === "ok" ? (
         <p className="hint market-scope">
@@ -642,77 +785,104 @@ async function SearchResults({
         // worse off than one who knows it did not.
         <p className="notice withheld">{a?.reason && tc(a.reason)}</p>
       )}
+    </>
+  );
 
-      {deals.length > 0 && (
-        // The deal the shopper came for — restricted to listings that passed.
-        <section className="best-deals">
-          <h2>{m.search.bestDeals(deals.length)}</h2>
-          <ul>
-            {deals.map((d) => (
-              <li key={d.group}>
-                <span className="deal-price">{money(d.total)}</span>{" "}
-                <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
-                {/* The deal's own condition: refurbished shares the "new" group, but isn't new. */}
-                <span className="hint">{d.group === "used" ? m.search.usedWord : m.listing.conditions[d.listing.condition] ?? m.search.newWord}</span>
-                <br />
-                <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
-                {describeSaving(d) && <span className="saving"> &mdash; {tc(describeSaving(d)!)}</span>}
-                {vapidKey && <AlertButton query={q} group={d.group} current={d.total} vapidKey={vapidKey} />}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {result.listings.length > 0 && (
-        <p className="hint label-explainer">
-          {/* The full definition is in the API (CHECKED_MEANS); one line here. */}
-          {m.search.checkedLine}{" "}
-          {checkedOnly ? (
-            <a href={filterHref(q, filters, { checked: "" })}>{m.search.showAll(result.listings.length)}</a>
-          ) : (
-            checkedCount > 0 && (
-              <a href={filterHref(q, filters, { checked: "1" })}>{m.search.showChecked(checkedCount)}</a>
-            )
-          )}
-        </p>
-      )}
-      {checkoutReady && rate && result.listings.length > 0 && (
-        <p className="hint">
-          {feeBps > 0 ? m.search.usdcRate(rate.display, rate.source, formatFeeRate(feeBps)) : m.search.usdcRateFree(rate.display, rate.source)}
-        </p>
-      )}
-
-      {result.listings.length > 0 && (
-        <FilterBar q={q} filters={filters} markets={result.sources.filter((s) => s.status === "ok" && s.count > 0).map((s) => s.source)} />
-      )}
-      {result.listings.length > 0 && isFiltered(filters) && (
-        <p className="hint">
-          {shown.length ? m.search.filters.showing(shown.length, result.listings.length) : m.search.filters.none}{" "}
-          <a href={filterHref(q, { ...filters, condition: "any", market: null, min: null, max: null, checkedOnly: false, productsOnly: false, sort: "best" })}>
-            {m.search.filters.reset}
-          </a>
-        </p>
-      )}
+  return (
+    <>
+      {/* Which marketplaces this answer actually rests on. */}
+      <ul className="coverage">
+        {/* Only marketplaces that were searched: a list of what isn't connected yet is noise. */}
+        {result.sources.filter((s) => s.status !== "not_configured").map((s) => (
+          <li
+            key={s.source}
+            className={
+              s.status === "ok" ? "ok" : s.status === "not_configured" ? "" : "degraded"
+            }
+            title={m.search.sourceDetail(s.detail ?? "")}
+          >
+            {marketLabel(s.source)}: {m.search.status[s.status] ?? s.status}
+            {s.status === "ok" && ` (${s.count})`}
+          </li>
+        ))}
+      </ul>
 
       {result.listings.length === 0 ? (
-        <p className="hint">{m.search.noListings(q)}</p>
+        <>
+          {overview}
+          <p className="hint">{m.search.noListings(q)}</p>
+        </>
       ) : (
-        // A grid of boxes, as shops show products: photo, name and price first, SigPath's verdict under them.
-        <div className="listing-grid">
-          {shown.map((l) => (
-            <ListingRow
-              key={listingKey(l)}
-              listing={l}
-              flags={flagsOf(l)}
-              checkout={checkoutOffer(l, flagsOf(l))}
-              badge={badgeOf(l)}
-              business={businessOf(l)}
-              label={labelOf(l)}
-              // A score only where SigPath vouches for the price: a flagged "−60%" is bait, not a deal.
-              deal={dealOf(l)}
-            />
-          ))}
+        // Filters on the left, as shops lay them out; on a phone, behind a button above the results.
+        <div className="search-layout">
+          <FilterSidebar q={q} filters={filters} fc={fc} />
+          <div className="search-main">
+            {overview}
+
+            {deals.length > 0 && (
+              // The deal the shopper came for — restricted to listings that passed.
+              <section className="best-deals">
+                <h2>{m.search.bestDeals(deals.length)}</h2>
+                <ul>
+                  {deals.map((d) => (
+                    <li key={d.group}>
+                      <span className="deal-price">{money(d.total)}</span>{" "}
+                      <span className="chip">{marketLabel(d.listing.source)}</span>{" "}
+                      {/* The deal's own condition: refurbished shares the "new" group, but isn't new. */}
+                      <span className="hint">{d.group === "used" ? m.search.usedWord : m.listing.conditions[d.listing.condition] ?? m.search.newWord}</span>
+                      <br />
+                      <a href={`#l-${listingKey(d.listing)}`}>{d.listing.title}</a>
+                      {describeSaving(d) && <span className="saving"> &mdash; {tc(describeSaving(d)!)}</span>}
+                      {vapidKey && <AlertButton query={q} group={d.group} current={d.total} vapidKey={vapidKey} />}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <ModelCards q={q} filters={filters} fc={fc} currency={currency} />
+
+            <p className="hint label-explainer">
+              {/* The full definition is in the API (CHECKED_MEANS); one line here. */}
+              {m.search.checkedLine}{" "}
+              {checkedOnly ? (
+                <a href={filterHref(q, filters, { checked: "" })}>{m.search.showAll(result.listings.length)}</a>
+              ) : (
+                checkedCount > 0 && <a href={filterHref(q, filters, { checked: "1" })}>{m.search.showChecked(checkedCount)}</a>
+              )}
+            </p>
+            {checkoutReady && rate && (
+              <p className="hint">
+                {feeBps > 0 ? m.search.usdcRate(rate.display, rate.source, formatFeeRate(feeBps)) : m.search.usdcRateFree(rate.display, rate.source)}
+              </p>
+            )}
+
+            <ResultsBar q={q} filters={filters} shown={shown.length} total={result.listings.length} currency={currency} />
+
+            {shown.length === 0 ? (
+              <p className="notice">
+                {m.search.filters.none}{" "}
+                <a href={filterHref(q, { ...NO_FILTERS, sort: filters.sort })}>{m.search.filters.reset}</a>
+              </p>
+            ) : (
+              // A grid of boxes, as shops show products: photo, name and price first, SigPath's verdict under them.
+              <div className="listing-grid">
+                {shown.map((l) => (
+                  <ListingRow
+                    key={listingKey(l)}
+                    listing={l}
+                    flags={flagsOf(l)}
+                    checkout={checkoutOffer(l, flagsOf(l))}
+                    badge={badgeOf(l)}
+                    business={businessOf(l)}
+                    label={labelOf(l)}
+                    // A score only where SigPath vouches for the price: a flagged "−60%" is bait, not a deal.
+                    deal={dealOf(l)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

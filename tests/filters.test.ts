@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { applyFilters, euros, filterHref, isFiltered, NO_FILTERS, parseFilters } from "../lib/marketplace/filters";
+import { activeCount, applyFilters, euros, facets, filterHref, isFiltered, modelKey, NO_FILTERS, parseFilters } from "../lib/marketplace/filters";
+import { identify } from "../lib/marketplace/identity";
 import type { CheckLabel } from "../lib/marketplace/label";
 import type { Identity } from "../lib/marketplace/identity";
 import type { Listing } from "../lib/marketplace/types";
@@ -50,7 +51,11 @@ test("the address becomes filters, and anything odd falls back to none", () => {
   assert.deepStrictEqual(parseFilters({}), NO_FILTERS);
   assert.ok(!isFiltered(parseFilters({ cond: "mint", sort: "random", market: "<script>" })));
   const f = parseFilters({ cond: "used", market: "eBay", min: "300", max: "100", checked: "1", products: "1", sort: "price-desc" });
-  assert.deepStrictEqual(f, { condition: "used", market: "ebay", min: 10000, max: 30000, checkedOnly: true, productsOnly: true, sort: "price-desc" });
+  assert.deepStrictEqual(f, { ...NO_FILTERS, condition: "used", market: "ebay", min: 10000, max: 30000, checkedOnly: true, productsOnly: true, sort: "price-desc" });
+  const g = parseFilters({ model: "pro-max", storage: "256", ram: "16", gen: "3", ship: "free" });
+  assert.deepStrictEqual(g, { ...NO_FILTERS, model: "pro-max", storage: 256, ram: 16, gen: 3, freeShipping: true });
+  const bad = parseFilters({ model: "Pro Max<", storage: "0", ram: "x", gen: "1000", ship: "yes" });
+  assert.deepStrictEqual(bad, NO_FILTERS, "odd specs fall back to none");
 });
 
 test("each filter narrows what is shown, in the search's own order", () => {
@@ -132,4 +137,57 @@ test("the price check's market is shared between shoppers for half an hour, thro
   const [c] = sharedSources([source], broken);
   assert.strictEqual((await c.search("Switch", {})).status, "ok", "a database that fails never fails the check");
   assert.strictEqual(sharedSources([source], null)[0], source, "no database: asked live");
+});
+
+/** An "iPhone 15" search: four phones, one case, the specs read from each title as the page does. */
+const phones = [
+  at("p128", 600, { title: "Apple iPhone 15 Pro 128GB Titan", shipping: { amount: 0, currency: "EUR" } }),
+  at("p256", 700, { title: "Apple iPhone 15 Pro 256 GB Schwarz" }),
+  at("pm256", 900, { title: "iPhone 15 Pro Max 256GB", condition: "used" }),
+  at("b128", 450, { title: "Apple iPhone 15 128GB Blau", shipping: { amount: 0, currency: "EUR" } }),
+  at("hulle", 15, { title: "Hülle für iPhone 15 Pro" }),
+];
+const phoneIds: Record<string, ReturnType<typeof identify>> = Object.fromEntries(phones.map((l) => [`ebay:${l.id}`, identify(l.title, "iPhone 15")]));
+const phoneChecked = (l: Listing): CheckLabel => ({ verdict: l.id === "hulle" || l.id === "p128" ? "unchecked" : "checked", headline: "", points: [] });
+const phonesShown = (f: Parameters<typeof applyFilters>[1]) => applyFilters(phones, f, phoneChecked, phoneIds).map((l) => l.id);
+
+test("the model, as people say it, from the words after the searched name", () => {
+  assert.strictEqual(modelKey(phoneIds["ebay:pm256"]), "pro-max", "not max-pro");
+  assert.strictEqual(modelKey(phoneIds["ebay:p128"]), "pro");
+  assert.strictEqual(modelKey(phoneIds["ebay:b128"]), "base");
+  assert.strictEqual(modelKey(phoneIds["ebay:hulle"]), null, "an accessory has no model to pick");
+  assert.strictEqual(modelKey(undefined), null);
+});
+
+test("model, storage and free shipping narrow to exactly that; a listing that doesn't say never matches", () => {
+  assert.deepStrictEqual(phonesShown({ ...NO_FILTERS, model: "pro" }), ["p128", "p256"]);
+  assert.deepStrictEqual(phonesShown({ ...NO_FILTERS, storage: 256 }), ["p256", "pm256"]);
+  assert.deepStrictEqual(phonesShown({ ...NO_FILTERS, model: "pro", storage: 256 }), ["p256"]);
+  assert.deepStrictEqual(phonesShown({ ...NO_FILTERS, freeShipping: true }), ["p128", "b128"]);
+  assert.deepStrictEqual(phonesShown({ ...NO_FILTERS, ram: 8 }), [], "no title states RAM");
+  assert.strictEqual(activeCount({ ...NO_FILTERS, model: "pro", storage: 256, min: 100, max: 500, sort: "price" }), 3, "a price range is one filter, sort none");
+  assert.strictEqual(filterHref("iPhone 15", { ...NO_FILTERS, model: "pro-max", storage: 256, freeShipping: true }), "/search?q=iPhone+15&ship=free&model=pro-max&storage=256");
+});
+
+test("each choice counts what it would show, with the other filters applied", () => {
+  const all = facets(phones, NO_FILTERS, phoneChecked, phoneIds);
+  assert.deepStrictEqual(all.condition, { any: 5, new: 4, refurbished: 0, used: 1 });
+  assert.deepStrictEqual(all.storage, [{ value: 128, count: 2 }, { value: 256, count: 2 }]);
+  assert.deepStrictEqual(all.ram, [], "a spec nobody states isn't offered");
+  assert.strictEqual(all.freeShipping, 2);
+  assert.deepStrictEqual(
+    all.models.map((c) => [c.key, c.count, c.from?.amount ?? null, c.storages]),
+    [
+      ["pro", 2, 70000, [128, 256]],
+      ["pro-max", 1, 90000, [256]],
+      ["base", 1, 45000, [128]],
+    ],
+    "biggest first; 'from' is the cheapest checked offer, so not the unchecked 600 €",
+  );
+  const used = facets(phones, { ...NO_FILTERS, condition: "used" }, phoneChecked, phoneIds);
+  assert.strictEqual(used.condition.new, 4, "the condition's own counts ignore the condition chosen");
+  assert.deepStrictEqual(used.storage, [], "among used ones, only one size: nothing to choose");
+  assert.deepStrictEqual(used.models, [], "one model is no choice");
+  const pro = facets(phones, { ...NO_FILTERS, model: "pro" }, phoneChecked, phoneIds);
+  assert.strictEqual(pro.models.length, 3, "the cards still show every model while one is picked");
 });

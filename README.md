@@ -116,9 +116,16 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   search names no generation or size yet (`suggestNarrower`), the overview
   suggests adding one: "AirPods Pro" (Pro 1, 2 and 3) gets the hint, "AirPods
   Pro 2" doesn't.
-- **Filter and sort.** Above the results: condition (new, refurbished, used),
-  marketplace, a price range, SigPath-checked only, hide accessories and parts,
-  and sort by best match or price either way. A plain GET form, so the choices
+- **Filter and sort.** In a column left of the results (behind a "Filter"
+  button on a phone): condition (new, refurbished, used), marketplace, a price
+  range, storage, RAM and generation (offered only when the titles state two
+  or more), SigPath-checked only, hide accessories and parts, free shipping.
+  Every choice shows how many listings it would leave, counted with the other
+  filters applied. Above the results, "Which model?" cards (iPhone 15, 15 Pro,
+  15 Pro Max …) with their sizes and the cheapest checked offer narrow to one
+  model; the filters in use are chips with an ×, and the sort is best match or
+  price either way. On a wide screen a choice applies at once
+  (`AutoSubmit.tsx`); otherwise it's a plain GET form, so the choices
   are in the address (shareable, no JavaScript needed) and read by
   `lib/marketplace/filters.ts`. Filters change only what is shown: every
   verdict, median and best deal still comes from all the listings found. Each
@@ -238,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 671 tests, as of 2026-11-07
+npm test                                   # 674 tests, as of 2026-11-10
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
