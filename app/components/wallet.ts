@@ -93,8 +93,12 @@ export interface ConnectedWallet {
   name: string;
   /** The account's address, base58. */
   address: string;
-  /** Sign the server-built transaction (base64) and send it. */
-  signAndSend(transactionBase64: string): Promise<void>;
+  /**
+   * Sign the server-built transaction (base64) and send it. Returns its
+   * signature (base58), so the page can follow it on SigPath's own network,
+   * or null if the wallet didn't say.
+   */
+  signAndSend(transactionBase64: string): Promise<string | null>;
   /**
    * Sign a plain-text message — NOT a transaction. Used to prove "I am the
    * wallet that paid for this order" without moving anything. Wallets show the
@@ -301,7 +305,8 @@ function wrapInjected(name: string, provider: InjectedProvider, address: string)
       // These providers take a Transaction object rather than bytes.
       const { Transaction } = await import("@solana/web3.js");
       try {
-        await provider.signAndSendTransaction(Transaction.from(base64ToBytes(transactionBase64)));
+        const r = await provider.signAndSendTransaction(Transaction.from(base64ToBytes(transactionBase64)));
+        return typeof r?.signature === "string" ? r.signature : null;
       } catch (err) {
         throw classifyWalletError(err, name);
       }
@@ -409,7 +414,8 @@ function wrapStandard(wallet: StandardWallet, account: StandardWalletAccount, ch
     async signAndSend(transactionBase64) {
       if (!sendFeature) throw new WalletError("cant-send", wallet.name);
       try {
-        await sendFeature.signAndSendTransaction({ account, chain, transaction: base64ToBytes(transactionBase64) });
+        const [result] = await sendFeature.signAndSendTransaction({ account, chain, transaction: base64ToBytes(transactionBase64) });
+        return result?.signature?.length ? base58(result.signature) : null;
       } catch (err) {
         throw classifyWalletError(err, wallet.name);
       }
@@ -447,6 +453,32 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
+const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+/** Bytes -> base58, as Solana writes signatures. Small inputs only (a signature is 64 bytes). */
+export function base58(bytes: Uint8Array): string {
+  const digits: number[] = [];
+  for (const byte of bytes) {
+    let carry = byte;
+    for (let i = 0; i < digits.length; i++) {
+      carry += digits[i] << 8;
+      digits[i] = carry % 58;
+      carry = Math.floor(carry / 58);
+    }
+    while (carry) {
+      digits.push(carry % 58);
+      carry = Math.floor(carry / 58);
+    }
+  }
+  let out = "";
+  for (const byte of bytes) {
+    if (byte !== 0) break;
+    out += "1";
+  }
+  for (let i = digits.length - 1; i >= 0; i--) out += BASE58[digits[i]];
+  return out;
+}
+
 /** Base64 from the server -> the transaction bytes the wallet signs. No Buffer needed. */
 export function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -472,6 +504,38 @@ export async function waitForOrder(
     await new Promise((r) => setTimeout(r, 2000));
   }
   return false;
+}
+
+export type PaymentOutcome = { state: "paid" | "failed" | "expired" | "pending"; reason?: string };
+
+/**
+ * Follow a payment on SigPath's own network until it settles
+ * (lib/checkout/payment-status.ts): "paid" once the order exists, "failed" if
+ * the network rejected it, "expired" once it can no longer land (nothing was
+ * charged), or "pending" if none of that is known when time runs out. Works
+ * without a signature too, from the order and the block height alone.
+ */
+export async function waitForPayment(
+  order: string,
+  signature: string | null,
+  validUntil: number | null,
+  timeoutMs = 120_000,
+): Promise<PaymentOutcome> {
+  const qs = new URLSearchParams({ order });
+  if (signature) qs.set("sig", signature);
+  if (validUntil) qs.set("until", String(validUntil));
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    try {
+      const res = await fetch(`/api/checkout/status?${qs}`, { cache: "no-store" });
+      const body = (await res.json()) as PaymentOutcome;
+      if (body.state && body.state !== "pending") return body;
+    } catch {
+      /* the network or the server didn't answer: ask again */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return { state: "pending" };
 }
 
 /** Wallet errors are objects with a message, not always Errors. The wallet's own words, untranslated. */

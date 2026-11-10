@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   );
   if (!result.ok) {
     return NextResponse.json(
-      { error: result.error, ...(result.shortfallUsdc ? { shortfallUsdc: result.shortfallUsdc } : {}) },
+      { error: result.error, ...(result.shortfallUsdc ? { shortfallUsdc: result.shortfallUsdc } : {}), ...(result.code ? { code: result.code } : {}) },
       { status: result.status },
     );
   }
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     order: result.order,
     usdcDisplay: result.usdcDisplay,
     windowSecs: result.windowSecs,
+    validUntil: result.validUntil,
     rate: result.rate ? { display: result.rate.display, source: result.rate.source } : null,
   });
 }

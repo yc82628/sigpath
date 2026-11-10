@@ -4,6 +4,7 @@ import { NotAnOrderError, ordersRpcUrl, readOrder } from "@/lib/checkout/checkou
 import { AddressStore } from "@/lib/checkout/address-store";
 import { formatUsdc, ORDERS_PROGRAM_ID } from "@/lib/chains/solana/orders";
 import RefundButton from "./RefundButton";
+import OrderWatch from "./OrderWatch";
 import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
 import { getLang } from "@/lib/i18n/server";
 import { decimalText } from "@/lib/i18n/money";
@@ -23,15 +24,18 @@ import { decimalText } from "@/lib/i18n/money";
 
 export const dynamic = "force-dynamic";
 
-function explorer(address: string) {
+function explorer(address: string, kind: "address" | "tx" = "address") {
   const rpc = ordersRpcUrl();
   const cluster = rpc.includes("devnet")
     ? "?cluster=devnet"
     : rpc.includes("127.0.0.1") || rpc.includes("localhost")
       ? `?cluster=custom&customUrl=${encodeURIComponent(rpc)}`
       : "";
-  return `https://explorer.solana.com/address/${address}${cluster}`;
+  return `https://explorer.solana.com/${kind}/${address}${cluster}`;
 }
+
+/** A transaction signature, as the checkout passes it along (?tx=…). */
+const SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
 
 function when(unix: number) {
   return new Date(unix * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC";
@@ -45,7 +49,8 @@ const en = {
   notOrder: "That address exists, but it isn't a SigPath order.",
   unreadable: (why: string) => `Couldn't read the order from the network (${why}).`,
   unknownError: "unknown error",
-  pending: "Your payment was sent but isn't visible yet. Reload in a moment.",
+  pending: "Your payment was sent but isn't visible yet. This page checks again by itself every few seconds.",
+  payment: "View the payment on Solana Explorer",
   none: "No order exists at this address.",
   amount: "Amount in escrow",
   placed: "Placed",
@@ -70,7 +75,8 @@ const de: typeof en = {
   notOrder: "Diese Adresse gibt es, aber sie ist keine SigPath-Bestellung.",
   unreadable: (why) => `Die Bestellung konnte nicht aus dem Netzwerk gelesen werden (${why}).`,
   unknownError: "unbekannter Fehler",
-  pending: "Deine Zahlung wurde gesendet, ist aber noch nicht sichtbar. Lade die Seite gleich neu.",
+  pending: "Deine Zahlung wurde gesendet, ist aber noch nicht sichtbar. Diese Seite prüft alle paar Sekunden von selbst.",
+  payment: "Die Zahlung im Solana Explorer ansehen",
   none: "Unter dieser Adresse gibt es keine Bestellung.",
   amount: "Betrag in der Treuhand",
   placed: "Aufgegeben",
@@ -94,9 +100,10 @@ export default async function OrderPage({
   searchParams,
 }: {
   params: { order: string };
-  searchParams: { pending?: string };
+  searchParams: { pending?: string; tx?: string };
 }) {
   const t = getLang() === "de" ? de : en;
+  const tx = searchParams.tx && SIGNATURE.test(searchParams.tx) ? searchParams.tx : null;
   let order: PublicKey;
   try {
     order = new PublicKey(params.order);
@@ -134,6 +141,18 @@ export default async function OrderPage({
             ? t.pending
             : t.none}
         </p>
+        {searchParams.pending && (
+          <>
+            <OrderWatch order={order.toBase58()} />
+            {tx && (
+              <p className="hint">
+                <a href={explorer(tx, "tx")} target="_blank" rel="noopener noreferrer">
+                  {t.payment}
+                </a>
+              </p>
+            )}
+          </>
+        )}
       </main>
     );
   }

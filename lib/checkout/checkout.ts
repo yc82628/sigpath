@@ -140,6 +140,8 @@ export interface PreparedCheckout {
   feeBaseUnits: string;
   rate: FxRate | null;
   windowSecs: number;
+  /** The transaction's last valid block height: past it, it can never land (payment-status.ts). */
+  validUntil: number;
   listing: QuotedListing;
 }
 
@@ -161,6 +163,8 @@ export interface PreparedCartCheckout {
   totalDisplay: string;
   rate: FxRate | null;
   windowSecs: number;
+  /** The transaction's last valid block height: past it, it can never land (payment-status.ts). */
+  validUntil: number;
 }
 
 export interface CheckoutError {
@@ -170,6 +174,8 @@ export interface CheckoutError {
   error: string;
   /** When the wallet is short of USDC: how much more it needs, in whole USDC. */
   shortfallUsdc?: number;
+  /** "quote_expired": a price ran out; the form offers to fetch the current one, keeping the address. */
+  code?: "quote_expired";
 }
 
 /**
@@ -208,6 +214,7 @@ export async function prepareCheckout(
     feeBaseUnits: o.feeBaseUnits,
     rate: r.rate,
     windowSecs: r.windowSecs,
+    validUntil: r.validUntil,
     listing: o.listing,
   };
 }
@@ -238,7 +245,12 @@ function verifyQuotes(quotes: unknown[], env: Record<string, string | undefined>
         malformed: "This price could not be read.",
         not_configured: "Checkout is not configured (QUOTE_SECRET).",
       };
-      return { ok: false, status: q.reason === "not_configured" ? 503 : 400, error: messages[q.reason] };
+      return {
+        ok: false,
+        status: q.reason === "not_configured" ? 503 : 400,
+        error: messages[q.reason],
+        ...(q.reason === "expired" ? { code: "quote_expired" as const } : {}),
+      };
     }
     if (listings.some((l) => l.source === q.listing.source && l.id === q.listing.id)) {
       return { ok: false, status: 400, error: "The same item is in this payment twice." };
@@ -488,6 +500,7 @@ async function prepareOrders(
     totalDisplay: orders.formatUsdc(total),
     rate,
     windowSecs,
+    validUntil: lastValidBlockHeight,
   };
 }
 

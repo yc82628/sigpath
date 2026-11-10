@@ -245,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 674 tests, as of 2026-11-10
+npm test                                   # 679 tests, as of 2026-11-10
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -1286,6 +1286,12 @@ use when there is more than one.
 | The fee shown is the fee charged | SigPath's service fee is **signed into each quote** with the price, so it can't be edited in the browser, and a later change to the setting doesn't touch quotes already shown |
 | The fee is protected like the price | It is paid into the escrow with the price: SigPath receives it only through `fulfil`, and a refund returns it with everything else |
 | Both currencies, before paying | Pay buttons show the USDC total, fee included; the checkout ends with an EUR + USDC breakdown, and the Pay button names both |
+| The shopper learns what happened | The wallet hands back the transaction's signature and the form follows it on SigPath's own network (`/api/checkout/status`, `lib/checkout/payment-status.ts`): **paid** once the order exists, **failed** if the network refused it, **expired** once its blockhash has run out (nothing charged; a wallet set to Mainnet ends here, with the hint to switch to Devnet) |
+| Nobody pays twice | When a wallet reports an error other than "refused", the form first checks whether the order exists anyway (some wallets time out after sending) and links to it rather than offering Pay again |
+| A price that runs out mid-checkout | The form shows "price held until …" from the quote, and once it has run out fetches the current price in place, keeping the typed address |
+| An account switched mid-payment | Checked before the wallet is asked to sign: nothing is sent for an account the page isn't showing |
+| The cart on a phone | Once priced, the cart's signed prices are in the page's address (`/checkout/cart?q=…`), so "Open in Phantom/Solflare" (the wallet app's own browser, with its own empty storage) still has the items |
+| A slow confirmation | The order page checks again every few seconds by itself and links to the transaction on Solana Explorer |
 
 **The service fee.** None by default since 2026-11-06: shoppers come for the
 best deal and pay nothing, and the search page and invoice say so ("No fee for

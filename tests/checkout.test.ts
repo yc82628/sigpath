@@ -21,6 +21,9 @@ import { OrderMetaStore } from "../lib/reports/order-meta";
 import * as orders from "../lib/chains/solana/orders";
 import { associatedTokenAddress } from "../lib/chains/solana/spl";
 import type { Listing } from "../lib/marketplace/types";
+import { decidePayment, readPayment } from "../lib/checkout/payment-status";
+import { firstExpiry, readQuote } from "../lib/checkout/quote-public";
+import { base58 } from "../app/components/wallet";
 
 /**
  * Checkout moves money and holds personal data, so most of these tests are
@@ -625,4 +628,73 @@ test("the page's balance check reads the buyer's own USDC account and SOL, as th
   assert.deepEqual(asked, [associatedTokenAddress(owner, orders.USDC_MINT).toBase58()]);
   // No USDC account yet: nothing to pay with, not an error.
   assert.deepEqual(await walletFunds(fakeConn({ usdc: null, lamports: 0 }), owner), { usdc: 0n, lamports: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// After the wallet sends: what became of the payment
+// ---------------------------------------------------------------------------
+
+test("the checkout says until which block the payment can land, and when a price has run out", async () => {
+  const { store } = tmpStore();
+  const ok = await prepareCheckout(
+    { quote: signQuote(LISTING, ENV)!, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { env: ENV, store, conn: rich(), fetchImpl: noFetch },
+  );
+  assert.ok(ok.ok);
+  if (ok.ok) assert.equal(ok.validUntil, 100, "the blockhash's last valid block height");
+  const stale = signQuote(LISTING, ENV, Date.now() - (QUOTE_TTL_SECONDS + 60) * 1000)!;
+  const r = await prepareCheckout({ quote: stale, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS }, { env: ENV, store, conn: rich(), fetchImpl: noFetch });
+  assert.ok(!r.ok);
+  if (!r.ok) assert.equal(r.code, "quote_expired", "so the form can offer the current price in place");
+});
+
+test("a payment is paid once its order exists, failed when the network refused it, expired once it can't land", () => {
+  const base = { orderFound: false, signature: null, blockHeight: 90, validUntil: 100 };
+  assert.deepEqual(decidePayment({ ...base, orderFound: true }), { state: "paid" });
+  assert.deepEqual(decidePayment({ ...base, orderFound: true, blockHeight: 500 }), { state: "paid" }, "the order is the proof, however late");
+  assert.equal(decidePayment({ ...base, signature: { err: { InstructionError: [0, { Custom: 6 }] } } }).state, "failed");
+  assert.match(decidePayment({ ...base, signature: { err: { InstructionError: [0, { Custom: 6 }] } } }).reason ?? "", /Custom/);
+  assert.equal(decidePayment({ ...base, signature: { err: null } }).state, "pending", "landed: the order is a moment away");
+  assert.equal(decidePayment(base).state, "pending", "not seen yet, still time");
+  assert.equal(decidePayment({ ...base, blockHeight: 101 }).state, "expired", "past its last block, never seen: nothing was charged");
+  assert.equal(decidePayment({ ...base, blockHeight: 101, signature: { err: null } }).state, "pending", "seen on the network: not expired");
+  assert.equal(decidePayment({ ...base, blockHeight: 10_000, validUntil: null }).state, "pending", "without the limit, never called expired");
+});
+
+test("the network is asked for the height first, then the order and the signature", async () => {
+  const calls: string[] = [];
+  const conn = (opts: { order: Buffer | null; height: number; status: { err: unknown } | null }) =>
+    ({
+      getBlockHeight: async () => (calls.push("height"), opts.height),
+      getAccountInfo: async () => (calls.push("order"), opts.order ? { owner: orders.ORDERS_PROGRAM_ID, data: opts.order, executable: false, lamports: 1 } : null),
+      getSignatureStatuses: async () => (calls.push("signature"), { value: [opts.status] }),
+    }) as unknown as Connection;
+  const order = Keypair.generate().publicKey;
+  const sig = base58(new Uint8Array(64).fill(7));
+  const paid = await readPayment(conn({ order: orderAccount(0, 0), height: 50, status: null }), { order, signature: sig, validUntil: 100 });
+  assert.equal(paid.state, "paid");
+  assert.equal(calls[0], "height", "the height first, so a payment that landed before it is always seen");
+  const gone = await readPayment(conn({ order: null, height: 150, status: null }), { order, signature: sig, validUntil: 100 });
+  assert.equal(gone.state, "expired");
+  calls.length = 0;
+  const noSig = await readPayment(conn({ order: null, height: 50, status: null }), { order, signature: null, validUntil: 100 });
+  assert.equal(noSig.state, "pending");
+  assert.ok(!calls.includes("signature"), "without a signature, only the order and the height");
+});
+
+test("signatures are written in base58 as Solana writes them", () => {
+  for (const bytes of [new Uint8Array(32).fill(0), new Uint8Array(32).fill(255), Keypair.generate().publicKey.toBytes()]) {
+    assert.equal(base58(bytes), new PublicKey(bytes).toBase58());
+  }
+  assert.equal(base58(new Uint8Array([0, 0, 1])), "112", "leading zero bytes are 1s");
+});
+
+test("the browser reads a quote's listing and expiry, and nothing it can't read", () => {
+  const token = signQuote({ ...LISTING, title: "ThinkPad X1 – Größe M" }, ENV, 1_800_000_000_000)!;
+  assert.deepEqual(readQuote(token), { source: "ebay", id: "v1|1|0", title: "ThinkPad X1 – Größe M", expiresAt: 1_800_000_000 + QUOTE_TTL_SECONDS });
+  const later = signQuote(LISTING, ENV, 1_800_000_600_000)!;
+  assert.equal(firstExpiry([later, token]), 1_800_000_000 + QUOTE_TTL_SECONDS, "the first to run out");
+  assert.equal(readQuote("not a token"), null);
+  assert.equal(readQuote("e30.sig"), null, "{} has no listing");
+  assert.equal(firstExpiry([]), null);
 });
