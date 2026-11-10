@@ -1011,6 +1011,30 @@ h2.with-icon > .pop-icon { margin-top: 0; }
 }
 .report-form textarea { resize: vertical; }
 
+/* How to pay: one tile per way, the chosen one outlined. Each says how the shopper is protected. */
+.checkout-form .pay-methods { display: grid; gap: 10px; }
+.checkout-form .pay-methods legend { margin-bottom: 4px; }
+.checkout-form label.pay-method {
+  display: flex; align-items: flex-start; gap: 14px; margin: 0; padding: 14px 16px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); transition: border-color 0.15s ease;
+}
+.checkout-form label.pay-method:hover { border-color: var(--brand); }
+.checkout-form label.pay-method.on { border: 2px solid var(--brand); padding: 13px 15px; background: var(--brand-soft); }
+.checkout-form label.pay-method input { flex: none; width: 18px; height: 18px; margin: 3px 0 0; padding: 0; accent-color: var(--brand); }
+.checkout-form label.pay-method input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.checkout-form .pay-method-icon { flex: none; margin-top: 1px; }
+.checkout-form .pay-method-text { display: grid; gap: 2px; min-width: 0; }
+.checkout-form .pay-method-text b { font-size: 1rem; color: var(--fg); }
+.checkout-form .pay-method-text span { display: block; margin: 0; font-size: 0.88rem; color: var(--muted); }
+.checkout-form .pay-method-text .pay-method-protect { font-size: 0.82rem; color: var(--fg); opacity: 0.85; }
+.pay-ebay { margin: 0 0 16px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.pay-ebay > .hint { margin-top: 0; }
+.pay-ebay ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pay-ebay li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.pay-ebay li span { min-width: 0; font-weight: 600; }
+.pay-topup { margin: 0 0 12px; }
+.pay-topup .hint { margin: 6px 0 0; }
+
 /* ==========================================================================
    Orders
    ========================================================================== */

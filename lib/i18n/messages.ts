@@ -337,6 +337,39 @@ const en = {
     priceExpired: "The price has run out. Get the current one: your address stays filled in.",
     refreshPrice: "Get the current price",
     refreshing: "Checking the price…",
+    // How to pay: the choice before the address
+    methodTitle: "How do you want to pay?",
+    methods: {
+      wallet: {
+        title: "Crypto wallet (USDC)",
+        sub: "Phantom, Solflare, Backpack",
+        protect: "SigPath's escrow: the program holds the money and refunds it if the order isn't fulfilled in time.",
+      },
+      ebay: {
+        title: (shop: string): string => `Pay on ${shop}`,
+        sub: "PayPal, card, Klarna, Apple Pay: on eBay's own page",
+        protect: "eBay's Money Back Guarantee, not SigPath's escrow.",
+      },
+      card: {
+        title: "Card, Apple Pay or Google Pay",
+        sub: "Through MoonPay: buys the USDC into your wallet, then you pay",
+        protect: "Then SigPath's escrow, as with a wallet.",
+      },
+      bank: {
+        title: "Bank transfer (SEPA)",
+        sub: "Through MoonPay: cheaper than a card, can take a day",
+        protect: "Then SigPath's escrow, as with a wallet.",
+      },
+    },
+    ebayNote: "You buy it on eBay as usual, with eBay's payment methods. SigPath has already checked the price and the listing; the escrow and SigPath's refund don't apply.",
+    ebayNoteMany: "Each item is bought on its own on eBay, with eBay's payment methods. SigPath has already checked the prices and the listings; the escrow and SigPath's refund don't apply.",
+    openOn: (shop: string): string => `Open on ${shop} →`,
+    walletFirst: "The USDC goes into a wallet first, and you pay from it. No wallet yet? Phantom is free and takes a minute.",
+    buyWith: (amount: string, way: string): string => `Buy ${amount} with ${way}`,
+    buyAny: (way: string): string => `Buy USDC with ${way}`,
+    enough: "This wallet already holds enough USDC: you can pay straight away.",
+    sepaWay: "MoonPay (SEPA)",
+    cardWay: "MoonPay",
   },
   invoice: {
     title: "Invoice",
@@ -871,6 +904,38 @@ const de: Messages = {
     priceExpired: "Der Preis ist abgelaufen. Hol dir den aktuellen: Deine Adresse bleibt ausgefüllt.",
     refreshPrice: "Aktuellen Preis holen",
     refreshing: "Der Preis wird geprüft…",
+    methodTitle: "Wie möchtest du bezahlen?",
+    methods: {
+      wallet: {
+        title: "Krypto-Wallet (USDC)",
+        sub: "Phantom, Solflare, Backpack",
+        protect: "SigPaths Treuhand: Das Programm verwahrt das Geld und erstattet es, wenn die Bestellung nicht rechtzeitig erfüllt wird.",
+      },
+      ebay: {
+        title: (shop) => `Bei ${shop} bezahlen`,
+        sub: "PayPal, Karte, Klarna, Apple Pay: auf eBays eigener Seite",
+        protect: "eBay-Käuferschutz, nicht SigPaths Treuhand.",
+      },
+      card: {
+        title: "Karte, Apple Pay oder Google Pay",
+        sub: "Über MoonPay: kauft die USDC in deine Wallet, dann bezahlst du",
+        protect: "Danach SigPaths Treuhand, wie mit einer Wallet.",
+      },
+      bank: {
+        title: "Banküberweisung (SEPA)",
+        sub: "Über MoonPay: günstiger als eine Karte, kann einen Tag dauern",
+        protect: "Danach SigPaths Treuhand, wie mit einer Wallet.",
+      },
+    },
+    ebayNote: "Du kaufst wie gewohnt auf eBay, mit eBays Zahlungsarten. SigPath hat Preis und Angebot bereits geprüft; die Treuhand und SigPaths Rückerstattung gelten dann nicht.",
+    ebayNoteMany: "Jeder Artikel wird einzeln auf eBay gekauft, mit eBays Zahlungsarten. SigPath hat Preise und Angebote bereits geprüft; die Treuhand und SigPaths Rückerstattung gelten dann nicht.",
+    openOn: (shop) => `Bei ${shop} öffnen →`,
+    walletFirst: "Die USDC kommen zuerst in eine Wallet, und du bezahlst daraus. Noch keine Wallet? Phantom ist kostenlos und in einer Minute eingerichtet.",
+    buyWith: (amount, way) => `${amount} mit ${way} kaufen`,
+    buyAny: (way) => `USDC mit ${way} kaufen`,
+    enough: "Diese Wallet hat schon genug USDC: Du kannst direkt bezahlen.",
+    sepaWay: "MoonPay (SEPA)",
+    cardWay: "MoonPay",
   },
   invoice: {
     title: "Rechnungsübersicht",

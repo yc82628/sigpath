@@ -37,7 +37,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = moonPayBuyUrl(cfg, { wallet: String(p.get("wallet") ?? ""), usdc: p.has("usdc") ? usdc : undefined, redirectUrl: back });
+    const method = p.get("method") === "sepa" ? "sepa" : p.get("method") === "card" ? "card" : undefined;
+    const url = moonPayBuyUrl(cfg, { wallet: String(p.get("wallet") ?? ""), usdc: p.has("usdc") ? usdc : undefined, redirectUrl: back, method });
     return NextResponse.json({ url, test: cfg.test }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "Invalid wallet address." }, { status: 400 });

@@ -87,7 +87,7 @@ export function moonPaySignature(query: string, secretKey: string): string {
  */
 export function moonPayBuyUrl(
   cfg: MoonPayConfig,
-  opts: { wallet: string; usdc?: number; redirectUrl?: string },
+  opts: { wallet: string; usdc?: number; redirectUrl?: string; method?: "card" | "sepa" },
 ): string {
   const wallet = new PublicKey(opts.wallet).toBase58(); // throws on anything that isn't a Solana address
   const params: [string, string][] = [
@@ -100,6 +100,8 @@ export function moonPayBuyUrl(
     params.push(["quoteCurrencyAmount", (Math.ceil(opts.usdc * 100) / 100).toFixed(2)]);
   }
   if (opts.redirectUrl) params.push(["redirectURL", opts.redirectUrl]);
+  // The way the shopper chose at checkout, preselected in MoonPay's widget (they can still change it there).
+  if (opts.method) params.push(["paymentMethod", opts.method === "sepa" ? "sepa_bank_transfer" : "credit_debit_card"]);
   // Values are URL-encoded BEFORE signing, so the signed bytes are the sent bytes.
   const query = "?" + params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   return `${cfg.base}${query}&signature=${encodeURIComponent(moonPaySignature(query, cfg.secretKey))}`;

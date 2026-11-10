@@ -53,6 +53,17 @@ test("the buy link pre-fills the shopper's wallet, USDC on Solana, the amount an
   assert.ok(!url.toString().includes("sk_test_xyz"));
 });
 
+test("the way chosen at checkout is preselected, and signed with the rest", () => {
+  const cfg = moonPayConfig({ ...testKeys, ...devnet })!;
+  const wallet = Keypair.generate().publicKey.toBase58();
+  const sepa = new URL(moonPayBuyUrl(cfg, { wallet, method: "sepa" }));
+  assert.equal(sepa.searchParams.get("paymentMethod"), "sepa_bank_transfer");
+  const sent = sepa.search.slice(0, sepa.search.indexOf("&signature="));
+  assert.equal(sepa.searchParams.get("signature"), moonPaySignature(sent, "sk_test_xyz"));
+  assert.equal(new URL(moonPayBuyUrl(cfg, { wallet, method: "card" })).searchParams.get("paymentMethod"), "credit_debit_card");
+  assert.equal(new URL(moonPayBuyUrl(cfg, { wallet })).searchParams.get("paymentMethod"), null, "none chosen: MoonPay's own choice");
+});
+
 test("only a Solana wallet address is accepted", () => {
   const cfg = moonPayConfig({ ...testKeys, ...devnet })!;
   assert.throws(() => moonPayBuyUrl(cfg, { wallet: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe" }));

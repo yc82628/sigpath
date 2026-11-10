@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import WalletButton from "../components/WalletButton";
+import PopIcon from "../components/PopIcon";
 import { DEVNET, WalletError, waitForPayment } from "../components/wallet";
 import { shortAddress, useWallet, useWalletErrorText, useWalletFunds } from "../components/WalletProvider";
 import { useCheckText, useLang, useMessages } from "../components/I18n";
@@ -33,6 +34,14 @@ import { useMounted } from "../components/useMounted";
  * wallet reports an error, the form first looks whether the payment went out
  * anyway (some wallets time out after sending), so nobody pays twice.
  *
+ * HOW TO PAY
+ * The shopper picks a way first. A wallet pays the escrow in USDC. "Pay on
+ * eBay" opens each listing on eBay, to pay there with eBay's own methods and
+ * protection, with no address or wallet here. Card and bank transfer (when
+ * MoonPay is on) buy the USDC into the shopper's wallet first, then pay as a
+ * wallet does: the escrow only ever takes USDC from the buyer's own wallet.
+ * Ways that aren't available aren't shown.
+ *
  * THE PRICE
  * A quote lasts thirty minutes. The form says until when, and once it has run
  * out offers the current price in place, so the address typed in stays.
@@ -48,6 +57,7 @@ const FIELDS: { key: string; required: boolean; autoComplete: string }[] = [
 ];
 
 type Phase = "idle" | "building" | "signing" | "confirming" | "checking" | "error";
+type Method = "wallet" | "ebay" | "card" | "bank";
 
 export default function CheckoutForm({
   quote,
@@ -80,7 +90,7 @@ export default function CheckoutForm({
   const lang = useLang();
   const tc = useCheckText();
   const describe = useWalletErrorText();
-  const { wallet } = useWallet();
+  const { wallet, options } = useWallet();
   // The wallet as it is now, for a step that started with another (an account switched mid-payment).
   const current = useRef(wallet);
   current.current = wallet;
@@ -93,11 +103,26 @@ export default function CheckoutForm({
   /** How much more USDC the connected wallet needs, as the checkout said on Pay. */
   const [shortfall, setShortfall] = useState<number | null>(null);
   const [topUpNote, setTopUpNote] = useState("");
+  /** The way to pay. None until chosen, except a wallet already connected or installed, which is preselected once. */
+  const [method, setMethod] = useState<Method | null>(null);
+  const chosen = useRef(false);
+  function choose(id: Method) {
+    chosen.current = true;
+    setMethod(id);
+    setPhase("idle");
+    setMessage("");
+  }
+  useEffect(() => {
+    if (!chosen.current && method === null && (wallet || options.length > 0)) setMethod("wallet");
+  }, [wallet, options.length, method]);
 
   // The price's time: read from the quotes themselves, ticking so "run out" shows without a reload.
   const tokens = quotes ?? (quote ? [quote] : []);
   const tokenKey = tokens.join(",");
   const expiresAt = firstExpiry(tokens);
+  // Each item's own eBay page, from its signed price: "Pay on eBay" only when every item has one.
+  const ebayLinks = tokens.map(readQuote).flatMap((q) => (q && q.source === "ebay" && q.url ? [{ url: q.url, title: q.title }] : []));
+  const onEbay = tokens.length > 0 && ebayLinks.length === tokens.length;
   const [now, setNow] = useState(() => Date.now());
   const [serverExpired, setServerExpired] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -127,12 +152,16 @@ export default function CheckoutForm({
   const short = shortfall ?? (shortBy > 0n ? Number(shortBy) / 1e6 : null);
 
   async function buyWithMoonPay() {
-    if (!wallet || short === null) return;
+    if (!wallet) return;
     // Opened now, inside the click, so a popup blocker lets it through; filled once the link is signed.
     const tab = window.open("", "_blank");
     setTopUpNote("Opening MoonPay…");
     try {
-      const qs = new URLSearchParams({ wallet: wallet.address, usdc: String(short), back: window.location.href });
+      const qs = new URLSearchParams({ wallet: wallet.address, back: window.location.href });
+      if (short !== null) qs.set("usdc", String(short));
+      // The way chosen here, preselected in MoonPay's widget.
+      if (method === "bank") qs.set("method", "sepa");
+      else if (method === "card") qs.set("method", "card");
       const res = await fetch(`/api/onramp/moonpay?${qs}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "MoonPay isn't available right now.");
@@ -275,107 +304,173 @@ export default function CheckoutForm({
 
   const busy = phase === "building" || phase === "signing" || phase === "confirming" || phase === "checking";
   const until = mounted && expiresAt ? new Date(expiresAt * 1000).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : null;
+  const viaMoonPay = method === "card" || method === "bank";
+  const way = method === "bank" ? m.checkout.sepaWay : m.checkout.cardWay;
+
+  // The ways on offer: a wallet always; eBay when every item has its eBay page; MoonPay's two when it's on.
+  const methods: Method[] = ["wallet", ...(onEbay ? (["ebay"] as const) : []), ...(moonPay ? (["card", "bank"] as const) : [])];
+  const icon: Record<Method, { name: "wallet" | "storefront" | "tag" | "buildings"; tone: "purple" | "blue" | "green" }> = {
+    wallet: { name: "wallet", tone: "purple" },
+    ebay: { name: "storefront", tone: "blue" },
+    card: { name: "tag", tone: "green" },
+    bank: { name: "buildings", tone: "blue" },
+  };
 
   return (
     <form className="checkout-form" onSubmit={pay}>
-      <fieldset disabled={busy}>
-        <legend>{m.checkout.address}</legend>
-        {FIELDS.map((f) => (
-          <label key={f.key}>
-            <span>{m.checkout.fields[f.key]}</span>
-            <input
-              name={f.key}
-              required={f.required}
-              autoComplete={f.autoComplete}
-              maxLength={f.key === "country" ? 2 : 200}
-              value={address[f.key] ?? ""}
-              onChange={(e) => setAddress({ ...address, [f.key]: e.target.value })}
-            />
-          </label>
-        ))}
+      <fieldset className="pay-methods" disabled={busy}>
+        <legend>{m.checkout.methodTitle}</legend>
+        {methods.map((id) => {
+          const t = m.checkout.methods[id];
+          return (
+            <label key={id} className={`pay-method${method === id ? " on" : ""}`}>
+              <input type="radio" name="method" value={id} checked={method === id} onChange={() => choose(id)} />
+              <PopIcon name={icon[id].name} tone={icon[id].tone} size={30} className="pay-method-icon" />
+              <span className="pay-method-text">
+                <b>{id === "ebay" ? m.checkout.methods.ebay.title("eBay") : (t.title as string)}</b>
+                <span>{t.sub}</span>
+                <span className="pay-method-protect">{t.protect}</span>
+              </span>
+            </label>
+          );
+        })}
       </fieldset>
 
-      {expired && !busy ? (
-        <div className="notice withheld" role="status">
-          <p>{m.checkout.priceExpired}</p>
-          <button type="button" className="primary" onClick={refreshPrice} disabled={refreshing}>
-            {refreshing ? m.checkout.refreshing : m.checkout.refreshPrice}
-          </button>
-        </div>
-      ) : (
-        until && <p className="hint">{m.checkout.priceUntil(until)}</p>
+      {method === "ebay" && (
+        <section className="pay-ebay">
+          <p className="hint">{ebayLinks.length > 1 ? m.checkout.ebayNoteMany : m.checkout.ebayNote}</p>
+          <ul>
+            {ebayLinks.map((l) => (
+              <li key={l.url}>
+                {ebayLinks.length > 1 && <span>{l.title}</span>}
+                <a className="button primary" href={l.url} target="_blank" rel="sponsored noopener noreferrer">
+                  {m.checkout.openOn("eBay")}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      {!wallet ? (
-        <WalletButton label={m.checkout.connect} onConnect={connected} onError={walletError} />
-      ) : (
+      {method && method !== "ebay" && (
         <>
-          <p className="hint">
-            {m.checkout.payingFrom} {wallet.name} <code>{shortAddress(wallet.address)}</code>
-            {" · "}
-            {m.wallet.balance}{" "}
-            {funds.status === "ok"
-              ? usdc(funds.usdc.toString(), lang)
-              : funds.status === "error"
-                ? m.wallet.balanceUnavailable
-                : m.wallet.checking}{" "}
-            <button type="button" className="link" onClick={funds.refresh} disabled={funds.status === "loading"}>
-              {m.wallet.checkAgain}
-            </button>
-          </p>
-          {DEVNET && <p className="hint">{m.checkout.devnetPay}</p>}
-          {(shortBy > 0n || needSol > 0) && shortfall === null && (
-            <p className="notice withheld" role="status">
-              {shortBy > 0n && m.wallet.short(usdc(shortBy.toString(), lang))}
-              {shortBy > 0n && needSol > 0 && " "}
-              {needSol > 0 && m.wallet.needSol(needSol.toLocaleString(lang, { maximumFractionDigits: 3 }))}
-            </p>
-          )}
-          <button type="submit" className="primary" disabled={busy || expired}>
-            {busy ? m.checkout.working : m.checkout.payButton(`${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`)}
-          </button>
-        </>
-      )}
+          <fieldset disabled={busy}>
+            <legend>{m.checkout.address}</legend>
+            {FIELDS.map((f) => (
+              <label key={f.key}>
+                <span>{m.checkout.fields[f.key]}</span>
+                <input
+                  name={f.key}
+                  required={f.required}
+                  autoComplete={f.autoComplete}
+                  maxLength={f.key === "country" ? 2 : 200}
+                  value={address[f.key] ?? ""}
+                  onChange={(e) => setAddress({ ...address, [f.key]: e.target.value })}
+                />
+              </label>
+            ))}
+          </fieldset>
 
-      {message && (
-        <p className={phase === "error" ? "notice withheld" : "notice"} role={phase === "error" ? "alert" : "status"}>
-          {message}
-          {unclearOrder && (
-            <>
-              {" "}
-              <Link href={`/order/${unclearOrder}?pending=1`}>{m.checkout.openOrder} →</Link>
-            </>
-          )}
-        </p>
-      )}
-
-      {short !== null && wallet && (
-        <section className="top-up">
-          <h3>{m.checkout.topUp}</h3>
-          {moonPay ? (
-            <>
-              <p className="hint">
-                {m.checkout.moonpay}
-              </p>
-              <button type="button" className="primary" onClick={buyWithMoonPay}>
-                {m.checkout.moonpayButton}
+          {expired && !busy ? (
+            <div className="notice withheld" role="status">
+              <p>{m.checkout.priceExpired}</p>
+              <button type="button" className="primary" onClick={refreshPrice} disabled={refreshing}>
+                {refreshing ? m.checkout.refreshing : m.checkout.refreshPrice}
               </button>
+            </div>
+          ) : (
+            until && <p className="hint">{m.checkout.priceUntil(until)}</p>
+          )}
+
+          {!wallet ? (
+            <>
+              {viaMoonPay && <p className="hint">{m.checkout.walletFirst}</p>}
+              <WalletButton label={m.checkout.connect} onConnect={connected} onError={walletError} />
             </>
           ) : (
-            <p className="hint">
-              {m.checkout.addUsdc}
+            <>
+              <p className="hint">
+                {m.checkout.payingFrom} {wallet.name} <code>{shortAddress(wallet.address)}</code>
+                {" · "}
+                {m.wallet.balance}{" "}
+                {funds.status === "ok"
+                  ? usdc(funds.usdc.toString(), lang)
+                  : funds.status === "error"
+                    ? m.wallet.balanceUnavailable
+                    : m.wallet.checking}{" "}
+                <button type="button" className="link" onClick={funds.refresh} disabled={funds.status === "loading"}>
+                  {m.wallet.checkAgain}
+                </button>
+              </p>
+              {DEVNET && <p className="hint">{m.checkout.devnetPay}</p>}
+              {viaMoonPay && (
+                // The way chosen: buy the USDC first, then the Pay button below.
+                <div className="pay-topup">
+                  {short === null && funds.status === "ok" ? (
+                    <p className="hint">{m.checkout.enough}</p>
+                  ) : (
+                    <button type="button" className="primary" onClick={buyWithMoonPay}>
+                      {short !== null ? m.checkout.buyWith(usdc(String(Math.ceil(short * 1e6)), lang), way) : m.checkout.buyAny(way)}
+                    </button>
+                  )}
+                  {topUpNote && <p className="hint">{topUpNote}</p>}
+                </div>
+              )}
+              {!viaMoonPay && (shortBy > 0n || needSol > 0) && shortfall === null && (
+                <p className="notice withheld" role="status">
+                  {shortBy > 0n && m.wallet.short(usdc(shortBy.toString(), lang))}
+                  {shortBy > 0n && needSol > 0 && " "}
+                  {needSol > 0 && m.wallet.needSol(needSol.toLocaleString(lang, { maximumFractionDigits: 3 }))}
+                </p>
+              )}
+              {viaMoonPay && needSol > 0 && (
+                <p className="notice withheld" role="status">
+                  {m.wallet.needSol(needSol.toLocaleString(lang, { maximumFractionDigits: 3 }))}
+                </p>
+              )}
+              <button type="submit" className="primary" disabled={busy || expired}>
+                {busy ? m.checkout.working : m.checkout.payButton(`${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`)}
+              </button>
+            </>
+          )}
+
+          {message && (
+            <p className={phase === "error" ? "notice withheld" : "notice"} role={phase === "error" ? "alert" : "status"}>
+              {message}
+              {unclearOrder && (
+                <>
+                  {" "}
+                  <Link href={`/order/${unclearOrder}?pending=1`}>{m.checkout.openOrder} →</Link>
+                </>
+              )}
             </p>
           )}
-          {DEVNET && (
-            <p className="hint">
-              {m.checkout.faucet}{" "}
-              <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer">
-                faucet.circle.com
-              </a>
-            </p>
+
+          {method === "wallet" && short !== null && wallet && (
+            <section className="top-up">
+              <h3>{m.checkout.topUp}</h3>
+              {moonPay ? (
+                <>
+                  <p className="hint">{m.checkout.moonpay}</p>
+                  <button type="button" className="primary" onClick={buyWithMoonPay}>
+                    {m.checkout.moonpayButton}
+                  </button>
+                </>
+              ) : (
+                <p className="hint">{m.checkout.addUsdc}</p>
+              )}
+              {DEVNET && (
+                <p className="hint">
+                  {m.checkout.faucet}{" "}
+                  <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer">
+                    faucet.circle.com
+                  </a>
+                </p>
+              )}
+              {topUpNote && <p className="hint">{topUpNote}</p>}
+            </section>
           )}
-          {topUpNote && <p className="hint">{topUpNote}</p>}
-        </section>
+        </>
       )}
     </form>
   );

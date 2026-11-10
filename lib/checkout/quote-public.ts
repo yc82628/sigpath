@@ -13,6 +13,8 @@ export interface PublicQuote {
   source: string;
   id: string;
   title: string;
+  /** The listing's own page (https only), for buying it there instead. */
+  url: string | null;
   /** Unix seconds. */
   expiresAt: number;
 }
@@ -25,7 +27,8 @@ export function readQuote(token: string): PublicQuote | null {
     const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
     const q = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
     if (typeof q.source !== "string" || typeof q.id !== "string" || typeof q.title !== "string" || typeof q.expiresAt !== "number") return null;
-    return { source: q.source, id: q.id, title: q.title, expiresAt: q.expiresAt };
+    const url = typeof q.url === "string" && /^https:\/\//.test(q.url) ? q.url : null;
+    return { source: q.source, id: q.id, title: q.title, url, expiresAt: q.expiresAt };
   } catch {
     return null;
   }

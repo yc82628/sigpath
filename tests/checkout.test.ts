@@ -691,7 +691,14 @@ test("signatures are written in base58 as Solana writes them", () => {
 
 test("the browser reads a quote's listing and expiry, and nothing it can't read", () => {
   const token = signQuote({ ...LISTING, title: "ThinkPad X1 – Größe M" }, ENV, 1_800_000_000_000)!;
-  assert.deepEqual(readQuote(token), { source: "ebay", id: "v1|1|0", title: "ThinkPad X1 – Größe M", expiresAt: 1_800_000_000 + QUOTE_TTL_SECONDS });
+  assert.deepEqual(readQuote(token), {
+    source: "ebay",
+    id: "v1|1|0",
+    title: "ThinkPad X1 – Größe M",
+    url: "https://www.ebay.de/itm/1",
+    expiresAt: 1_800_000_000 + QUOTE_TTL_SECONDS,
+  });
+  assert.equal(readQuote(signQuote({ ...LISTING, url: "javascript:alert(1)" }, ENV)!)?.url, null, "only an https page is offered");
   const later = signQuote(LISTING, ENV, 1_800_000_600_000)!;
   assert.equal(firstExpiry([later, token]), 1_800_000_000 + QUOTE_TTL_SECONDS, "the first to run out");
   assert.equal(readQuote("not a token"), null);
