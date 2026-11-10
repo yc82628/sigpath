@@ -162,8 +162,9 @@ export default function PrivacyDe() {
       <Part title="Zählung der Nutzung" id="stats">
         <p>
           Um zu zeigen, wie viel SigPath genutzt wird, führt es Tagessummen: wie viele Suchen, Preisprüfungen und
-          Prüfungen der Erweiterung es gab, wie viele gute Angebote und Warnungen die Erweiterung gezeigt hat und wie oft
-          ein Suchergebnis geöffnet wurde. Es wird nur eine Zahl erhöht. Nichts wird dazu gespeichert: keine Suchbegriffe,
+          Prüfungen der Erweiterung es gab, wie viele gute Angebote, Warnungen und aufgeblähte Rabatte die Erweiterung
+          gezeigt hat, wie viele Angebote in Suchen als geprüft, &bdquo;genauer hinsehen&ldquo; oder nicht prüfbar beurteilt
+          wurden und wie oft ein Suchergebnis geöffnet wurde. Es wird nur eine Zahl erhöht. Nichts wird dazu gespeichert: keine Suchbegriffe,
           kein Produkt, kein Preis, keine Seitenadresse, keine IP-Adresse, kein Cookie und keine Kennung, daher lässt sich
           keine Summe einer Person zuordnen. Ein Klick auf ein Suchergebnis sendet nur &bdquo;ein Klick ist erfolgt&ldquo;.
           Crawler werden nicht gezählt. Die Summen eines Tages werden 400 Tage aufbewahrt, und jeder kann sie unter{" "}
@@ -181,6 +182,11 @@ export default function PrivacyDe() {
           sowie die Adresse der Seite, von der sie stammen, an SigPath zum Vergleich mit eBay; nichts davon wird gespeichert.
           Angebotsfotos werden von eBay{ali ? " und AliExpress" : ""} geladen, und einige von eBay werden auf Kopien
           verglichen.
+        </p>
+        <p>
+          Für den Preisverlauf (&bdquo;die letzten 30 Tage auf eBay&ldquo;) behält SigPath je Produkt einen typischen
+          eBay-Preis pro Tag, neu und gebraucht getrennt. Das Produkt ist dabei nur als Einweg-Code seines Namens gespeichert,
+          nicht als Name und nicht als Suche, und nichts darüber, wer gesucht hat. Jeder Tag wird 400 Tage aufbewahrt.
         </p>
       </Part>
       <Part title="Die SigPath-Browsererweiterung" id="extension">

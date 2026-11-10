@@ -25,7 +25,20 @@ import type { Kv } from "../kv/upstash";
 import { UpstashKv } from "../kv/upstash";
 
 /** Every event counted, in the order the stats page lists them. Nothing outside this list is ever written. */
-export const EVENTS = ["search", "check", "ext-shop", "ext-ebay", "good-deal", "caution", "inflated-discount", "click"] as const;
+export const EVENTS = [
+  "search",
+  "check",
+  "ext-shop",
+  "ext-ebay",
+  "good-deal",
+  "caution",
+  "inflated-discount",
+  "click",
+  // How the offers in searches were judged (lib/marketplace/label.ts): the stats page's "how the checks come out".
+  "judged-checked",
+  "judged-caution",
+  "judged-unchecked",
+] as const;
 export type StatEvent = (typeof EVENTS)[number];
 
 /** Each day's totals are kept this long, a little over a year so a year can be compared with the last. */
@@ -70,6 +83,28 @@ export async function count(
     ]);
   } catch {
     // Not counted: the shopper's answer matters more than the tally.
+  }
+}
+
+/**
+ * Count events by more than one at a time: the offers a search judged, by
+ * verdict. Same rules as count(): live site only, crawlers skipped, never throws.
+ */
+export async function countBy(
+  increments: Partial<Record<StatEvent, number>>,
+  opts: { userAgent?: string | null; kv?: Kv | null; nowMs?: number } = {},
+): Promise<void> {
+  const known = Object.entries(increments).filter(
+    (e): e is [StatEvent, number] => (EVENTS as readonly string[]).includes(e[0]) && Number.isInteger(e[1]) && (e[1] as number) > 0,
+  );
+  if (!known.length || isBot(opts.userAgent)) return;
+  const kv = opts.kv === undefined ? (process.env.VERCEL_ENV === "production" ? UpstashKv.fromEnv() : null) : opts.kv;
+  if (!kv) return;
+  const key = PREFIX + statDay(opts.nowMs);
+  try {
+    await kv.pipeline([...known.map(([e, n]) => ["HINCRBY", key, e, n]), ["EXPIRE", key, KEEP_DAYS * 86400], ["SET", SINCE, statDay(opts.nowMs), "NX"]]);
+  } catch {
+    // Not counted.
   }
 }
 

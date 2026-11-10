@@ -172,7 +172,8 @@ function PrivacyEn() {
       <Part title="Counting use" id="stats">
         <p>
           To show how much SigPath is used, it keeps daily totals: how many searches, price checks and extension checks
-          there were, how many good deals and warnings the extension showed, and how many times a search result was
+          there were, how many good deals, warnings and inflated discounts the extension showed, how many offers in
+          searches were judged checked, &ldquo;look closer&rdquo; or not checkable, and how many times a search result was
           opened. Only a number goes up. Nothing is kept with it: no search words, product, price, page address, IP
           address, cookie or identifier, so no total can be traced to anyone. A click on a search result sends only
           &ldquo;a click happened&rdquo;. Crawlers aren&apos;t counted. Each day&apos;s totals are kept for 400 days, and
@@ -185,6 +186,11 @@ function PrivacyEn() {
         <p>
           Your search words are sent to eBay&apos;s{ali ? " and AliExpress’s" : ""} official API{ali ? "s" : ""} to fetch listings. No information about you is sent with them,
           and SigPath stores neither the search nor the results. A price check (/check) sends the product name and price you bring, and the address of the page they came from, to SigPath to compare with eBay; none of it is stored. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
+        </p>
+        <p>
+          For the price history (&ldquo;the last 30 days on eBay&rdquo;), SigPath keeps one typical eBay price per product
+          per day, new and used apart. The product is stored only as a one-way code of its name, not as the name or the
+          search, with nothing about who searched. Each day is kept for 400 days.
         </p>
       </Part>
       <Part title="The SigPath browser extension" id="extension">

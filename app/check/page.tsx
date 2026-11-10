@@ -11,6 +11,8 @@ import { MESSAGES, type Messages } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
 import { count } from "@/lib/stats/counter";
 import { checkDiscount, type DiscountCheck } from "@/lib/marketplace/discount";
+import { readHistory, recordMarket, summarize, type HistorySummary } from "@/lib/marketplace/history";
+import PriceHistory from "../components/PriceHistory";
 
 /**
  * app/check — check a price from any shop (Amazon, AliExpress, anywhere)
@@ -67,6 +69,16 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   const tooMany = title && price && (await limitedMessage(h, RULES.search)) ? m.search.tooMany : null;
   const result = title && price && !tooMany ? await checkPrice({ title, price, from, url }) : null;
   if (result) await count(["check"], { userAgent: h.get("user-agent") });
+  // The product's days on eBay (history.ts): today's typical new price noted, the last 30 read.
+  let history: HistorySummary | null = null;
+  if (result) {
+    const cur = result.product.price.currency;
+    const [, days] = await Promise.all([
+      recordMarket(result.query, { n: result.market?.basis === "new" ? result.market.typical : null, currency: cur }),
+      readHistory(result.query),
+    ]);
+    history = summarize(days, "new", cur);
+  }
   // The struck-out price, when the shopper (or the bookmark) gave one: is the advertised discount real? (discount.ts)
   const wasText = (searchParams.was ?? "").trim().slice(0, 40);
   const was = wasText ? parsePrice(wasText) : null;
@@ -92,7 +104,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
         </p>
       )}
 
-      {result && <Answer r={result} t={t} tc={tc} money={money} discount={discount} />}
+      {result && <Answer r={result} t={t} tc={tc} money={money} discount={discount} history={history} m={m} lang={lang} />}
 
       <form className="supplier-form check-form" action="/check" method="get">
         {result && <h2>{t.again}</h2>}
@@ -166,12 +178,18 @@ function Answer({
   tc,
   money,
   discount,
+  history,
+  m,
+  lang,
 }: {
   r: Result;
   t: T;
   tc: (s: string) => string;
   money: (x: Money) => string;
   discount: DiscountCheck | null;
+  history: HistorySummary | null;
+  m: Messages;
+  lang: "en" | "de";
 }) {
   const tone = toneOf(r);
   const cur = r.product.price.currency;
@@ -233,6 +251,12 @@ function Answer({
       {discount && <DiscountBox d={discount} t={t} at={at} />}
 
       {r.market && <PriceRuler market={r.market} price={price} tone={tone} t={t} at={at} />}
+
+      {history && (
+        <section className="answer-box">
+          <PriceHistory h={history} t={m.history} lang={lang} money={at} price={price} />
+        </section>
+      )}
 
       {(warns.length > 0 || goods.length > 0 || tone === "ok" || tone === "good" || tone === "fair" || tone === "high") && (
         <section className="answer-box">

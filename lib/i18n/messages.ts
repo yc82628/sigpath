@@ -289,6 +289,14 @@ const en = {
       ebayDown: "eBay didn't answer just now.",
     },
   },
+  history: {
+    title: "The last 30 days on eBay",
+    low: (price: string, day: string): string => `Lowest typical price: ${price} (${day})`,
+    trend: { falling: "Prices falling", rising: "Prices rising", steady: "Prices steady" } as Record<string, string>,
+    days: (n: number): string => `from ${n} days of prices`,
+    below: "This price is below anything in the last 30 days.",
+    chart: (lo: string, hi: string): string => `Typical price over the last 30 days, between ${lo} and ${hi}`,
+  },
   checkout: {
     title: "Checkout",
     lede: "Your SigPath-checked items, paid in USDC with one approval.",
@@ -869,6 +877,14 @@ const de: Messages = {
       ebayOff: "eBay ist hier nicht verbunden.",
       ebayDown: "eBay hat gerade nicht geantwortet.",
     },
+  },
+  history: {
+    title: "Die letzten 30 Tage auf eBay",
+    low: (price, day) => `Niedrigster typischer Preis: ${price} (${day})`,
+    trend: { falling: "Preise fallen", rising: "Preise steigen", steady: "Preise stabil" },
+    days: (n) => `aus ${n} Tagen mit Preisen`,
+    below: "Dieser Preis liegt unter allem aus den letzten 30 Tagen.",
+    chart: (lo, hi) => `Typischer Preis der letzten 30 Tage, zwischen ${lo} und ${hi}`,
   },
   checkout: {
     title: "Kasse",

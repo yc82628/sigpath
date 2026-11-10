@@ -6,7 +6,9 @@ import { limitedMessage, RULES } from "@/lib/guard/limit";
 import { assembleSearch, startSearch } from "@/lib/marketplace/search";
 import { defaultSources } from "@/lib/marketplace/sources";
 import { cachedSources } from "@/lib/marketplace/search-cache";
-import { count } from "@/lib/stats/counter";
+import { count, countBy } from "@/lib/stats/counter";
+import { readHistory, recordMarket, summarize, type HistorySummary } from "@/lib/marketplace/history";
+import PriceHistory from "../components/PriceHistory";
 import ClickCounter from "../components/ClickCounter";
 import { totalPrice, type Listing, type Money, type SourceResult } from "@/lib/marketplace/types";
 import { decimalText, moneyText } from "@/lib/i18n/money";
@@ -405,8 +407,19 @@ async function SourceProgress({ result }: { result: Promise<SourceResult> }) {
  * the typical price, the range most offers fall in, how many were compared,
  * and a small histogram of where the prices sit, the typical price marked.
  */
-function MarketOverview({ groups, currency, query }: { groups: MarketGroup[]; currency: string; query: string }) {
-  const { m } = i18n();
+function MarketOverview({
+  groups,
+  currency,
+  query,
+  history,
+}: {
+  groups: MarketGroup[];
+  currency: string;
+  query: string;
+  /** The last 30 days per condition (history.ts); new only when the group is new alone, as the history keeps it. */
+  history: { new: HistorySummary | null; used: HistorySummary | null };
+}) {
+  const { m, lang } = i18n();
   if (!groups.length) return null;
   const at = (amount: number) => money({ amount, currency });
   return (
@@ -440,6 +453,10 @@ function MarketOverview({ groups, currency, query }: { groups: MarketGroup[]; cu
                 <span>{at(g.min)}</span>
                 <span>{at(g.max)}</span>
               </span>
+              {(() => {
+                const h = g.group === "used" ? history.used : g.withRefurbished ? null : history.new;
+                return h ? <PriceHistory h={h} t={m.history} lang={lang} money={at} /> : null;
+              })()}
             </div>
           );
         })}
@@ -705,6 +722,20 @@ async function SearchResults({
   };
   const checkedCount = (result?.listings ?? []).filter((l) => labelOf(l).verdict === "checked").length;
 
+  // The product's days on eBay (history.ts): today's typical prices noted, the last 30 read. And, once per
+  // search (a changed filter isn't another one), how its offers were judged, for /stats.
+  const cur = a.currency ?? result.listings[0]?.price.currency ?? "EUR";
+  const newOnly = groups.find((g) => g.group === "new" && !g.withRefurbished);
+  const usedG = groups.find((g) => g.group === "used");
+  const verdicts = { "judged-checked": 0, "judged-caution": 0, "judged-unchecked": 0 };
+  for (const l of result.listings) verdicts[`judged-${labelOf(l).verdict}` as keyof typeof verdicts]++;
+  const [, historyDays] = await Promise.all([
+    groups.length ? recordMarket(q, { n: newOnly?.typical, u: usedG?.typical, currency: cur }) : null,
+    readHistory(q),
+    isFiltered(filters) ? null : countBy(verdicts, { userAgent: headers().get("user-agent") }),
+  ]);
+  const history = { new: summarize(historyDays, "new", cur), used: summarize(historyDays, "used", cur) };
+
   // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
   // encrypt delivery addresses. Missing either, no listing gets a pay button.
   const checkoutReady = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
@@ -741,7 +772,7 @@ async function SearchResults({
   // What the search found for the product as a whole: the same whatever the filters say.
   const overview = (
     <>
-      {a?.status === "ok" && <MarketOverview groups={groups} currency={a.currency!} query={q} />}
+      {a?.status === "ok" && <MarketOverview groups={groups} currency={a.currency!} query={q} history={history} />}
       {a?.status === "ok" ? (
         <p className="hint market-scope">
           {/* New and used are compared separately, each against its own

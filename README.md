@@ -245,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 690 tests, as of 2026-11-10
+npm test                                   # 695 tests, as of 2026-11-10
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -887,6 +887,25 @@ cookie or id. Crawlers aren't counted, and only the live site counts
 (`VERCEL_ENV=production`): local runs and previews share the database. A count
 that fails is skipped, never in the shopper's way. `/stats` shows today, 7 and
 30 days, in public and unlinked from the menu; the privacy page explains it.
+
+Also counted, by `countBy`: how each search's offers were judged (checked,
+"look closer", not checkable), shown on `/stats` as shares under "How the
+checks come out", with the on-chain record beside it (escrow orders fulfilled
+and refunded, upheld fake-product findings, from `lib/proof/ledger.ts`), and
+the inflated discounts the extension caught.
+
+## Price history — the last 30 days on eBay (`lib/marketplace/history.ts`)
+
+Whenever SigPath measures a market anyway (a search, a price check, an
+extension check), it notes that day's typical price, new and used apart:
+`sigpath:hist:<code>`, a hash of day → prices, kept 400 days. The code is a
+one-way hash of the product's search words (letters and digits only), so
+"Sony WH-1000XM5", "sony wh1000xm5" and a shop's long title share one history,
+and the database never holds the product's name or the search. Only the live
+site writes. With three or more days, the market cards on the search page, the
+check page and the extension panel show the lowest typical price of the last
+30 days, a small line of the days, and the trend (the last three days against
+the week before last: falling, rising or steady, at ±5%).
 
 ## The menu, the footer and the fonts
 

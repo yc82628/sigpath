@@ -36,7 +36,9 @@
         ref: { rrp: "UVP", was: "dem früheren Preis", lowest30: "dem 30-Tage-Tiefstpreis", unknown: "dem Streichpreis" },
         discInflated: (c, from, ref, real, typ) => `Rabatt aufgebläht: Die −${c} % zählen ab ${from} (${ref}), aber meist kostet das Produkt ${typ}. ${real >= 0 ? `Echte Ersparnis: etwa ${real} %.` : `Es liegt sogar ${-real} % über dem Markt.`}`,
         discNotLower: (low) => `Kein echter Rabatt: nicht günstiger als der niedrigste Preis der letzten 30 Tage (${low}).`,
-        discReal: (c) => `Der Rabatt von −${c} % hält dem Marktvergleich stand.` }
+        discReal: (c) => `Der Rabatt von −${c} % hält dem Marktvergleich stand.`,
+        hist: (low, day, n) => `eBay, letzte 30 Tage: am niedrigsten ${low} (${day}), aus ${n} Tagen.`,
+        trend: { falling: "Preise fallen ↘", rising: "Preise steigen ↗", steady: "Preise stabil →" }, histBelow: "Günstiger als alles in den letzten 30 Tagen." }
     : { checking: "SigPath is checking…", typical: "Typical on eBay", listings: "listings", below: "below", above: "above", same: "exactly the typical price",
         best: "Best checked eBay deal", full: "Full check on SigPath →", soldBy: "Sold by", ebayDown: "eBay didn't answer just now: no comparison.",
         error: "SigPath can't be reached right now.", close: "Close", reload: "The extension was reloaded: reload this page.",
@@ -50,7 +52,9 @@
         ref: { rrp: "RRP", was: "the earlier price", lowest30: "the 30-day low", unknown: "the struck-out price" },
         discInflated: (c, from, ref, real, typ) => `Inflated discount: the −${c}% counts from ${from} (${ref}), but it usually sells for ${typ}. ${real >= 0 ? `Real saving: about ${real}%.` : `It's even ${-real}% above the market.`}`,
         discNotLower: (low) => `Not a real discount: no cheaper than its lowest price in the last 30 days (${low}).`,
-        discReal: (c) => `The −${c}% discount holds up against the market.` };
+        discReal: (c) => `The −${c}% discount holds up against the market.`,
+        hist: (low, day, n) => `eBay, last 30 days: lowest ${low} (${day}), from ${n} days.`,
+        trend: { falling: "Prices falling ↘", rising: "Prices rising ↗", steady: "Prices steady →" }, histBelow: "Cheaper than anything in the last 30 days." };
 
   const host = location.hostname;
   const manual = () => !!window.__sigpathManual; // "Check this page" in the extension's menu
@@ -297,6 +301,13 @@
     return html;
   }
 
+  /** The last 30 days of the market (lib/marketplace/history.ts): the low, the trend, one quiet line. */
+  function historyHtml(h) {
+    if (!h) return "";
+    const day = new Date(`${h.lowDay}T12:00:00Z`).toLocaleDateString(DE ? "de-DE" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+    return `<p class="muted">${esc(T.hist(h.low, day, h.days))}${h.trend ? ` <strong>${esc(T.trend[h.trend] || "")}</strong>` : ""}${h.belowLow ? ` ${esc(T.histBelow)}` : ""}</p>`;
+  }
+
   /** Whether the advertised discount holds up (lib/marketplace/discount.ts): a warning line, or a quiet one when it's real. */
   function discountHtml(d) {
     if (!d) return "";
@@ -323,6 +334,7 @@
     let html = product.heading ? `<p class="muted">${esc(short(product.heading))}</p>` : "";
     html += dealHtml(r);
     html += discountHtml(r.discount);
+    html += historyHtml(r.history);
     // With the deal on top, the price line below would say it again in other numbers (measured against
     // new and used alike), and "photo not checked" means nothing for a shop's own product: warnings only.
     const points = r.deal ? r.points.filter((x) => x.tone === "warn") : r.points.slice(0, 4);

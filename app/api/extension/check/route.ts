@@ -10,6 +10,7 @@ import { checkEbayListing, listingCheckDeps } from "@/lib/marketplace/listing-ch
 import { listingKey } from "@/lib/marketplace/types";
 import { count, type StatEvent } from "@/lib/stats/counter";
 import { checkDiscount, referenceOf } from "@/lib/marketplace/discount";
+import { readHistory, recordMarket, summarize } from "@/lib/marketplace/history";
 
 /** What a check showed, as counted events (lib/stats/counter.ts): totals only, nothing about the product. */
 function shown(verdict: string, deal: { tone: string } | null | undefined): StatEvent[] {
@@ -122,6 +123,12 @@ export async function POST(req: NextRequest) {
     checked: result.product.check.verdict === "checked",
   });
   const misleading = discount?.verdict === "inflated" || discount?.verdict === "not-lower";
+  // The product's days on eBay (history.ts): today's typical new price noted, the last 30 read.
+  const [, historyDays] = await Promise.all([
+    recordMarket(result.query, { n: result.market?.basis === "new" ? result.market.typical : null, currency: price.currency }),
+    readHistory(result.query),
+  ]);
+  const history = summarize(historyDays, "new", price.currency);
   await count(["ext-shop", ...shown(result.product.check.verdict, result.deal), ...(misleading ? (["inflated-discount"] as const) : [])], {
     userAgent: req.headers.get("user-agent"),
   });
@@ -165,6 +172,16 @@ export async function POST(req: NextRequest) {
             was: formatMoney({ amount: discount.was, currency: price.currency }),
             lowest30: discount.lowest30 !== null ? formatMoney({ amount: discount.lowest30, currency: price.currency }) : null,
             typical: discount.typical !== null ? formatMoney({ amount: discount.typical, currency: price.currency }) : null,
+          }
+        : null,
+      // The last 30 days of the new market (history.ts), from 0.5.1 on; null with fewer than three days.
+      history: history
+        ? {
+            low: formatMoney({ amount: history.low.amount, currency: history.currency }),
+            lowDay: history.low.day,
+            trend: history.trend,
+            days: history.days,
+            belowLow: price.amount < history.low.amount,
           }
         : null,
       // A believable AliExpress offer for the same product: shown, never checked.

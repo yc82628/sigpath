@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getLang } from "@/lib/i18n/server";
 import { countedSince, EVENTS, readStats, totalOf, type StatEvent } from "@/lib/stats/counter";
+import { ON_DEVNET, proof } from "@/lib/proof/ledger";
 
 /**
  * app/stats — how much SigPath is used, in public.
@@ -33,7 +34,19 @@ const en = {
     caution: "Warnings the extension showed",
     "inflated-discount": "Inflated discounts the extension caught",
     click: "Search results opened",
+    "judged-checked": "Offers SigPath-checked",
+    "judged-caution": "Offers flagged “look closer”",
+    "judged-unchecked": "Offers that couldn't be checked",
   } as Record<StatEvent, string>,
+  outcomeTitle: "How the checks come out",
+  outcomeLede: (n: string) => `Of the ${n} offers in searches over the last 30 days:`,
+  outcomeNone: "Not counted yet: this starts with the next searches.",
+  pct: (p: string) => `${p}%`,
+  proofTitle: "What happened after",
+  proofLine: (fulfilled: number, refunded: number, findings: number) =>
+    `Escrow orders: ${fulfilled} fulfilled, ${refunded} refunded. Fake-product reports upheld against sellers: ${findings}.`,
+  devnet: "These are test orders on Solana devnet, not real sales.",
+  proofLink: "Every order and finding, on Solana →",
   since: (d: string) => `Counted since ${d}. Days run on Berlin time.`,
   none: "Nothing counted yet.",
   off: "Counting isn't set up on this server.",
@@ -56,7 +69,19 @@ const de: typeof en = {
     caution: "Warnungen, von der Erweiterung gezeigt",
     "inflated-discount": "Aufgeblähte Rabatte, von der Erweiterung erkannt",
     click: "Geöffnete Suchergebnisse",
+    "judged-checked": "Angebote, von SigPath geprüft",
+    "judged-caution": "Angebote mit „Genauer hinsehen“",
+    "judged-unchecked": "Angebote, die nicht geprüft werden konnten",
   },
+  outcomeTitle: "Wie die Prüfungen ausgehen",
+  outcomeLede: (n) => `Von den ${n} Angeboten in Suchen der letzten 30 Tage:`,
+  outcomeNone: "Noch nicht gezählt: Das beginnt mit den nächsten Suchen.",
+  pct: (p) => `${p} %`,
+  proofTitle: "Was danach passiert ist",
+  proofLine: (fulfilled, refunded, findings) =>
+    `Treuhand-Bestellungen: ${fulfilled} erfüllt, ${refunded} erstattet. Bestätigte Fälschungsmeldungen gegen Verkäufer: ${findings}.`,
+  devnet: "Das sind Testbestellungen im Solana-Devnet, keine echten Verkäufe.",
+  proofLink: "Jede Bestellung und jeder Befund, auf Solana →",
   since: (d) => `Gezählt seit ${d}. Die Tage laufen nach Berliner Zeit.`,
   none: "Noch nichts gezählt.",
   off: "Die Zählung ist auf diesem Server nicht eingerichtet.",
@@ -66,7 +91,12 @@ const de: typeof en = {
 export default async function StatsPage() {
   const lang = getLang();
   const t = lang === "de" ? de : en;
-  const [days, first] = await Promise.all([readStats(30).catch(() => null), countedSince().catch(() => null)]);
+  const [days, first, chain] = await Promise.all([readStats(30).catch(() => null), countedSince().catch(() => null), proof().catch(() => null)]);
+  // The usage table; how offers were judged gets its own section below.
+  const TABLE = EVENTS.filter((e) => !e.startsWith("judged-"));
+  const month = days ? totalOf(days, 30) : null;
+  const judged = month ? month["judged-checked"] + month["judged-caution"] + month["judged-unchecked"] : 0;
+  const share = (x: number) => (judged ? ((x / judged) * 100).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { maximumFractionDigits: 1 }) : "0");
   const n = (x: number) => x.toLocaleString(lang === "de" ? "de-DE" : "en-GB");
   const sinceText = first ? new Date(`${first}T12:00:00Z`).toLocaleDateString(lang === "de" ? "de-DE" : "en-GB", { day: "numeric", month: "long", year: "numeric" }) : null;
 
@@ -89,7 +119,7 @@ export default async function StatsPage() {
                 </tr>
               </thead>
               <tbody>
-                {EVENTS.map((e) => (
+                {TABLE.map((e) => (
                   <tr key={e}>
                     <th scope="row">{t.labels[e]}</th>
                     <td className="num">{n(totalOf(days, 1)[e])}</td>
@@ -101,6 +131,37 @@ export default async function StatsPage() {
             </table>
           </div>
           <p className="hint">{sinceText ? t.since(sinceText) : t.none}</p>
+
+          {/* The verdicts SigPath gave, in proportion: what "checked" means in practice. */}
+          <h2>{t.outcomeTitle}</h2>
+          {judged > 0 && month ? (
+            <>
+              <p>{t.outcomeLede(n(judged))}</p>
+              <ul className="stats-shares">
+                {(["judged-checked", "judged-caution", "judged-unchecked"] as const).map((e) => (
+                  <li key={e} className={e}>
+                    <b>{t.pct(share(month[e]))}</b> {t.labels[e]}
+                    <span className="stats-bar" aria-hidden="true">
+                      <i style={{ width: `${(month[e] / judged) * 100}%` }} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="hint">{t.outcomeNone}</p>
+          )}
+        </>
+      )}
+
+      {chain && (
+        <>
+          <h2>{t.proofTitle}</h2>
+          <p>{t.proofLine(chain.orders.fulfilled, chain.orders.refunded, chain.findings.length)}</p>
+          {ON_DEVNET && <p className="hint">{t.devnet}</p>}
+          <p>
+            <Link href="/proof">{t.proofLink}</Link>
+          </p>
         </>
       )}
       <p>
