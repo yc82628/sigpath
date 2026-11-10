@@ -9,6 +9,7 @@ import { SeenStore } from "@/lib/extension/seen";
 import { checkEbayListing, listingCheckDeps } from "@/lib/marketplace/listing-check";
 import { listingKey } from "@/lib/marketplace/types";
 import { count, type StatEvent } from "@/lib/stats/counter";
+import { checkDiscount, referenceOf } from "@/lib/marketplace/discount";
 
 /** What a check showed, as counted events (lib/stats/counter.ts): totals only, nothing about the product. */
 function shown(verdict: string, deal: { tone: string } | null | undefined): StatEvent[] {
@@ -108,7 +109,22 @@ export async function POST(req: NextRequest) {
   if (!title || !price) return NextResponse.json({ error: "Send the product's title and price." }, { status: 400 });
 
   const result = await checkPrice({ title, price, from, url });
-  await count(["ext-shop", ...shown(result.product.check.verdict, result.deal)], { userAgent: req.headers.get("user-agent") });
+  // The struck-out price the page shows, and its label ("UVP", "Was", "lowest in 30 days"), from 0.5.1 on (discount.ts).
+  const was = parsePrice(str(b.was, 40));
+  const lowest30 = parsePrice(str(b.lowest30, 40));
+  const same = (m: Money | null) => (m && m.currency === price.currency ? m.amount : null);
+  const discount = checkDiscount({
+    price: price.amount,
+    was: same(was),
+    reference: referenceOf(str(b.wasLabel, 80)),
+    lowest30: same(lowest30),
+    market: result.market ? { typical: result.market.typical, high: result.market.high } : null,
+    checked: result.product.check.verdict === "checked",
+  });
+  const misleading = discount?.verdict === "inflated" || discount?.verdict === "not-lower";
+  await count(["ext-shop", ...shown(result.product.check.verdict, result.deal), ...(misleading ? (["inflated-discount"] as const) : [])], {
+    userAgent: req.headers.get("user-agent"),
+  });
   const tc = (t: string) => translateCheck(t, lang);
   const formatMoney = (x: Money) => moneyText(x, lang);
 
@@ -138,6 +154,18 @@ export async function POST(req: NextRequest) {
       deal: result.deal,
       market: result.market
         ? { low: formatMoney({ amount: result.market.low, currency: result.market.currency }), high: formatMoney({ amount: result.market.high, currency: result.market.currency }), listings: result.market.count, basis: result.market.basis }
+        : null,
+      // The advertised discount against the market and the 30-day low (discount.ts); null without a struck-out price.
+      discount: discount
+        ? {
+            verdict: discount.verdict,
+            claimedPct: discount.claimedPct,
+            vsMarketPct: discount.vsMarketPct,
+            reference: discount.reference,
+            was: formatMoney({ amount: discount.was, currency: price.currency }),
+            lowest30: discount.lowest30 !== null ? formatMoney({ amount: discount.lowest30, currency: price.currency }) : null,
+            typical: discount.typical !== null ? formatMoney({ amount: discount.typical, currency: price.currency }) : null,
+          }
         : null,
       // A believable AliExpress offer for the same product: shown, never checked.
       elsewhere: result.elsewhere

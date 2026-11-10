@@ -4,6 +4,10 @@ What to paste into the Chrome Web Store (and Microsoft Edge Add-ons) forms. The
 upload is a zip of this folder with `manifest.json` at its root (not the folder
 itself), e.g. `sigpath-check-0.4.0.zip`.
 
+**0.5.1 also checks the discount.** Where Amazon shows a struck-out price (RRP,
+"Was", the 30-day low), the panel says whether the saving holds up against the
+market. Data collected: the struck-out price and its label, with the price.
+
 **0.5.1: the check on Amazon results pages happens there.** "Check with SigPath" on
 a result opens the panel on the Amazon page instead of SigPath's site. No new
 site or permission. Upload it only once 0.5.0 is approved, in both stores: a new
@@ -96,7 +100,7 @@ with the "Check with SigPath" buttons; the menu with "Check this page".
 **Remote code:** No. All code is in the package; the extension only exchanges JSON with sigpath.vercel.app.
 
 **Data collected** (tick):
-- *Website content*: the product name, price, product number and photo address on the shop page, sent for the check.
+- *Website content*: the product name, price, struck-out price (with its label), product number and photo address on the shop page, sent for the check.
 - *Web history*: the address of the product page checked; and, only with sharing turned on, the Amazon.de products and prices on pages the user opens.
 - Nothing else: no personally identifiable information, no authentication, no personal communications, no location, no financial or health data, no user activity (clicks, keystrokes).
 

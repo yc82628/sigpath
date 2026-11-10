@@ -8,6 +8,7 @@ import { assistantConfig, providerName } from "@/lib/assistant/models";
 import { AMAZON_PRICE_DISCLAIMER, aliexpressAffiliate, amazonTag, ebayCampaignId } from "@/lib/legal/site";
 import { visitCounterOn } from "@/lib/visits";
 import VisitCounter from "./components/VisitCounter";
+import RegisterSW from "./components/RegisterSW";
 import SaleDayBanner from "./components/SaleDayBanner";
 import PopIcon, { TONES, type Tone } from "./components/PopIcon";
 import CatalogMenu from "./components/CatalogMenu";
@@ -125,6 +126,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </WalletProvider>
         </LangProvider>
         {visitCounterOn() && <VisitCounter />}
+        <RegisterSW />
       </body>
     </html>
   );

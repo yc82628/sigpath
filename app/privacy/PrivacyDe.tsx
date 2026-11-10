@@ -187,8 +187,8 @@ export default function PrivacyDe() {
         <p>
           Die Erweiterung läuft von selbst nur auf Seiten von eBay.de, Amazon, AliExpress, OTTO, MediaMarkt und Saturn, die du öffnest,
           und auf der Seite eines anderen Shops nur, wenn du in ihrem Menü auf &bdquo;Diese Seite prüfen&ldquo; klickst. Auf
-          einer Produktseite liest sie Namen und Preis des Produkts (bei Amazon auch Produktnummer, Fotoadresse und Namen des
-          Verkäufers) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. Auf einem
+          einer Produktseite liest sie Namen und Preis des Produkts (bei Amazon auch Produktnummer, Fotoadresse, Namen des
+          Verkäufers und einen durchgestrichenen Preis mit seiner Beschriftung, um den Rabatt zu prüfen) und sendet sie mit der Adresse der Seite an SigPath, für dieselbe Prüfung wie /check. Auf einem
           eBay-Angebot sendet sie nur die Angebotsnummer und die Adresse der Seite; das Angebot selbst liest SigPath über die
           API von eBay. SigPath sucht dann
           auf eBay und AliExpress nach dem Namen des Produkts und behält deren Antwort eine halbe Stunde lang, für alle, die

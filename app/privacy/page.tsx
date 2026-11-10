@@ -191,7 +191,8 @@ function PrivacyEn() {
         <p>
           The extension runs by itself only on eBay.de, Amazon, AliExpress, OTTO, MediaMarkt and Saturn pages you open, and on another
           shop&apos;s page only when you click &ldquo;Check this page&rdquo; in its menu. On a product page
-          it reads the product&apos;s name and price (on Amazon also its product number, photo address and seller name) and
+          it reads the product&apos;s name and price (on Amazon also its product number, photo address, seller name, and a
+          struck-out price with its label, to check the discount) and
           sends them, with the page&apos;s address, to SigPath for the same check as /check. On an eBay listing it sends only
           the item number and the page&apos;s address; SigPath reads the listing itself through eBay&apos;s API. SigPath then searches eBay and
           AliExpress for the product&apos;s name, and keeps what they answered for half an hour, shared by everyone checking

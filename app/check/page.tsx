@@ -10,6 +10,7 @@ import { getLang } from "@/lib/i18n/server";
 import { MESSAGES, type Messages } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
 import { count } from "@/lib/stats/counter";
+import { checkDiscount, type DiscountCheck } from "@/lib/marketplace/discount";
 
 /**
  * app/check — check a price from any shop (Amazon, AliExpress, anywhere)
@@ -28,7 +29,7 @@ export const dynamic = "force-dynamic";
 
 /** Runs on the shop's page, in the shopper's own browser: reads the title and price shown, opens SigPath. */
 function bookmarklet(origin: string): string {
-  const code = `(function(){var d=document,q=function(s){return d.querySelector(s)};var te=q('#productTitle')||q('h1[data-pl="product-title"]')||q('h1');var t=(te&&te.innerText||d.title||'').trim();var sel=['#corePrice_feature_div .a-offscreen','#corePriceDisplay_desktop_feature_div .a-offscreen','span.a-price .a-offscreen','#priceblock_ourprice','#priceblock_dealprice','.product-price-current','[class*="price--current"]','[class*="price-default--current"]','[itemprop=price]','meta[property="product:price:amount"]'];var p='';for(var i=0;i<sel.length&&!p;i++){var e=q(sel[i]);var v=e&&(e.getAttribute('content')||e.innerText||e.textContent);if(v&&/\\d/.test(v))p=v.trim();}if(!p){var ls=d.querySelectorAll('script[type="application/ld+json"]');for(var k=0;k<ls.length&&!p;k++){try{var j=JSON.parse(ls[k].textContent);var a=[].concat(j['@graph']||j);for(var m=0;m<a.length&&!p;m++){var o=a[m].offers&&[].concat(a[m].offers)[0];if(o&&o.price)p=o.price+' '+(o.priceCurrency||'');}}catch(x){}}}var h=location.hostname,f=/amazon\\./.test(h)?'amazon':/aliexpress\\./.test(h)?'aliexpress':'other';window.open(${JSON.stringify(origin)}+'/check?'+new URLSearchParams({title:t.slice(0,300),price:p,from:f,url:location.origin+location.pathname}),'_blank');})();`;
+  const code = `(function(){var d=document,q=function(s){return d.querySelector(s)};var te=q('#productTitle')||q('h1[data-pl="product-title"]')||q('h1');var t=(te&&te.innerText||d.title||'').trim();var sel=['#corePrice_feature_div .a-offscreen','#corePriceDisplay_desktop_feature_div .a-offscreen','span.a-price .a-offscreen','#priceblock_ourprice','#priceblock_dealprice','.product-price-current','[class*="price--current"]','[class*="price-default--current"]','[itemprop=price]','meta[property="product:price:amount"]'];var p='';for(var i=0;i<sel.length&&!p;i++){var e=q(sel[i]);var v=e&&(e.getAttribute('content')||e.innerText||e.textContent);if(v&&/\\d/.test(v))p=v.trim();}if(!p){var ls=d.querySelectorAll('script[type="application/ld+json"]');for(var k=0;k<ls.length&&!p;k++){try{var j=JSON.parse(ls[k].textContent);var a=[].concat(j['@graph']||j);for(var m=0;m<a.length&&!p;m++){var o=a[m].offers&&[].concat(a[m].offers)[0];if(o&&o.price)p=o.price+' '+(o.priceCurrency||'');}}catch(x){}}}var we=q('#corePriceDisplay_desktop_feature_div .basisPrice .a-offscreen')||q('.a-text-price[data-a-strike="true"] .a-offscreen');var w=(we&&we.textContent||'').trim();var h=location.hostname,f=/amazon\\./.test(h)?'amazon':/aliexpress\\./.test(h)?'aliexpress':'other';window.open(${JSON.stringify(origin)}+'/check?'+new URLSearchParams({title:t.slice(0,300),price:p,was:/\\d/.test(w)?w:'',from:f,url:location.origin+location.pathname}),'_blank');})();`;
   return "javascript:" + encodeURIComponent(code);
 }
 
@@ -48,7 +49,7 @@ function toneOf(r: Result): Tone {
 
 const GLYPH: Record<Tone, string> = { good: "✓", fair: "=", high: "↑", caution: "!", ok: "✓", unknown: "?" };
 
-export default async function CheckPage({ searchParams }: { searchParams: { title?: string; price?: string; from?: string; url?: string } }) {
+export default async function CheckPage({ searchParams }: { searchParams: { title?: string; price?: string; was?: string; from?: string; url?: string } }) {
   const h = headers();
   const lang = getLang();
   const m = MESSAGES[lang];
@@ -66,6 +67,18 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
   const tooMany = title && price && (await limitedMessage(h, RULES.search)) ? m.search.tooMany : null;
   const result = title && price && !tooMany ? await checkPrice({ title, price, from, url }) : null;
   if (result) await count(["check"], { userAgent: h.get("user-agent") });
+  // The struck-out price, when the shopper (or the bookmark) gave one: is the advertised discount real? (discount.ts)
+  const wasText = (searchParams.was ?? "").trim().slice(0, 40);
+  const was = wasText ? parsePrice(wasText) : null;
+  const discount =
+    result && price && was && was.currency === price.currency
+      ? checkDiscount({
+          price: price.amount,
+          was: was.amount,
+          market: result.market ? { typical: result.market.typical, high: result.market.high } : null,
+          checked: result.product.check.verdict === "checked",
+        })
+      : null;
   const example = `/check?${new URLSearchParams({ title: "Sony WH-1000XM5", price: "279,00 €", from: "amazon" })}`;
 
   return (
@@ -79,7 +92,7 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
         </p>
       )}
 
-      {result && <Answer r={result} t={t} tc={tc} money={money} />}
+      {result && <Answer r={result} t={t} tc={tc} money={money} discount={discount} />}
 
       <form className="supplier-form check-form" action="/check" method="get">
         {result && <h2>{t.again}</h2>}
@@ -93,6 +106,12 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
           <label>
             {t.price}
             <input name="price" defaultValue={priceText} placeholder="249,00 €" required inputMode="decimal" />
+          </label>
+          <label>
+            <span>
+              {t.wasField} <span className="hint">({t.wasHint})</span>
+            </span>
+            <input name="was" defaultValue={wasText} placeholder="299,00 €" inputMode="decimal" />
           </label>
           <label>
             {t.shop}
@@ -141,7 +160,19 @@ export default async function CheckPage({ searchParams }: { searchParams: { titl
 
 type T = Messages["check"];
 
-function Answer({ r, t, tc, money }: { r: Result; t: T; tc: (s: string) => string; money: (x: Money) => string }) {
+function Answer({
+  r,
+  t,
+  tc,
+  money,
+  discount,
+}: {
+  r: Result;
+  t: T;
+  tc: (s: string) => string;
+  money: (x: Money) => string;
+  discount: DiscountCheck | null;
+}) {
   const tone = toneOf(r);
   const cur = r.product.price.currency;
   const at = (amount: number) => money({ amount, currency: cur });
@@ -198,6 +229,8 @@ function Answer({ r, t, tc, money }: { r: Result; t: T; tc: (s: string) => strin
       </section>
 
       {r.ebay.status !== "ok" && <p className="notice withheld">{t.ebayDown}</p>}
+
+      {discount && <DiscountBox d={discount} t={t} at={at} />}
 
       {r.market && <PriceRuler market={r.market} price={price} tone={tone} t={t} at={at} />}
 
@@ -288,6 +321,29 @@ function Answer({ r, t, tc, money }: { r: Result; t: T; tc: (s: string) => strin
 
       <Numbers r={r} t={t} tc={tc} at={at} typical={typical} gap={gap} />
     </div>
+  );
+}
+
+/** Is the advertised discount real? Against the market, and the 30-day low the law asks for (discount.ts). */
+function DiscountBox({ d, t, at }: { d: DiscountCheck; t: T; at: (n: number) => string }) {
+  const x = t.discount;
+  const warn = d.verdict === "inflated" || d.verdict === "not-lower";
+  const line =
+    d.verdict === "inflated"
+      ? x.inflated(d.claimedPct, at(d.was), x.ref[d.reference] ?? x.ref.unknown, d.vsMarketPct ?? 0, at(d.typical ?? 0))
+      : d.verdict === "not-lower"
+        ? x.notLower(at(d.lowest30 ?? 0))
+        : d.verdict === "real"
+          ? x.real(d.claimedPct, d.vsMarketPct ?? 0)
+          : x.unchecked(d.claimedPct);
+  return (
+    <section className={`answer-box discount-box${warn ? " warn" : d.verdict === "real" ? " good" : ""}`}>
+      <h3>{x.title}</h3>
+      <ul className="answer-checks">
+        <li className={warn ? "warn" : d.verdict === "real" ? "good" : ""}>{line}</li>
+      </ul>
+      <p className="hint">{x.rule}</p>
+    </section>
   );
 }
 

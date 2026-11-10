@@ -457,6 +457,19 @@ const en = {
       how: "How SigPath checks →",
       seeAll: "See all eBay results →",
     },
+    discount: {
+      title: "The discount",
+      inflated: (c: number, from: string, ref: string, real: number, typ: string): string =>
+        `The −${c}% counts from ${from} (${ref}), but this product usually sells for ${typ}. ${real >= 0 ? `The real saving is about ${real}%.` : `It's even ${-real}% above the market.`}`,
+      notLower: (low: string): string => `No real discount: it isn't cheaper than its lowest price in the last 30 days (${low}).`,
+      real: (c: number, real: number): string =>
+        `The −${c}% holds up against the market: ${real >= 0 ? `about ${real}% under` : `${-real}% over`} what it usually sells for.`,
+      unchecked: (c: number): string => `The shop claims −${c}%. Without a checked market price, SigPath can't say whether that's real.`,
+      ref: { rrp: "the maker's recommended price", was: "the shop's earlier price", lowest30: "its 30-day low", unknown: "the struck-out price" } as Record<string, string>,
+      rule: "A shop that cuts its own price must name its lowest price of the last 30 days (§ 11 PAngV). A cut from the maker's recommended price is allowed, but says nothing about what the product really costs.",
+    },
+    wasField: "Struck-out price",
+    wasHint: "optional: the crossed-out price, if the shop shows one",
     wrong: "Wrong product? Change the name below and check again.",
     again: "Check another price",
     name: "Product name",
@@ -1023,6 +1036,18 @@ const de: Messages = {
       how: "So prüft SigPath →",
       seeAll: "Alle eBay-Ergebnisse ansehen →",
     },
+    discount: {
+      title: "Der Rabatt",
+      inflated: (c, from, ref, real, typ) =>
+        `Die −${c} % zählen ab ${from} (${ref}), aber meist kostet das Produkt ${typ}. ${real >= 0 ? `Die echte Ersparnis liegt bei etwa ${real} %.` : `Es liegt sogar ${-real} % über dem Markt.`}`,
+      notLower: (low) => `Kein echter Rabatt: nicht günstiger als der niedrigste Preis der letzten 30 Tage (${low}).`,
+      real: (c, real) => `Die −${c} % halten dem Marktvergleich stand: ${real >= 0 ? `etwa ${real} % unter` : `${-real} % über`} dem üblichen Preis.`,
+      unchecked: (c) => `Der Shop wirbt mit −${c} %. Ohne geprüften Marktpreis kann SigPath nicht sagen, ob das stimmt.`,
+      ref: { rrp: "der UVP", was: "dem früheren Preis des Shops", lowest30: "dem 30-Tage-Tiefstpreis", unknown: "dem Streichpreis" },
+      rule: "Wer seinen eigenen Preis senkt, muss den niedrigsten Preis der letzten 30 Tage nennen (§ 11 PAngV). Ein Rabatt auf die UVP ist erlaubt, sagt aber nichts darüber, was das Produkt wirklich kostet.",
+    },
+    wasField: "Streichpreis",
+    wasHint: "optional: der durchgestrichene Preis, falls der Shop einen zeigt",
     wrong: "Falsches Produkt? Ändere unten den Namen und prüfe noch einmal.",
     again: "Einen anderen Preis prüfen",
     name: "Produktname",

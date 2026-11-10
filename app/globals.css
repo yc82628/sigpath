@@ -1747,13 +1747,17 @@ a.chat-card-title:hover { text-decoration: underline; }
   .answer-numbers dd { margin-bottom: 12px; }
 }
 
+.discount-box.warn { border-color: var(--warn); background: linear-gradient(160deg, var(--warn-soft), var(--surface) 70%); }
+.discount-box.good { border-color: var(--ok); }
+.discount-box > .hint { margin: 10px 0 0; font-size: 0.85rem; }
 .check-form h2 { margin: 0; font-size: 1.1rem; }
-.check-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.check-form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; align-items: end; }
 .check-form-row input, .check-form-row select {
   width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--fg); font: 0.95rem var(--font-sans);
 }
 .check-form .hint { margin: 0; }
+@media (max-width: 640px) { .check-form-row { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 480px) { .check-form-row { grid-template-columns: 1fr; } }
 .check-faster details { margin-top: 6px; }
 .check-faster summary { cursor: pointer; color: var(--muted); font-size: 0.92rem; }

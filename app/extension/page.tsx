@@ -58,6 +58,14 @@ const en = {
   step2b: ", turn on Developer mode.",
   step3a: "“Load unpacked” → the",
   step3b: "folder.",
+  phone: "On your phone",
+  phoneLede: "Phones don't run browser extensions, so on Android SigPath comes into the share menu instead.",
+  phoneSteps: [
+    "Open sigpath.vercel.app in Chrome, tap ⋮ and “Install app” (or “Add to Home screen”).",
+    "In the Amazon or eBay app, open a product and tap Share → SigPath.",
+    "SigPath searches every marketplace for it, with a check on every offer.",
+  ],
+  iphone: "On an iPhone: copy the product's link and paste it into SigPath's search.",
 };
 
 const de: typeof en = {
@@ -98,6 +106,14 @@ const de: typeof en = {
   step1b: "herunterladen (Code → Download ZIP) und entpacken.",
   step2a: "Öffne",
   step2b: " und schalte den Entwicklermodus ein.",
+  phone: "Auf dem Handy",
+  phoneLede: "Handys führen keine Browser-Erweiterungen aus. Auf Android kommt SigPath deshalb ins Teilen-Menü.",
+  phoneSteps: [
+    "Öffne sigpath.vercel.app in Chrome, tippe auf ⋮ und „App installieren“ (oder „Zum Startbildschirm hinzufügen“).",
+    "Öffne in der Amazon- oder eBay-App ein Produkt und tippe auf Teilen → SigPath.",
+    "SigPath sucht es auf allen Marktplätzen, mit einer Prüfung bei jedem Angebot.",
+  ],
+  iphone: "Auf dem iPhone: Kopiere den Link des Produkts und füge ihn in SigPaths Suche ein.",
   step3a: "„Entpackte Erweiterung laden“ → den Ordner",
   step3b: "wählen.",
 };
@@ -218,6 +234,18 @@ export default function ExtensionPage() {
             <ManualSteps t={t} />
           </>
         )}
+      </section>
+
+      {/* Android: SigPath installed from Chrome is in the share menu (app/manifest.ts, /share). */}
+      <section className="qs-install" id="phone">
+        <h2>{t.phone}</h2>
+        <p className="hint">{t.phoneLede}</p>
+        <ol>
+          {t.phoneSteps.map((s) => (
+            <li key={s}>{s}</li>
+          ))}
+        </ol>
+        <p className="hint">{t.iphone}</p>
       </section>
     </main>
   );

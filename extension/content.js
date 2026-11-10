@@ -32,7 +32,11 @@
         good: "Gutes Angebot", fair: "Etwa der übliche Preis", high: "Anderswo vielleicht günstiger",
         usually: (lo, hi, n, basis) => `${basis === "used" ? "Gebraucht" : basis === "new-refurbished" ? "Neu und generalüberholt" : "Neu"} auf eBay meist ${lo} – ${hi} (${n} Angebote).`, also: "Auch auf", notChecked: "nicht von SigPath geprüft",
         cheaper: "Günstigeres geprüftes Angebot", variations: "Dieses Angebot hat mehrere Varianten (Größe, Farbe) mit eigenen Preisen: wähle eine, oder sieh dir die ganze Suche auf SigPath an.",
-        gone: "eBay kennt dieses Angebot nicht mehr: vielleicht verkauft oder beendet.", search: "Auf SigPath suchen →" }
+        gone: "eBay kennt dieses Angebot nicht mehr: vielleicht verkauft oder beendet.", search: "Auf SigPath suchen →",
+        ref: { rrp: "UVP", was: "dem früheren Preis", lowest30: "dem 30-Tage-Tiefstpreis", unknown: "dem Streichpreis" },
+        discInflated: (c, from, ref, real, typ) => `Rabatt aufgebläht: Die −${c} % zählen ab ${from} (${ref}), aber meist kostet das Produkt ${typ}. ${real >= 0 ? `Echte Ersparnis: etwa ${real} %.` : `Es liegt sogar ${-real} % über dem Markt.`}`,
+        discNotLower: (low) => `Kein echter Rabatt: nicht günstiger als der niedrigste Preis der letzten 30 Tage (${low}).`,
+        discReal: (c) => `Der Rabatt von −${c} % hält dem Marktvergleich stand.` }
     : { checking: "SigPath is checking…", typical: "Typical on eBay", listings: "listings", below: "below", above: "above", same: "exactly the typical price",
         best: "Best checked eBay deal", full: "Full check on SigPath →", soldBy: "Sold by", ebayDown: "eBay didn't answer just now: no comparison.",
         error: "SigPath can't be reached right now.", close: "Close", reload: "The extension was reloaded: reload this page.",
@@ -42,7 +46,11 @@
         good: "Good deal", fair: "About the usual price", high: "You may find it cheaper",
         usually: (lo, hi, n, basis) => `${basis === "used" ? "Used" : basis === "new-refurbished" ? "New and refurbished" : "New"} on eBay, usually ${lo} – ${hi} (${n} listings).`, also: "Also on", notChecked: "not checked by SigPath",
         cheaper: "Cheaper checked listing", variations: "This listing has several variations (size, colour) with their own prices: pick one, or see the whole search on SigPath.",
-        gone: "eBay no longer has this listing: it may have sold or ended.", search: "Search on SigPath →" };
+        gone: "eBay no longer has this listing: it may have sold or ended.", search: "Search on SigPath →",
+        ref: { rrp: "RRP", was: "the earlier price", lowest30: "the 30-day low", unknown: "the struck-out price" },
+        discInflated: (c, from, ref, real, typ) => `Inflated discount: the −${c}% counts from ${from} (${ref}), but it usually sells for ${typ}. ${real >= 0 ? `Real saving: about ${real}%.` : `It's even ${-real}% above the market.`}`,
+        discNotLower: (low) => `Not a real discount: no cheaper than its lowest price in the last 30 days (${low}).`,
+        discReal: (c) => `The −${c}% discount holds up against the market.` };
 
   const host = location.hostname;
   const manual = () => !!window.__sigpathManual; // "Check this page" in the extension's menu
@@ -124,6 +132,30 @@
     return field && /\d/.test(field.value) ? `${field.value} €` : "";
   }
 
+  /**
+   * The struck-out price beside Amazon's price, with its label ("RRP:", "UVP:",
+   * "Was:", "Niedrigster Preis …"), and the 30-day low when the page states it.
+   * Only inside the product's own price box: the carousels below have their own.
+   */
+  function amazonDiscount() {
+    let was = "", wasLabel = "", lowest30 = "";
+    for (const box of ["#corePriceDisplay_desktop_feature_div", "#corePrice_feature_div", "#apex_desktop", "#corePrice_desktop"]) {
+      const root = $(box);
+      if (!root) continue;
+      for (const b of root.querySelectorAll(".basisPrice, .a-price[data-a-strike='true']")) {
+        const strike = b.matches("[data-a-strike='true']") ? b : $("[data-a-strike='true']", b);
+        if (!strike) continue;
+        const shown = [$(".a-offscreen", strike)?.textContent, $("[aria-hidden='true']", strike)?.textContent].map((t) => (t || "").trim()).find((t) => /\d/.test(t));
+        if (!shown) continue;
+        const label = text(b.closest(".basisPrice") || strike.parentElement).replace(shown, "").slice(0, 80);
+        if (/niedrigst|lowest|30\s*(tage|days)/i.test(label)) lowest30 = lowest30 || shown;
+        else if (!was) { was = shown; wasLabel = label; }
+      }
+      if (was || lowest30) break;
+    }
+    return { was, wasLabel, lowest30 };
+  }
+
   function amazonProduct() {
     const title = text($("#productTitle"));
     if (!title) return null;
@@ -132,7 +164,7 @@
     const seller = text($("#sellerProfileTriggerId")) || text($("#merchantInfoFeature_feature_div .offer-display-feature-text-message")) || text($("#merchant-info"));
     const img = $("#landingImage");
     const imageUrl = img?.getAttribute("data-old-hires") || img?.src;
-    return { title, price, asin, seller: seller.slice(0, 80), imageUrl };
+    return { title, price, asin, seller: seller.slice(0, 80), imageUrl, ...amazonDiscount() };
   }
 
   function otherProduct() {
@@ -185,7 +217,9 @@
       a.rel = "noopener";
       a.href = `${server}/check?${new URLSearchParams({ title: title.slice(0, 200), price: priceText, from: "amazon", url: `${location.origin}/dp/${asin}` })}`;
       a.style.cssText = "display:inline-block;margin:6px 0 2px;padding:3px 10px;border-radius:999px;background:#6a2fe0;color:#fff;font:600 12px/1.6 system-ui,sans-serif;text-decoration:none;";
-      const item = { asin, title, price: priceText, imageUrl: $("img.s-image", r)?.src };
+      const strike = $(".a-text-price[data-a-strike='true']", r);
+      const was = text($(".a-offscreen", strike)) || text($("[aria-hidden='true']", strike));
+      const item = { asin, title, price: priceText, imageUrl: $("img.s-image", r)?.src, was: /\d/.test(was) ? was : "", wasLabel: text(strike?.parentElement).replace(was, "").slice(0, 80) };
       a.addEventListener("click", (e) => {
         // A new tab or window was asked for: SigPath's own page, as the link says.
         if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
@@ -226,8 +260,9 @@
       .deal .big { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
       .deal .tone { font-weight: 700; }
       .good .big, .good .tone { color: #22703d; } .high .big, .high .tone { color: #9a3412; }
+      .disc { margin: 4px 0 8px; } .disc.warn { color: #a3361f; font-weight: 600; }
       button.retry { font: 700 12px system-ui, sans-serif; color: #fff; background: #6a2fe0; border-radius: 999px; padding: 6px 12px; margin-top: 4px; }
-      @media (prefers-color-scheme: dark) { .card { background: #151230; color: #f4f3fb; border-color: #2a2550; } .muted, button { color: #b9b5d6; } a { color: #b48cff; } li.warn { color: #ff9a85; }
+      @media (prefers-color-scheme: dark) { .card { background: #151230; color: #f4f3fb; border-color: #2a2550; } .muted, button { color: #b9b5d6; } a { color: #b48cff; } li.warn, .disc.warn { color: #ff9a85; }
         .good .big, .good .tone { color: #6fd894; } .high .big, .high .tone { color: #ffb37a; } button.retry { color: #fff; } }
     </style><div class="card" role="dialog" aria-label="SigPath"><div class="head"><span class="brand">SigPath</span><button aria-label="${T.close}">×</button></div><div class="body"></div></div>`;
     root.querySelector("button").addEventListener("click", () => { hostEl.remove(); panel = null; forced = false; });
@@ -262,6 +297,17 @@
     return html;
   }
 
+  /** Whether the advertised discount holds up (lib/marketplace/discount.ts): a warning line, or a quiet one when it's real. */
+  function discountHtml(d) {
+    if (!d) return "";
+    if (d.verdict === "inflated") {
+      return `<p class="disc warn">! ${esc(T.discInflated(d.claimedPct, d.was, T.ref[d.reference] || T.ref.unknown, d.vsMarketPct, d.typical))}</p>`;
+    }
+    if (d.verdict === "not-lower") return `<p class="disc warn">! ${esc(T.discNotLower(d.lowest30))}</p>`;
+    if (d.verdict === "real") return `<p class="disc muted">${esc(T.discReal(d.claimedPct))}</p>`;
+    return "";
+  }
+
   function render(r, product, open) {
     const label = { checked: T.checked, caution: T.caution, unchecked: T.unchecked }[r.verdict] || r.verdict;
     // The verdict on the toolbar icon, and a summary for the menu.
@@ -270,11 +316,13 @@
       ...badgeOf(r),
       summary: { verdict: r.verdict, headline: r.headline, deal: r.deal || null, price: r.price, market: r.market || null, checkUrl: r.checkUrl },
     });
-    // A warning opens the panel even when the shopper chose the icon only.
-    if (!open && r.verdict !== "caution") return;
+    // A warning opens the panel even when the shopper chose the icon only; so does an inflated discount.
+    const misleading = r.discount && (r.discount.verdict === "inflated" || r.discount.verdict === "not-lower");
+    if (!open && r.verdict !== "caution" && !misleading) return;
     // On a results page the panel says which of the products it's about.
     let html = product.heading ? `<p class="muted">${esc(short(product.heading))}</p>` : "";
     html += dealHtml(r);
+    html += discountHtml(r.discount);
     // With the deal on top, the price line below would say it again in other numbers (measured against
     // new and used alike), and "photo not checked" means nothing for a shop's own product: warnings only.
     const points = r.deal ? r.points.filter((x) => x.tone === "warn") : r.points.slice(0, 4);
@@ -333,6 +381,8 @@
         url: `${location.origin}/dp/${item.asin}`,
         asin: item.asin,
         imageUrl: item.imageUrl,
+        was: item.was,
+        wasLabel: item.wasLabel,
         lang: DE ? "de" : "en",
       },
     });
@@ -417,6 +467,9 @@
         url: location.origin + location.pathname,
         asin: product.asin,
         imageUrl: product.imageUrl,
+        was: product.was,
+        wasLabel: product.wasLabel,
+        lowest30: product.lowest30,
         lang: DE ? "de" : "en",
       },
     });

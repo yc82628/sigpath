@@ -245,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 681 tests, as of 2026-11-10
+npm test                                   # 690 tests, as of 2026-11-10
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -770,6 +770,26 @@ browser first (`lib/extension/stores.ts`). It runs by itself only on Amazon (.de
 other shop only when the shopper clicks "Check this page" in its menu
 (`activeTab`: that tab, that click). It talks only to SigPath.
 
+- **Is the discount real?** (0.5.1, `lib/marketplace/discount.ts`). Where the
+  page shows a struck-out price ("RRP: 199 €", "UVP", "Was:", "Niedrigster
+  Preis der letzten 30 Tage"), the extension sends it with its label, and the
+  panel says whether the claimed saving holds up against what the same
+  product sells for on eBay: **inflated** when the struck-out price is above
+  the usual range and the claim is 15+ points more than the real saving
+  ("−5% from RRP 199 €, but it usually sells for 165 €: it's even 14% above
+  the market"), **not a real discount** when the price isn't below the
+  shop's own 30-day low (the measure § 11 PAngV requires), and a quiet "holds
+  up" otherwise. An inflated discount opens the panel like a warning, and is
+  counted on `/stats`. `/check` takes the same struck-out price
+  (optional field, and the bookmark reads it from Amazon).
+- **On a phone** (`app/manifest.ts`, `/share`). Extensions don't run on phones,
+  so SigPath is an installable web app: on Android, "Install app" in Chrome
+  puts it in the share menu, and Share → SigPath in the Amazon or eBay app
+  searches every marketplace for the product. The name is read from the
+  shared link when it carries one, otherwise from the text around it without
+  the apps' own phrases (`lib/marketplace/share-query.ts`); short links
+  (amzn.eu, ebay.us) are never opened. On an iPhone, pasting the link into the
+  search does the same.
 - **On Amazon's search results** a "Check with SigPath →" button under each
   result's price checks that product right there (0.5.1): the same check as a
   product page, in the same panel, headed with the product's name, and the

@@ -25,7 +25,7 @@ import type { Kv } from "../kv/upstash";
 import { UpstashKv } from "../kv/upstash";
 
 /** Every event counted, in the order the stats page lists them. Nothing outside this list is ever written. */
-export const EVENTS = ["search", "check", "ext-shop", "ext-ebay", "good-deal", "caution", "click"] as const;
+export const EVENTS = ["search", "check", "ext-shop", "ext-ebay", "good-deal", "caution", "inflated-discount", "click"] as const;
 export type StatEvent = (typeof EVENTS)[number];
 
 /** Each day's totals are kept this long, a little over a year so a year can be compared with the last. */
