@@ -771,7 +771,11 @@ other shop only when the shopper clicks "Check this page" in its menu
 (`activeTab`: that tab, that click). It talks only to SigPath.
 
 - **On Amazon's search results** a "Check with SigPath →" button under each
-  result's price opens SigPath's check for it.
+  result's price checks that product right there (0.5.1): the same check as a
+  product page, in the same panel, headed with the product's name, and the
+  button then says the answer ("+11% · You may find it cheaper", "! Caution")
+  in the toolbar icon's colours. Nothing leaves the Amazon page; a Ctrl- or
+  middle-click still opens SigPath's own check page in a new tab.
 
 - **On a product page** it reads what the page shows (name and price; on
   Amazon also the ASIN, photo and seller) and shows SigPath's check in a

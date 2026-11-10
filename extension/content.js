@@ -5,9 +5,10 @@
 // worker, and shows the answer on the toolbar icon (the deal score, or "!")
 // and in a small panel at the bottom right: by itself, or only when asked from
 // the menu if the shopper chose the icon only. A warning always opens it. On an
-// Amazon results page it puts a "SigPath check" button on every result, and on
-// Amazon.de, with "share prices" on, reports the products and prices listed
-// there. It reads only this page, only what's on screen, and sends nothing
+// Amazon results page it puts a "Check with SigPath" button on every result: a
+// click checks that product right there, in the same panel (a Ctrl- or
+// middle-click opens SigPath's own check page instead), and on Amazon.de, with
+// "share prices" on, it reports the products and prices listed there. It reads only this page, only what's on screen, and sends nothing
 // about the shopper. On any other shop it runs when the shopper presses "Check
 // this page" in the extension's menu.
 
@@ -160,7 +161,12 @@
   });
   let notePill = false;
 
-  /** A "SigPath check" button on each result, opening SigPath's check for it; on Amazon.de the prices are reported. */
+  /**
+   * A "Check with SigPath" button on each result. A click checks that product
+   * here, without leaving Amazon (checkResult); a Ctrl- or middle-click opens
+   * SigPath's check page in a new tab, as the link it is. On Amazon.de the
+   * prices are reported.
+   */
   function searchResults() {
     const items = [];
     for (const r of document.querySelectorAll('div[data-component-type="s-search-result"][data-asin]')) {
@@ -179,6 +185,13 @@
       a.rel = "noopener";
       a.href = `${server}/check?${new URLSearchParams({ title: title.slice(0, 200), price: priceText, from: "amazon", url: `${location.origin}/dp/${asin}` })}`;
       a.style.cssText = "display:inline-block;margin:6px 0 2px;padding:3px 10px;border-radius:999px;background:#6a2fe0;color:#fff;font:600 12px/1.6 system-ui,sans-serif;text-decoration:none;";
+      const item = { asin, title, price: priceText, imageUrl: $("img.s-image", r)?.src };
+      a.addEventListener("click", (e) => {
+        // A new tab or window was asked for: SigPath's own page, as the link says.
+        if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        checkResult(a, item);
+      });
       const where = $(".a-price", r)?.closest(".a-row") || $("h2", r)?.parentElement || r;
       where.appendChild(document.createElement("br"));
       where.appendChild(a);
@@ -259,7 +272,9 @@
     });
     // A warning opens the panel even when the shopper chose the icon only.
     if (!open && r.verdict !== "caution") return;
-    let html = dealHtml(r);
+    // On a results page the panel says which of the products it's about.
+    let html = product.heading ? `<p class="muted">${esc(short(product.heading))}</p>` : "";
+    html += dealHtml(r);
     // With the deal on top, the price line below would say it again in other numbers (measured against
     // new and used alike), and "photo not checked" means nothing for a shop's own product: warnings only.
     const points = r.deal ? r.points.filter((x) => x.tone === "warn") : r.points.slice(0, 4);
@@ -285,6 +300,54 @@
     if (seller) html += `<p class="muted">${T.soldBy}: ${esc(seller)}</p>`;
     html += `<p><a href="${safeUrl(r.checkUrl)}" target="_blank" rel="noopener">${T.full}</a></p>`;
     showPanel().body.innerHTML = html;
+  }
+
+  /** What the button on a result says once it's checked, and in which colour (as the toolbar icon). */
+  function resultLabel(r) {
+    if (r.verdict === "caution") return { text: `! ${T.caution}`, color: "#b45309" };
+    if (r.verdict !== "checked") return { text: T.unchecked, color: "#6b7280" };
+    if (!r.deal) return { text: `✓ ${T.checked}`, color: "#22703d" };
+    const pct = r.deal.pct === 0 ? "±0" : `${r.deal.pct > 0 ? "+" : "−"}${T.pct(Math.abs(r.deal.pct))}`;
+    return { text: `${pct} · ${T[r.deal.tone] || ""}`, color: { good: "#22703d", fair: "#6b7280", high: "#9a3412" }[r.deal.tone] || "#6b7280" };
+  }
+
+  /**
+   * One result, checked on the results page: the same check as a product page,
+   * shown in the same panel, headed with the product's name; the button then
+   * says the answer. Asked for, so the panel opens whatever the setting.
+   */
+  async function checkResult(a, item) {
+    if (a.dataset.busy) return;
+    a.dataset.busy = "1";
+    const label = a.textContent;
+    a.textContent = T.checking;
+    forced = true;
+    const head = `<p class="muted">${esc(short(item.title))}</p>`;
+    showPanel().body.innerHTML = `${head}<p class="muted">${T.checking}</p>`;
+    const res = await ask({
+      type: "check",
+      product: {
+        from: "amazon",
+        title: item.title.slice(0, 300),
+        price: item.price.slice(0, 40),
+        url: `${location.origin}/dp/${item.asin}`,
+        asin: item.asin,
+        imageUrl: item.imageUrl,
+        lang: DE ? "de" : "en",
+      },
+    });
+    delete a.dataset.busy;
+    if (!res.ok) {
+      a.textContent = label;
+      const body = showPanel().body;
+      body.innerHTML = `${head}<p class="muted">${T.error}</p><p class="muted">${esc(res.error)}</p><button class="retry" type="button">${T.retry}</button>`;
+      body.querySelector(".retry").addEventListener("click", () => checkResult(a, item));
+      return;
+    }
+    const shown = resultLabel(res.data);
+    a.textContent = shown.text;
+    a.style.background = shown.color;
+    render(res.data, { heading: item.title }, true);
   }
 
   // ---- Running it ---------------------------------------------------------

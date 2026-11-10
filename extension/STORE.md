@@ -4,6 +4,11 @@ What to paste into the Chrome Web Store (and Microsoft Edge Add-ons) forms. The
 upload is a zip of this folder with `manifest.json` at its root (not the folder
 itself), e.g. `sigpath-check-0.4.0.zip`.
 
+**0.5.1: the check on Amazon results pages happens there.** "Check with SigPath" on
+a result opens the panel on the Amazon page instead of SigPath's site. No new
+site or permission. Upload it only once 0.5.0 is approved, in both stores: a new
+upload during a review sends it back to the start of the queue.
+
 **0.5.0 adds eBay.de listing pages** (a new site in the content scripts, so a
 new review). Upload it only once 0.4.1 is approved: a new upload during a
 review sends it back to the start of the queue.
