@@ -3,6 +3,7 @@
 import type { Lang } from "@/lib/i18n/lang";
 import type { Money } from "@/lib/marketplace/types";
 import { decimalText, moneyText, usdc, usdcNumber } from "@/lib/i18n/money";
+import { useMounted } from "../components/useMounted";
 import { useLang, useMessages } from "../components/I18n";
 
 /**
@@ -52,7 +53,9 @@ export default function Invoice({
   const oneCurrency = currencies.length === 1 ? currencies[0] : null;
   const feeBps = data.lines[0]?.feeBps ?? 0;
   const sameFee = data.lines.every((l) => l.feeBps === feeBps);
-  const date = new Date(paid?.at ?? Date.now()).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
+  // In the shopper's own timezone, so drawn in the browser only (useMounted): the server runs on UTC.
+  const mounted = useMounted();
+  const date = mounted ? new Date(paid?.at ?? Date.now()).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "";
   const feeTotal = data.lines.reduce((t, l) => t + BigInt(l.feeUsdc), 0n);
   // No fee (the default): no column of zeros.
   const showFee = feeTotal > 0n;

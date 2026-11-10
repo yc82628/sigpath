@@ -9,6 +9,7 @@ import { shortAddress, useWallet, useWalletErrorText, useWalletFunds } from "../
 import { useCheckText, useLang, useMessages } from "../components/I18n";
 import { usdc } from "@/lib/i18n/money";
 import { firstExpiry, readQuote } from "@/lib/checkout/quote-public";
+import { useMounted } from "../components/useMounted";
 
 /**
  * The delivery form and the wallet step.
@@ -109,7 +110,9 @@ export default function CheckoutForm({
     setServerExpired(false);
     setNow(Date.now());
   }, [tokenKey]);
-  const expired = serverExpired || (expiresAt !== null && now / 1000 > expiresAt);
+  // The shopper's clock, read in the browser only (useMounted): the server can't know it.
+  const mounted = useMounted();
+  const expired = serverExpired || (mounted && expiresAt !== null && now / 1000 > expiresAt);
 
   // Another account is another balance: what the checkout said about the last one no longer holds.
   useEffect(() => {
@@ -271,7 +274,7 @@ export default function CheckoutForm({
   }
 
   const busy = phase === "building" || phase === "signing" || phase === "confirming" || phase === "checking";
-  const until = expiresAt ? new Date(expiresAt * 1000).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : null;
+  const until = mounted && expiresAt ? new Date(expiresAt * 1000).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : null;
 
   return (
     <form className="checkout-form" onSubmit={pay}>
