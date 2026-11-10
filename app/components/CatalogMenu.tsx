@@ -16,8 +16,8 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { CATEGORIES, MENU_SECTIONS, categoryHref } from "./catalog";
-import { useMessages, useSwitchLang } from "./I18n";
+import { CATEGORIES, MENU_SECTIONS, categoryHref, categoryQuery } from "./catalog";
+import { useLang, useMessages, useSwitchLang } from "./I18n";
 
 function Chevron() {
   return (
@@ -34,6 +34,7 @@ function here(pathname: string, href: string): boolean {
 
 export default function CatalogMenu({ categoryIcons }: { categoryIcons: React.ReactNode[] }) {
   const m = useMessages();
+  const pageLang = useLang();
   const lang = useSwitchLang();
   const ref = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
@@ -79,7 +80,7 @@ export default function CatalogMenu({ categoryIcons }: { categoryIcons: React.Re
               <ul className="catalog-tiles">
                 {CATEGORIES.map((c, i) => (
                   <li key={c.label}>
-                    <Link href={categoryHref(c.q)} className="catalog-tile" onClick={close}>
+                    <Link href={categoryHref(categoryQuery(c, pageLang))} className="catalog-tile" onClick={close}>
                       <span className="catalog-icon">{categoryIcons[i]}</span>
                       <span>{m.home.categories[c.label] ?? c.label}</span>
                     </Link>

@@ -100,6 +100,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/proof">{m.footer.proof}</Link>
                 <Link href="/how">{m.footer.howItWorks}</Link>
                 <Link href="/seller">{m.footer.forSellers}</Link>
+                <Link href="/extension">{m.footer.extension}</Link>
+                <Link href="/extension#phone">{m.footer.phone}</Link>
                 <Link href="/privacy">{m.footer.privacy}</Link>
                 <Link href="/impressum">{m.footer.impressum}</Link>
                 <Link href="/developers">{m.footer.api}</Link>

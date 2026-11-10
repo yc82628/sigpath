@@ -8,7 +8,7 @@ import ProofStrip from "./components/ProofStrip";
 import PopIcon, { TONES } from "./components/PopIcon";
 import type { IconName } from "./components/icon-paths";
 import { getLang, getMessages } from "@/lib/i18n/server";
-import { CATEGORIES, categoryHref } from "./components/catalog";
+import { CATEGORIES, categoryHref, categoryQuery } from "./components/catalog";
 import { MARKET_LOGOS, type Logo, type Market } from "./components/market-logos";
 
 const POPULAR = ["AirPods Pro", "Nintendo Switch OLED", "ThinkPad X1", "Nike Air Max 90"];
@@ -131,6 +131,9 @@ export default function Home() {
             {/* The same check without leaving the shop: the extension's page, with its store buttons. */}
             <span> · {m.home.onTheShop} </span>
             <Link href="/extension">{m.home.extensionLink}</Link>
+            <br />
+            {/* The fake-discount check (lib/marketplace/discount.ts), named for Black Friday until December. */}
+            {m.home.discountLine(Date.now() < Date.parse("2026-12-01T00:00:00+01:00"))} <Link href="/check">{m.home.discountLink}</Link>
           </p>
         </div>
         <HeroDevices label={m.home.devices} caption={m.home.devicesCaption} lang={getLang()} />
@@ -163,7 +166,7 @@ export default function Home() {
           {/* Icons in SigPath's Flex Pop style (PopIcon), the tone cycling through Solana's colours. */}
           {CATEGORIES.map((c, i) => (
             <li key={c.label}>
-              <Link className="category-tile" href={categoryHref(c.q)}>
+              <Link className="category-tile" href={categoryHref(categoryQuery(c, getLang()))}>
                 <span className="category-icon">
                   <PopIcon name={c.icon} tone={TONES[i % 3]} size={30} />
                 </span>

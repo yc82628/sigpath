@@ -7,8 +7,12 @@
 import type { IconName } from "./icon-paths";
 import type { Messages } from "@/lib/i18n/messages";
 
-/** A category is a search for a product that shows it well. The label is translated by m.home.categories. */
-export const CATEGORIES: { label: string; q: string; icon: IconName }[] = [
+/**
+ * A category is a search for a product that shows it well. The label is
+ * translated by m.home.categories; `qDe`, when there is one, is the search on
+ * German pages (eBay.de titles are German: "handmade ceramic mug" finds few).
+ */
+export const CATEGORIES: { label: string; q: string; qDe?: string; icon: IconName }[] = [
   { label: "Headphones", q: "AirPods Pro", icon: "headphones" },
   { label: "Phones", q: "iPhone 15", icon: "device-mobile" },
   { label: "Laptops", q: "ThinkPad X1", icon: "laptop" },
@@ -16,10 +20,13 @@ export const CATEGORIES: { label: string; q: string; icon: IconName }[] = [
   { label: "Sneakers", q: "Nike Air Max 90", icon: "sneaker" },
   { label: "Watches", q: "Apple Watch", icon: "watch" },
   { label: "Cameras", q: "Sony A7 III", icon: "camera" },
-  { label: "Handmade", q: "handmade ceramic mug", icon: "gift" },
+  { label: "Handmade", q: "handmade ceramic mug", qDe: "handgemachte Keramiktasse", icon: "gift" },
 ];
 
 export const categoryHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
+
+/** A category's search in the page's language. */
+export const categoryQuery = (c: { q: string; qDe?: string }, lang: string) => (lang === "de" && c.qDe ? c.qDe : c.q);
 
 type Section = { title: (m: Messages) => string; links: { href: string; label: (m: Messages) => string }[] };
 
