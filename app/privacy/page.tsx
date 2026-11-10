@@ -185,7 +185,7 @@ function PrivacyEn() {
       <Part title="Searching">
         <p>
           Your search words are sent to eBay&apos;s{ali ? " and AliExpress’s" : ""} official API{ali ? "s" : ""} to fetch listings. No information about you is sent with them,
-          and SigPath stores neither the search nor the results. A price check (/check) sends the product name and price you bring, and the address of the page they came from, to SigPath to compare with eBay; none of it is stored. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
+          and SigPath stores neither the search nor the results. A price check (/check) sends the product name and price you bring (and a struck-out price, if you give one), and the address of the page they came from, to SigPath to compare with eBay; none of it is stored. When you share a product with SigPath from an app (Android, &ldquo;Share&rdquo;), the shared text and link are sent to SigPath only to read the product&apos;s name from them: the link isn&apos;t opened, and none of it is stored. Listing photos are loaded from eBay{ali ? " and AliExpress" : ""}, and some of eBay’s are compared for copying.
         </p>
         <p>
           For the price history (&ldquo;the last 30 days on eBay&rdquo;), SigPath keeps one typical eBay price per product

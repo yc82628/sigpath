@@ -178,8 +178,11 @@ export default function PrivacyDe() {
         <p>
           Deine Suchbegriffe werden an die offizielle{ali ? "n" : ""} API{ali ? "s" : ""} von eBay{ali ? " und AliExpress" : ""}{" "}
           gesendet, um Angebote abzurufen. Dabei werden keine Angaben über dich mitgesendet, und SigPath speichert weder die
-          Suche noch die Ergebnisse. Eine Preisprüfung (/check) sendet den Produktnamen und den Preis, die du mitbringst,
-          sowie die Adresse der Seite, von der sie stammen, an SigPath zum Vergleich mit eBay; nichts davon wird gespeichert.
+          Suche noch die Ergebnisse. Eine Preisprüfung (/check) sendet den Produktnamen und den Preis, die du mitbringst (und einen Streichpreis,
+          falls du einen angibst), sowie die Adresse der Seite, von der sie stammen, an SigPath zum Vergleich mit eBay;
+          nichts davon wird gespeichert. Teilst du ein Produkt aus einer App mit SigPath (Android, &bdquo;Teilen&ldquo;),
+          werden der geteilte Text und Link an SigPath gesendet, nur um daraus den Produktnamen zu lesen: Der Link wird nicht
+          geöffnet, und nichts davon wird gespeichert.
           Angebotsfotos werden von eBay{ali ? " und AliExpress" : ""} geladen, und einige von eBay werden auf Kopien
           verglichen.
         </p>
