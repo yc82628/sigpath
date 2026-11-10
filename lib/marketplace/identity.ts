@@ -302,10 +302,22 @@ export function identify(title: string, query: string): Identity {
     else if (ramGB === undefined && n <= 64 && storageGB !== undefined && n < storageGB) ramGB = n;
   }
 
-  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const named = qw.length ? squash(t).includes(qw.join("")) : undefined;
+  const named = qw.length ? namesModel(t, qw.join("")) : undefined;
 
   return { kind, kindReason, variant, named, generation, storageGB, ramGB };
+}
+
+/**
+ * Does the title name the model? Spacing and punctuation don't matter ("HERO11"
+ * names "Hero 11", "iPad Air (5. Generation)" names "iPad Air 5", "PS 5" names
+ * "PS5"), but a model number may not run on into more digits: "ThinkPad X13"
+ * does not name a "ThinkPad X1", nor "iPhone 150" an "iPhone 15". Written
+ * apart ("X1 2023", "X1 3rd Gen"), the digits after it are something else.
+ */
+function namesModel(title: string, model: string): boolean {
+  const between = "[^a-z0-9]*";
+  const pattern = [...model].map(escapeRe).join(between) + (/[0-9]$/.test(model) ? "(?![0-9])" : "");
+  return new RegExp(pattern).test(title.toLowerCase());
 }
 
 /** Do two products' known specs agree? An unknown never conflicts. */

@@ -92,6 +92,26 @@ test("a title that doesn't name the searched model is never compared, cheap or n
   // Spacing and punctuation don't matter: "HERO11" names "Hero 11", "(5. Generation)" names "Air 5".
   assert.equal(identify("GoPro HERO11 Black Mini 5,3K", "GoPro Hero 11").named, true);
   assert.equal(identify("Appel IPad Air (5. Generation), 64 GB, Wi-Fi", "iPad Air 5").named, true);
+  assert.equal(identify("Sony PS 5 Slim Digital", "PS5").named, true);
+});
+
+test("a model number that runs on into more digits is another model", () => {
+  // The live "best checked deal" for "ThinkPad X1", before this fix: a ThinkPad X13.
+  assert.equal(identify("Lenovo ThinkPad X13 / Intel i5 4x1.60 GHz / 13.3 / 16 GB / DDR4 / 256 GB SSD", "ThinkPad X1").named, false);
+  assert.equal(identify("Apple iPhone 150 Max", "iPhone 15").named, false);
+  assert.equal(identify("GoPro HERO110 Black", "GoPro Hero 11").named, false);
+  // Written apart, the digits after the model are something else: a year, a generation.
+  assert.equal(identify("Lenovo ThinkPad X1 Carbon Gen 11 i7 16GB", "ThinkPad X1").named, true);
+  assert.equal(identify("ThinkPad X1 2023 Yoga", "ThinkPad X1").named, true);
+  assert.equal(identify("ThinkPad X1 3rd Gen", "ThinkPad X1").named, true);
+  // Letters straight after the number are the variant's business (identity's variant words), not this check's.
+  assert.equal(identify("Apple iPhone 15Pro 256GB", "iPhone 15").named, true);
+  // And in the comparison: the X13 is left out of an X1 search.
+  const x1 = [1, 2, 3, 4, 5, 6].map((i) => ebay(`Lenovo ThinkPad X1 Carbon Gen 11 i7 16GB ${i}`, 900 + i * 10, undefined, { condition: "used" }));
+  const x13 = ebay("Lenovo ThinkPad X13 Gen 2 i5 16GB 256GB", 280, undefined, { condition: "used" });
+  const a = analyse([ok([...x1, x13])], { query: "ThinkPad X1" });
+  assert.ok(!a.priceChecked.includes(listingKey(x13)));
+  assert.match(a.notCompared[listingKey(x13)], /doesn't name the ThinkPad X1/);
 });
 
 test("parts sold alone are recognised; the same part included with the product is not", () => {
