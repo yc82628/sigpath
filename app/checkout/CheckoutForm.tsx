@@ -414,7 +414,7 @@ export default function CheckoutForm({
                 {" · "}
                 {m.wallet.balance}{" "}
                 {funds.status === "ok"
-                  ? usdc(funds.usdc.toString(), lang)
+                  ? usdc(funds.usdc.toString(), lang, "down")
                   : funds.status === "error"
                     ? m.wallet.balanceUnavailable
                     : m.wallet.checking}{" "}

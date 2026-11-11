@@ -128,7 +128,7 @@ export default function WalletChip({ children }: { children: React.ReactNode }) 
                 <span>{m.wallet.balance}</span>{" "}
                 {funds.status === "ok" ? (
                   <strong>
-                    {usdc(funds.usdc.toString(), lang)} · {(funds.lamports / 1e9).toLocaleString(lang, { maximumFractionDigits: 4 })} SOL
+                    {usdc(funds.usdc.toString(), lang, "down")} · {(funds.lamports / 1e9).toLocaleString(lang, { maximumFractionDigits: 4 })} SOL
                   </strong>
                 ) : funds.status === "error" ? (
                   <span className="hint">{m.wallet.balanceUnavailable}</span>

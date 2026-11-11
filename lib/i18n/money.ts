@@ -43,11 +43,25 @@ export function usdcNumber(base: string): string {
 }
 
 /**
- * "283.0383 USDC", in the page's language. Lives here, not beside the invoice:
- * the checkout page (a server component) calls it too, and a function from a
- * "use client" file can't be called on the server.
+ * USDC to the cent, from base units (six decimals): "130.295466" -> "130.30"
+ * rounded up, "130.29" rounded down.
  */
-export const usdc = (base: string, lang: Lang = "en") => `${decimalText(usdcNumber(base), lang)} USDC`;
+export function usdcCents(base: string, round: "up" | "down"): string {
+  const b = BigInt(base);
+  const cents = round === "up" ? (b + 9_999n) / 10_000n : b / 10_000n;
+  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
+}
+
+/**
+ * "130,30 USDC", in the page's language. To the cent, because six decimal
+ * places ("130,295466") are hard to read: rounded UP for what is paid or
+ * missing (never less than is charged), DOWN for what a wallet holds (never
+ * more than is there); "exact" for the invoice's small print. Lives here, not
+ * beside the invoice: the checkout page (a server component) calls it too, and
+ * a function from a "use client" file can't be called on the server.
+ */
+export const usdc = (base: string, lang: Lang = "en", round: "up" | "down" | "exact" = "up") =>
+  `${decimalText(round === "exact" ? usdcNumber(base) : usdcCents(base, round), lang)} USDC`;
 
 /** Every "125.19 EUR" inside a sentence, written the German way. For the check reasons. */
 export function germanMoneyInText(s: string): string {

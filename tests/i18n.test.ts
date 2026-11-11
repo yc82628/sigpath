@@ -180,3 +180,16 @@ test("one rating is one Bewertung, and a variation listing's note reads in Germa
     /^Das Angebot hat mehrere Varianten/,
   );
 });
+
+test("USDC is shown to the cent: up for what's paid or missing, down for what a wallet holds", async () => {
+  const { usdc, usdcCents } = await import("../lib/i18n/money");
+  assert.equal(usdcCents("130295466", "up"), "130.30");
+  assert.equal(usdcCents("130295466", "down"), "130.29");
+  assert.equal(usdcCents("100000000", "up"), "100.00", "an exact amount isn't rounded");
+  assert.equal(usdcCents("1", "up"), "0.01", "a millionth to pay is a cent");
+  assert.equal(usdcCents("9999", "down"), "0.00");
+  assert.equal(usdc("130295466", "de"), "130,30 USDC");
+  assert.equal(usdc("130295466", "de", "down"), "130,29 USDC");
+  assert.equal(usdc("130295466", "de", "exact"), "130,295466 USDC", "the invoice's small print keeps every digit");
+  assert.equal(usdc("130295466", "en"), "130.30 USDC");
+});

@@ -430,6 +430,7 @@ const en = {
     noFee: "No fee: you pay the item's price, nothing on top.",
     print: "Print or save as PDF",
     loading: "Preparing the invoice…",
+    exact: (amount: string): string => `Charged exactly: ${amount}. USDC counts to six decimal places; the amounts above are rounded up to the cent.`,
   },
   check: {
     title: "Is it a good price?",
@@ -1046,6 +1047,7 @@ const de: Messages = {
     noFee: "Keine Gebühr: Du zahlst den Preis des Artikels, nichts obendrauf.",
     print: "Drucken oder als PDF speichern",
     loading: "Übersicht wird erstellt…",
+    exact: (amount) => `Genau abgebucht werden ${amount}. USDC rechnet mit sechs Nachkommastellen; die Beträge oben sind auf den Cent aufgerundet.`,
   },
   check: {
     title: "Ist das ein guter Preis?",

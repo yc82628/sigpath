@@ -2,7 +2,7 @@
 
 import type { Lang } from "@/lib/i18n/lang";
 import type { Money } from "@/lib/marketplace/types";
-import { decimalText, moneyText, usdc, usdcNumber } from "@/lib/i18n/money";
+import { decimalText, moneyText, usdc, usdcCents, usdcNumber } from "@/lib/i18n/money";
 import { useMounted } from "../components/useMounted";
 import { useLang, useMessages } from "../components/I18n";
 
@@ -47,7 +47,8 @@ export default function Invoice({
   const m = useMessages();
   const lang = useLang();
   const formatMoney = (x: Money) => moneyText(x, lang);
-  const num = (base: string) => decimalText(usdcNumber(base), lang);
+  // To the cent, rounded up like every amount to pay; the exact total is in the small print below.
+  const num = (base: string) => decimalText(usdcCents(base, "up"), lang);
   const pct = (bps: number) => `${(bps / 100).toLocaleString(lang === "de" ? "de-DE" : "en", { maximumFractionDigits: 2 })} %`;
   const currencies = [...new Set(data.lines.map((l) => l.currency))];
   const oneCurrency = currencies.length === 1 ? currencies[0] : null;
@@ -159,6 +160,7 @@ export default function Invoice({
       <p className="invoice-pay">
         <span>{m.invoice.totalUsdc}</span> <strong>{usdc(data.totalUsdc, lang)}</strong>
       </p>
+      {usdcNumber(data.totalUsdc) !== usdcCents(data.totalUsdc, "up") && <p className="hint">{m.invoice.exact(usdc(data.totalUsdc, lang, "exact"))}</p>}
       <p className="hint">{data.rate ? m.invoice.rate(data.rate.display, m.invoice.rateSource(data.rate.source)) : m.invoice.usdOnly}</p>
       {showFee ? <p className="hint">{m.invoice.fees}</p> : <p className="hint">{m.invoice.noFee}</p>}
       {paid && (
