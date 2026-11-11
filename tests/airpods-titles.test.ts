@@ -86,3 +86,24 @@ test("category: eBay's Headsets hold the same earbuds as Kopfhörer; other categ
   assert.equal(sameCategory({ id: "88433", name: "Sonstige" }, kopfhoerer), false);
   assert.equal(sameCategory({ id: "139973", name: "Videospiele" }, { id: "139971", name: "Konsolen" }), false);
 });
+
+test("naming: a shop's title names the model, not its connector or colour, and the brand may be left out", () => {
+  const q = "Apple AirPods Pro 2 USB-C";
+  for (const title of [
+    "Apple AirPods Pro 2 mit USB-C MagSafe Ladecase Weiß",
+    "Apple AirPods Pro (2. Generation) MTJV3ZM/A In-Ear Bluetooth Weiß / USB C",
+    "AirPods Pro 2. Generation USB-C",
+  ]) {
+    assert.equal(identify(title, q).named, true, title);
+  }
+  assert.equal(identify("Apple AirPods Pro 3 In-Ear Kopfhörer", q).named, false, "another generation");
+  assert.equal(identify("AirPods Pro 2. Generation", "Apple AirPods Pro 2. Generation USB-C").named, true);
+});
+
+test("naming: the brand is optional only when what's left is still a model", () => {
+  assert.equal(identify("WH-1000XM5 Kopfhörer schwarz", "Sony WH-1000XM5").named, true, "a model number");
+  assert.equal(identify("Switch OLED Konsole weiß", "Nintendo Switch OLED").named, true, "two words");
+  assert.equal(identify("Smartwatch 44mm schwarz", "Apple Watch").named, false, "\"Watch\" alone names nothing");
+  assert.equal(identify("Xiaomi Redmi Note 15 Pro 256GB", "iPhone 15 Pro").named, false, "iPhone isn't a brand to drop");
+  assert.equal(identify("ThinkPad X13 Gen 4", "Lenovo ThinkPad X1").named, false, "X13 still isn't an X1");
+});

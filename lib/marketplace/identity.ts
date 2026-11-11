@@ -46,6 +46,12 @@ export interface Identity {
   generation?: number;
   storageGB?: number;
   ramGB?: number;
+  /**
+   * The number the searched model ends in, when the title names it: "AirPods Pro 2" is the 2 the
+   * listings write as "2. Generation". Not a generation of its own ("iPhone 15" isn't Gen 15), but
+   * the version the search already pins.
+   */
+  modelNumber?: number;
 }
 
 /** Words that make an accessory, unless the shopper searched for that word. */
@@ -117,6 +123,25 @@ export const VARIANT_WORDS = [
   "pro", "max", "plus", "mini", "ultra", "lite", "air", "se", "fe", "xl", "slim", "carbon", "yoga", "nano", "fold", "flip",
   "oled", "studio", "edge", "neo", "go",
 ];
+
+/**
+ * Words a shop's title puts after the model, which listings write their own way
+ * or leave out: the connector, the generation word, colours, "with". Searched as
+ * part of the model, "Apple AirPods Pro 2 USB-C" found 50 listings on eBay and
+ * compared none: hardly any title says those six words in that order.
+ */
+const NOT_THE_MODEL = new Set([
+  "usb", "usbc", "lightning", "magsafe", "generation", "gen", "wifi", "wlan", "cellular", "lte", "gps", "bluetooth",
+  "wireless", "kabellos", "kabellose", "kabelloser", "mit", "with", "inkl", "und", "and",
+  "schwarz", "black", "white", "wei", "weiss", "silber", "silver", "grau", "gray", "grey", "blau", "blue", "gold", "rosa", "pink",
+]);
+
+/** Brands a listing may leave out of the name ("AirPods Pro 2" for "Apple AirPods Pro 2"). */
+const BRANDS = new Set([
+  "apple", "samsung", "sony", "lenovo", "nintendo", "microsoft", "google", "xiaomi", "huawei", "dyson", "bose", "jbl",
+  "garmin", "canon", "nikon", "fujifilm", "gopro", "dji", "asus", "acer", "hp", "dell", "lg", "philips", "nike", "adidas",
+  "oneplus", "sennheiser", "beats", "logitech", "razer", "amazon",
+]);
 
 /** The query's words in order, letters and digits only ("Nintendo Switch OLED" -> nintendo, switch, oled). */
 function allWords(s: string): string[] {
@@ -283,7 +308,11 @@ export function identify(title: string, query: string): Identity {
   const allQw = words(q);
   const specWord = (w: string, i: number) =>
     /^\d+(gb|tb)$/.test(w) || ((w === "gb" || w === "tb") && i > 0) || (/^\d+$/.test(w) && /^(gb|tb)$/.test(allQw[i + 1] ?? ""));
-  const modelQw = allQw.filter((w, i) => !specWord(w, i));
+  // ...and without what a shop's title adds after the model: "Apple AirPods Pro 2 USB-C" is the model
+  // "Apple AirPods Pro 2", so "AirPods Pro (2. Generation) mit USB-C" names it.
+  const specFree = allQw.filter((w, i) => !specWord(w, i));
+  const stop = specFree.findIndex((w, i) => i >= 2 && NOT_THE_MODEL.has(w));
+  const modelQw = stop >= 0 ? specFree.slice(0, stop) : specFree;
   const qw = modelQw.length ? modelQw : allQw;
   const tw = words(t);
   let variant: string[] | undefined;
@@ -318,9 +347,17 @@ export function identify(title: string, query: string): Identity {
     else if (ramGB === undefined && n <= 64 && storageGB !== undefined && n < storageGB) ramGB = n;
   }
 
-  const named = qw.length ? namesModel(t, qw.join("")) : undefined;
+  // The brand may be left out ("AirPods Pro 2. Generation"), when what is left still names a model on its
+  // own: two words or a number. "Apple Watch" without "Apple" is just a watch.
+  const unbranded = BRANDS.has(qw[0]) ? qw.slice(1) : [];
+  const named = qw.length
+    ? namesModel(t, qw.join("")) || ((unbranded.length >= 2 || /[0-9]/.test(unbranded.join(""))) && namesModel(t, unbranded.join("")))
+    : undefined;
 
-  return { kind, kindReason, variant, named, generation, storageGB, ramGB };
+  const last = qw[qw.length - 1];
+  const modelNumber = named && last !== undefined && /^\d{1,2}$/.test(last) ? Number(last) : undefined;
+
+  return { kind, kindReason, variant, named, generation, storageGB, ramGB, ...(modelNumber !== undefined ? { modelNumber } : {}) };
 }
 
 const ORDINAL_WORDS: Record<string, number> = {

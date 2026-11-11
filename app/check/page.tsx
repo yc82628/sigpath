@@ -26,7 +26,10 @@ import PriceHistory from "../components/PriceHistory";
  * offers, and last, folded away, the numbers behind it for sellers and shops.
  */
 
-export const metadata = { title: "Check a price — SigPath" };
+// The browser tab in the page's language, as the page.
+export function generateMetadata() {
+  return { title: getLang() === "de" ? "Preis prüfen — SigPath" : "Check a price — SigPath" };
+}
 export const dynamic = "force-dynamic";
 
 /** Runs on the shop's page, in the shopper's own browser: reads the title and price shown, opens SigPath. */
@@ -198,7 +201,9 @@ function Answer({
   // The usual price: the market's (same condition) when there is one, else the whole comparison's median.
   const typical = r.market?.typical ?? r.comparison?.median ?? null;
   const gap = typical === null ? 0 : price - typical;
-  const points = r.product.check.points;
+  // With a market, the answer above says the price against it in its own numbers; the search's own
+  // comparison line (another count, the shop's price included) would only contradict them.
+  const points = r.product.check.points.filter((p) => !(r.market && p.about === "price"));
   const warns = points.filter((p) => p.tone === "warn");
   const goods = points.filter((p) => p.tone === "good");
 
@@ -293,7 +298,7 @@ function Answer({
                 </div>
                 <div className="offer-body">
                   <p className="offer-price">
-                    {money(d.total)} <span className="chip">{t.basis[d.group] ?? d.group}</span>
+                    {money(d.total)} <span className="chip">{m.listing.conditions[d.group] ?? d.group}</span>
                     {d.total.amount < price && <span className="deal-chip good">{t.less(at(price - d.total.amount))}</span>}
                   </p>
                   <p className="offer-title">{d.listing.title}</p>
@@ -474,7 +479,7 @@ function Numbers({
         <dt>{n.notes}</dt>
         <dd>
           <ul className="answer-checks small">
-            {r.product.check.points.map((p, i) => (
+            {r.product.check.points.filter((p) => !(r.market && p.about === "price")).map((p, i) => (
               <li key={i} className={p.tone}>
                 {tc(p.text)}
               </li>

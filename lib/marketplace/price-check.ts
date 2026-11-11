@@ -14,7 +14,7 @@
 import { searchAll, type SearchResponse } from "./search";
 import { defaultSources } from "./sources";
 import type { MarketplaceSource } from "./sources/types";
-import { bestCheckedDeals, withLabels } from "./label";
+import { bestCheckedDeals, withLabels, type LabelPoint } from "./label";
 import { listingKey, totalPrice, type Listing, type MarketplaceId, type Money } from "./types";
 import { sameProduct, VARIANT_WORDS } from "./identity";
 import { dealTone, quantile } from "./market";
@@ -184,6 +184,12 @@ export function checkSources(env: Record<string, string | undefined> = process.e
  */
 export const ALTERNATIVE_MIN_RATIO = 0.75;
 
+/**
+ * A shop's price comes without a seller SigPath could look up: "no upheld
+ * reports against this seller" would vouch for nobody in particular.
+ */
+const SHOP_REPORTS: LabelPoint = { tone: "info", about: "reports", text: "Buyer reports not checked: the shop's page doesn't say who the seller is." };
+
 export async function checkPrice(
   input: PriceCheckInput,
   env: Record<string, string | undefined> = process.env,
@@ -245,7 +251,11 @@ export async function checkPrice(
   return {
     query,
     shop: shop.label,
-    product: { ...checked, title: input.title },
+    product: {
+      ...checked,
+      title: input.title,
+      check: { ...checked.check, points: checked.check.points.map((p) => (p.about === "reports" ? SHOP_REPORTS : p)) },
+    },
     comparison,
     market,
     deal,

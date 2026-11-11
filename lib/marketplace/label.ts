@@ -30,7 +30,7 @@
  */
 
 import type { Analysis, Flag } from "./anomaly";
-import { describeSpecs } from "./identity";
+import { describeSpecs, sameProduct } from "./identity";
 import { formatMoney, listingKey, totalPrice, type Listing, type Money } from "./types";
 import { priceCheckFor, type PriceCheck } from "../checkout/eligibility";
 
@@ -69,6 +69,9 @@ export function businessLine(b: BusinessBadge): string {
 export interface LabelPoint {
   tone: "good" | "warn" | "info";
   text: string;
+  /** What the line is about, for a page that says it in its own words: the price check (/check) shows
+   *  the market's numbers itself, and a shop's price has no seller whose reports could be checked. */
+  about?: "price" | "reports";
 }
 
 export interface CheckLabel {
@@ -130,8 +133,8 @@ function checkLines(listing: Listing, analysis: Analysis, now: number): LabelPoi
   }
   lines.push(
     analysis.reportsChecked
-      ? { tone: "good", text: "No upheld fake-product reports against this seller." }
-      : { tone: "info", text: "Buyer reports weren't checked for this search." },
+      ? { tone: "good", about: "reports", text: "No upheld fake-product reports against this seller." }
+      : { tone: "info", about: "reports", text: "Buyer reports weren't checked for this search." },
   );
   return lines;
 }
@@ -180,6 +183,7 @@ export function checkLabel(
     // What it was actually compared with: real marketplaces and the demo feed are never pooled.
     const where = comparison.scope ?? `on ${marketplaces(analysis)}`;
     points.push({
+      about: "price",
       tone: above || wellBelow || someAbove ? "info" : "good",
       // Checked: "Below the market: 21% under …". Well below: said, with why it isn't flagged.
       text: above
@@ -193,12 +197,21 @@ export function checkLabel(
               : `Price in line with the market: compared with ${comparison.sampleSize} ${group}listings of ${what} ${where}.`,
     });
     // A title that names no model details was compared with every version, and says so.
-    const othersSpecified = Object.values(analysis.identities ?? {}).some((i) => i.kind === "product" && describeSpecs(i) !== null);
+    // A generation the search's model already names ("AirPods Pro 2" and "2. Generation") isn't a detail this title leaves out.
+    const pinned = identity?.modelNumber;
+    // Only listings it could have been compared with: a Pro 3 that doesn't name the "AirPods Pro 2" wasn't.
+    const othersSpecified = Object.values(analysis.identities ?? {}).some(
+      (i) =>
+        i.kind === "product" &&
+        i.named !== false &&
+        (!identity || sameProduct(identity, i)) &&
+        describeSpecs(pinned !== undefined && i.generation === pinned ? { ...i, generation: undefined } : i) !== null,
+    );
     if (!specs && othersSpecified) {
       points.push({ tone: "info", text: "Its title doesn't state model details like generation or storage, so it was compared with every version." });
     }
   } else if (priceCheck.checked) {
-    points.push({ tone: "good", text: "Price in line with comparable listings." });
+    points.push({ tone: "good", about: "price", text: "Price in line with comparable listings." });
   } else {
     points.push({ tone: "info", text: priceCheck.reason });
   }

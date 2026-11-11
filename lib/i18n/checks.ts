@@ -186,6 +186,7 @@ const RULES: Rule[] = [
   [/^Seller history not checked: (.+) doesn't publish it\.$/, (m) => `Verkäuferhistorie nicht geprüft: ${market(m)} veröffentlicht sie nicht.`],
   [/^No upheld fake-product reports against this seller\.$/, () => "Keine bestätigten Fälschungsmeldungen gegen diesen Verkäufer."],
   [/^Buyer reports weren't checked for this search\.$/, () => "Käufermeldungen wurden bei dieser Suche nicht geprüft."],
+  [/^Buyer reports not checked: the shop's page doesn't say who the seller is\.$/, () => "Käufermeldungen nicht geprüft: Die Shopseite sagt nicht, wer der Verkäufer ist."],
   [/^A verified buyer's fake-product report against this seller was upheld after review\.$/, () => "Die Fälschungsmeldung eines verifizierten Käufers gegen diesen Verkäufer wurde nach Prüfung bestätigt."],
   [/^(\d+) verified buyers' fake-product reports against this seller were upheld after review\.$/, (n) => `${n} Fälschungsmeldungen verifizierter Käufer gegen diesen Verkäufer wurden nach Prüfung bestätigt.`],
   [

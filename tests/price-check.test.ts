@@ -216,3 +216,35 @@ test("a new product is measured against new listings, not refurbished ones, when
   assert.strictEqual(enoughNew.market?.typical, 69900);
   assert.deepStrictEqual(enoughNew.deal, { pct: 0, tone: "fair" }, "the usual price for a new one, not +53%");
 });
+
+test("a shop's title with the connector in it is still compared, and no seller is vouched for", async () => {
+  // Live, 2026-11-11: "Apple AirPods Pro 2 USB-C" found 50 eBay listings and compared none.
+  const titles = [
+    "Apple AirPods Pro 2 mit USB-C MagSafe Ladecase Weiß",
+    "Apple AirPods Pro (2. Generation) MTJV3ZM/A In-Ear Bluetooth Weiß / USB C",
+    "AirPods Pro 2. Generation USB-C",
+    "Apple AirPods Pro 2 USB-C MagSafe",
+    "Apple AirPods Pro (2. Gen) In-Ear Kopfhörer weiß mit MagSafe USB-C",
+    "Apple AirPods Pro 2 USB-C OVP",
+    "Apple AirPods Pro 3 In-Ear Kopfhörer mit Ladecase", // another generation: never compared with it
+  ];
+  const source: MarketplaceSource = {
+    id: "ebay",
+    search: async () => ({
+      source: "ebay",
+      status: "ok",
+      listings: titles.map(
+        (title, i): Listing => ({
+          id: String(i), source: "ebay", title, url: `https://ebay.de/${i}`, condition: "new",
+          price: { amount: 18000 + i * 500, currency: "EUR" }, shipping: { amount: 0, currency: "EUR" }, seller: { handle: `s${i}` },
+        }),
+      ),
+    }),
+  };
+  const r = await checkPrice({ title: "Apple AirPods Pro 2 USB-C", price: { amount: 19900, currency: "EUR" }, from: "amazon" }, {}, [source]);
+  assert.equal(r.comparison?.sampleSize, 7, "the six eBay listings and itself");
+  assert.ok(r.market, "a market price to answer with");
+  const reports = r.product.check.points.filter((p) => p.about === "reports");
+  assert.deepEqual(reports.map((p) => p.text), ["Buyer reports not checked: the shop's page doesn't say who the seller is."]);
+  assert.ok(!r.product.check.points.some((p) => /doesn't state model details/.test(p.text)), "its \"2\" is the listings' \"2. Generation\"");
+});
