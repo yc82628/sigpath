@@ -854,7 +854,7 @@ const de: Messages = {
     deal: (pct) => (pct === 0 ? "typischer Preis" : `${pct > 0 ? "+" : "−"}${Math.abs(pct)} % zum typischen Preis`),
     dealTitle: (typical) => `Verglichen mit dem typischen Preis von ${typical} für dasselbe Produkt in diesem Zustand.`,
     inclShipping: "inkl. Versand",
-    ratingsUnverified: (n) => `${n} ${n === 1 ? "Bewertung" : "Bewertungen"}, ungeprüft`,
+    ratingsUnverified: (n) => `${n} ${n === 1 ? "Bewertung" : "Bewertungen"}, Verkäufer nicht verifiziert`,
     ratingsTitle: "Vom Marktplatz selbst angegeben; nicht unabhängig geprüft",
     verifiedSeller: "✓ Verifizierter Verkäufer",
     verifiedSellerTitle: "Dieser Verkäufer hat die Kontrolle über das Konto nachgewiesen und eine Live-Prüfung bestanden. Das bürgt für das Konto, nicht für diesen Artikel.",

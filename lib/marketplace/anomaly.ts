@@ -196,6 +196,21 @@ export interface Analysis {
   notConfigured: MarketplaceId[];
 }
 
+/**
+ * Categories that hold the same products under two names. eBay.de files AirPods
+ * under "Kopfhörer" and, as often, under "Headsets": kept apart, ten real AirPods
+ * in one search went unchecked. Matched by name, as the ids differ by site.
+ */
+const SAME_PRODUCTS: string[][] = [["kopfhörer", "headsets", "headphones", "kopfhörer & headsets"]];
+
+/** Is this category the main one, or one that holds the same products? */
+export function sameCategory(c: { id: string; name: string }, main: { id: string; name: string }): boolean {
+  if (c.id === main.id) return true;
+  const a = c.name.trim().toLowerCase();
+  const b = main.name.trim().toLowerCase();
+  return SAME_PRODUCTS.some((group) => group.includes(a) && group.includes(b));
+}
+
 /** The category most of these listings share; ties go to the first seen. */
 export function mainCategory(listings: Listing[]): { id: string; name: string } | undefined {
   const counts = new Map<string, { category: { id: string; name: string }; n: number }>();
@@ -399,7 +414,7 @@ export function analyse(
   }
   const products = candidates.filter((l) => {
     const main = mainBySource.get(l.source);
-    if (!main || !l.category || l.category.id === main.id) return true;
+    if (!main || !l.category || sameCategory(l.category, main)) return true;
     notCompared[listingKey(l)] = `Listed under "${l.category.name}", not "${main.name}" like most results, so its price isn't compared.`;
     return false;
   });

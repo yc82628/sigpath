@@ -150,7 +150,7 @@ function countsAs(text: string, phrase: string, cancelBefore: RegExp, cancelAfte
   for (const m of text.matchAll(phraseRegex(phrase))) {
     const start = m.index! + m[1].length;
     const end = m.index! + m[0].length - m[2].length;
-    const before = text.slice(Math.max(0, start - 24), start);
+    const before = text.slice(Math.max(0, start - 40), start);
     const after = text.slice(end, end + 16);
     if (cancelBefore.test(before)) continue;
     if (cancelAfter?.test(after)) continue;
@@ -159,9 +159,24 @@ function countsAs(text: string, phrase: string, cancelBefore: RegExp, cancelAfte
   return false;
 }
 
-/** "with a case", "incl. charger", "+ cover", "comes with sleeve" */
+/**
+ * "with a case", "incl. charger", "+ cover", "comes with sleeve", and with the
+ * words that describe the part in between: "mit MagSafe Case", "with USB-C
+ * charging case". Without them, "AirPods Pro 3 mit MagSafe Case" read as the
+ * case alone.
+ */
 const INCLUDED_BEFORE =
-  /(with|w\/|incl\.?|including|includes|\+|&|and|plus|mit|inkl\.?|inklusive|samt|und)\s+(an?\s+|the\s+|original\s+|its\s+|einem\s+|einer\s+|dem\s+|der\s+)?$/i;
+  /(with|w\/|incl\.?|including|includes|\+|&|and|plus|mit|inkl\.?|inklusive|samt|und)\s+(an?\s+|the\s+|original\s+|its\s+|einem\s+|einer\s+|dem\s+|der\s+)?((magsafe|usb[\s‑-]?c|lightning|wireless|kabellose[mnrs]?|kabellos|charging|originale[mnrs]?|qi|wei(ß|ss)e[mnrs]?|wei(ß|ss))[\s‑-]+){0,3}$/i;
+
+/**
+ * A German headphone title names the earbuds before the case: "AirPods Pro 3
+ * In-Ear-Kopfhörer … USB-C Ladecase" is the whole set, not the case alone.
+ */
+const EARBUDS_BEFORE = /(kopfhörer|kopfhoerer|ohrhörer|ohrhoerer)/i;
+const caseAfterEarbuds = (t: string, word: string) => {
+  const at = t.search(phraseRegex(word));
+  return at > 0 && EARBUDS_BEFORE.test(t.slice(0, at));
+};
 /** "charger included", "case incl.", "Hülle inklusive" */
 const INCLUDED_AFTER = /^\s*(included|incl\b|inclusive|inklusive|dabei)/i;
 /** "not cracked", "no broken", "never water damaged", "isn't faulty", "nicht defekt" */
@@ -214,7 +229,7 @@ export function identify(title: string, query: string): Identity {
       const at = t.search(phraseRegex(p));
       // A shop's feature list ("AirPods Pro 2 Kabellose Ohrhörer, …, USB‑C Ladecase") names the
       // part after a comma: one feature of the product, not the part alone.
-      return !COMES_WITH.test(t.slice(Math.max(0, at - 30), at)) && !t.slice(0, at).includes(",");
+      return !COMES_WITH.test(t.slice(Math.max(0, at - 30), at)) && !t.slice(0, at).includes(",") && !caseAfterEarbuds(t, p);
     });
   if (parts) {
     kind = "parts";
@@ -226,7 +241,9 @@ export function identify(title: string, query: string): Identity {
     // A German compound names its last part: searching "Schutzhülle" is searching for a "Hülle".
     const qCompounds = q.split(/[^\p{L}\p{N}]+/u);
     const searched = (w: string) => hasPhrase(q, w) || (!w.includes(" ") && qCompounds.some((qw) => qw.endsWith(w)));
-    const accessory = ACCESSORY_WORDS.find((w) => !searched(w) && countsAs(t, w, INCLUDED_BEFORE, INCLUDED_AFTER));
+    const accessory = ACCESSORY_WORDS.find(
+      (w) => !searched(w) && countsAs(t, w, INCLUDED_BEFORE, INCLUDED_AFTER) && !(w === "case" && caseAfterEarbuds(t, w)),
+    );
     const service = SERVICE_WORDS.find((w) => !hasPhrase(q, w) && hasPhrase(t, w));
     // "… for ThinkPad X1", "fits ThinkPad X1", "für PlayStation 5": the searched product comes right after.
     const at = q ? t.indexOf(q) : -1;
@@ -281,8 +298,7 @@ export function identify(title: string, query: string): Identity {
   }
 
   // --- generation ------------------------------------------------------------
-  const gen = t.match(/\bgen(?:eration)?\.?\s?(\d{1,2})\b/) ?? t.match(/\b(\d{1,2})(?:st|nd|rd|th)\s+gen(?:eration)?\b/);
-  const generation = gen ? Number(gen[1]) : undefined;
+  const generation = generationOf(t, modelQw);
 
   // --- memory and storage ------------------------------------------------------
   let storageGB: number | undefined;
@@ -305,6 +321,49 @@ export function identify(title: string, query: string): Identity {
   const named = qw.length ? namesModel(t, qw.join("")) : undefined;
 
   return { kind, kindReason, variant, named, generation, storageGB, ramGB };
+}
+
+const ORDINAL_WORDS: Record<string, number> = {
+  erste: 1, zweite: 2, dritte: 3, vierte: 4, "fünfte": 5, sechste: 6,
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+};
+
+/** What may follow a number that is a count or a size, not a generation: "2 GB", "2er Set", "2 Stück", "2 Akkus". */
+const NOT_A_GENERATION_AFTER =
+  /^\s*-?(gb|tb|mb|mp|mm|cm|zoll|inch|x\b|"|er\b|stück|stk|pcs|pc\b|teile|teilig|akku|paar|pair|jahr|year|monat|month|tage|days|w\b|mah|hz|k\b|%|€|euro)/;
+
+/**
+ * The generation a title states. German titles write it "2. Generation",
+ * "(2. Gen)" or "Erste Generation", English ones "Gen 3" or "3rd Gen", and most
+ * just put the number after the model: "AirPods Pro 3", "AirPods Pro2". Read
+ * only in English, "AirPods Pro Erste Generation" was priced against Pro 3s.
+ *
+ * A bare number counts only straight after the searched model (model words
+ * like "Max" may come between), when the model doesn't end in a number itself
+ * ("iPhone 15 2" says nothing), and when it isn't a size, a count or a year:
+ * "Pro 2 GB", "2er Set", "Pro 2022", "AirPods 1/2/3".
+ */
+function generationOf(t: string, modelQw: string[]): number | undefined {
+  const explicit =
+    t.match(/\bgen(?:eration)?\.?\s?(\d{1,2})\b/) ??
+    t.match(/\b(\d{1,2})(?:st|nd|rd|th)[\s-]?gen(?:eration)?\b/) ??
+    t.match(/(?<![0-9.,])(\d{1,2})\.\s?gen(?:eration)?\b/);
+  if (explicit) return Number(explicit[1]);
+  const word = t.match(/(?<![\p{L}\p{N}])(erste|zweite|dritte|vierte|fünfte|sechste|first|second|third|fourth|fifth|sixth)[nrs]?[\s-]+gen(?:eration)?\b/u);
+  if (word) return ORDINAL_WORDS[word[1]];
+
+  const model = modelQw.join("");
+  if (!model || /[0-9]$/.test(model)) return undefined;
+  const between = "[^a-z0-9]*";
+  const variants = `(?:[^a-z0-9]+(?:${VARIANT_WORDS.join("|")})(?![a-z0-9])){0,2}`;
+  const re = new RegExp(`(?<![a-z0-9])${[...model].map(escapeRe).join(between)}${variants}[^a-z0-9]*?(\\d{1,2})(?![0-9])`);
+  const m = t.match(re);
+  if (!m) return undefined;
+  const after = t.slice(m.index! + m[0].length);
+  // A decimal, a list or a range ("2.5", "1/2/3", "1, 2", "1 2 3", a lens's "28-70") isn't one generation.
+  if (/^\s*([.,]\d|[-/,&+]\s*\d|\s\d{1,2}(?![0-9]))/.test(after)) return undefined;
+  if (NOT_A_GENERATION_AFTER.test(after)) return undefined;
+  return Number(m[1]);
 }
 
 /**

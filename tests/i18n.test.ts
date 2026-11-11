@@ -168,8 +168,8 @@ test("the used-from-title note reads in German", () => {
 });
 
 test("one rating is one Bewertung, and a variation listing's note reads in German", () => {
-  assert.strictEqual(MESSAGES.de.listing.ratingsUnverified(1), "1 Bewertung, ungeprüft");
-  assert.strictEqual(MESSAGES.de.listing.ratingsUnverified(36310), "36310 Bewertungen, ungeprüft");
+  assert.strictEqual(MESSAGES.de.listing.ratingsUnverified(1), "1 Bewertung, Verkäufer nicht verifiziert");
+  assert.strictEqual(MESSAGES.de.listing.ratingsUnverified(36310), "36310 Bewertungen, Verkäufer nicht verifiziert");
   assert.strictEqual(MESSAGES.en.listing.ratingsUnverified(1), "1 rating, unverified");
   assert.strictEqual(
     translateCheck("Seller has 1 rating (100% positive) on eBay; account age isn't published, so it wasn't checked.", "de"),
