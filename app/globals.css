@@ -1783,3 +1783,18 @@ a.chat-card-title:hover { text-decoration: underline; }
 .stats-bar i { display: block; height: 100%; border-radius: inherit; background: var(--muted); }
 .stats-shares .judged-checked .stats-bar i { background: var(--ok); }
 .stats-shares .judged-caution .stats-bar i { background: var(--warn); }
+
+/* Paying with a wallet on the phone: the QR code beside the steps (app/checkout/QrPay.tsx). */
+.qr-pay { margin: 0 0 12px; }
+.qr-box {
+  display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 0 0 12px; padding: 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.qr-code { flex: none; width: 220px; padding: 10px; background: #fff; border-radius: 12px; }
+.qr-code svg { display: block; width: 100%; height: auto; }
+.qr-text { flex: 1; min-width: 220px; }
+.qr-text ol { margin: 0 0 10px; padding-left: 20px; }
+.qr-text li { margin: 4px 0; }
+.qr-text .hint { margin: 6px 0; }
+.qr-state { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-weight: 600; }
+@media (max-width: 560px) { .qr-code { width: 100%; max-width: 260px; margin: 0 auto; } }

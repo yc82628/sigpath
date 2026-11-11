@@ -245,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 695 tests, as of 2026-11-10
+npm test                                   # 699 tests, as of 2026-11-11
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -1329,6 +1329,7 @@ use when there is more than one.
 | The fee shown is the fee charged | SigPath's service fee is **signed into each quote** with the price, so it can't be edited in the browser, and a later change to the setting doesn't touch quotes already shown |
 | The fee is protected like the price | It is paid into the escrow with the price: SigPath receives it only through `fulfil`, and a refund returns it with everything else |
 | Both currencies, before paying | Pay buttons show the USDC total, fee included; the checkout ends with an EUR + USDC breakdown, and the Pay button names both |
+| Paying from a phone (QR code) | "Wallet auf dem Handy (QR-Code)": the page shows a Solana Pay *transaction request* (`solana:https://…/api/pay/<session>`); Phantom or Solflare scans it, gets the label (GET), sends its account (POST) and receives the transaction, built exactly as the browser checkout builds it (`prepareCartCheckout`). Until the scan, the prices and address wait as one session encrypted with `ADDRESS_KEY`, 15 minutes at most (`lib/checkout/pay-session.ts`); on the scan the orders are created and the session deleted. The page asks `/api/pay/<session>/status` every two seconds: a wallet short of USDC is told how much (the same code still works), and a scanned payment is followed to paid, failed or expired like any other |
 | A way to pay for everyone | The checkout opens with "How do you want to pay?": a crypto wallet (USDC, the escrow); **Pay on eBay** (the listing on eBay, with PayPal, card, Klarna or Apple Pay and eBay's Money Back Guarantee instead of SigPath's escrow; offered when every item has its eBay page, read from its signed price); and, while MoonPay is on, **card / Apple Pay / Google Pay** and **bank transfer (SEPA)**, which buy the USDC into the shopper's wallet first, with that way preselected in MoonPay. Each tile says how the shopper is protected; ways that aren't available aren't shown |
 | The shopper learns what happened | The wallet hands back the transaction's signature and the form follows it on SigPath's own network (`/api/checkout/status`, `lib/checkout/payment-status.ts`): **paid** once the order exists, **failed** if the network refused it, **expired** once its blockhash has run out (nothing charged; a wallet set to Mainnet ends here, with the hint to switch to Devnet) |
 | Nobody pays twice | When a wallet reports an error other than "refused", the form first checks whether the order exists anyway (some wallets time out after sending) and links to it rather than offering Pay again |

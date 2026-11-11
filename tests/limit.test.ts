@@ -103,6 +103,7 @@ const UNLIMITED: Record<string, string> = {
   "alerts/run": "the scheduler, behind ALERTS_CRON_SECRET",
   "ebay/account-deletion": "eBay's own notifications, signature-checked",
   "orders/[order]": "a read of a public on-chain order",
+  "pay/[id]/status": "a read of what a QR payment's scan did, asked every two seconds by the page showing the code; no address in it",
   "checkout/status": "a read of a public on-chain order and transaction, asked every two seconds while a payment confirms",
   "business/status": "a read of a public business record",
 };

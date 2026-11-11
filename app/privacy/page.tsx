@@ -21,6 +21,7 @@ import {
   solanaRpcProvider,
 } from "@/lib/legal/site";
 import { PENDING_TTL_SECONDS, RETENTION_MAX_SECONDS } from "@/lib/checkout/address-store";
+import { PAY_SESSION_SECS } from "@/lib/checkout/pay-session";
 import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
 import { PENDING_REPORT_MAX_SECS } from "@/lib/reports/reports";
 import { WATCH_TTL_SECS } from "@/lib/alerts/watches";
@@ -240,7 +241,9 @@ function PrivacyEn() {
                 <strong>Your delivery address</strong> (name, street, postcode, city, country) is stored {storage}, used only
                 to have your item delivered, and passed to the seller when SigPath buys the item for you. It is deleted when
                 the order is fulfilled or refunded, after {minutes(PENDING_TTL_SECONDS)} minutes if you don&apos;t pay, and in
-                any case within {days(RETENTION_MAX_SECONDS)} days.
+                any case within {days(RETENTION_MAX_SECONDS)} days. If you pay with the QR code and a wallet on your phone,
+                SigPath holds the address and the prices encrypted until a phone scans the code, for {minutes(PAY_SESSION_SECS)}{" "}
+                minutes at most; then that copy is deleted.
               </li>
               <li>
                 <strong>An order record</strong> (the listing, the price and your wallet address) is kept for{" "}

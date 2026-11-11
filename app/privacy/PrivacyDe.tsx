@@ -16,6 +16,7 @@ import {
   solanaRpcProvider,
 } from "@/lib/legal/site";
 import { PENDING_TTL_SECONDS, RETENTION_MAX_SECONDS } from "@/lib/checkout/address-store";
+import { PAY_SESSION_SECS } from "@/lib/checkout/pay-session";
 import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
 import { PENDING_REPORT_MAX_SECS } from "@/lib/reports/reports";
 import { WATCH_TTL_SECS } from "@/lib/alerts/watches";
@@ -243,7 +244,9 @@ export default function PrivacyDe() {
                 für die Lieferung deines Artikels verwendet und an den Verkäufer weitergegeben, wenn SigPath den Artikel für
                 dich kauft. Sie wird gelöscht, wenn die Bestellung erfüllt oder erstattet ist, nach{" "}
                 {minutes(PENDING_TTL_SECONDS)} Minuten, wenn du nicht bezahlst, und in jedem Fall innerhalb von{" "}
-                {days(RETENTION_MAX_SECONDS)} Tagen.
+                {days(RETENTION_MAX_SECONDS)} Tagen. Bezahlst du mit dem QR-Code und einer Wallet auf dem Handy, hält SigPath
+                Adresse und Preise verschlüsselt bereit, bis ein Handy den Code scannt, höchstens {minutes(PAY_SESSION_SECS)}{" "}
+                Minuten; danach wird diese Kopie gelöscht.
               </li>
               <li>
                 <strong>Ein Bestelldatensatz</strong> (das Angebot, der Preis und deine Wallet-Adresse) wird nach der

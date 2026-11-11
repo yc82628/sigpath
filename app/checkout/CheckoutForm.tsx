@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import WalletButton from "../components/WalletButton";
 import PopIcon from "../components/PopIcon";
+import QrPay from "./QrPay";
 import { DEVNET, WalletError, waitForPayment } from "../components/wallet";
 import { shortAddress, useWallet, useWalletErrorText, useWalletFunds } from "../components/WalletProvider";
 import { useCheckText, useLang, useMessages } from "../components/I18n";
@@ -57,7 +58,7 @@ const FIELDS: { key: string; required: boolean; autoComplete: string }[] = [
 ];
 
 type Phase = "idle" | "building" | "signing" | "confirming" | "checking" | "error";
-type Method = "wallet" | "ebay" | "card" | "bank";
+type Method = "wallet" | "qr" | "ebay" | "card" | "bank";
 
 export default function CheckoutForm({
   quote,
@@ -106,6 +107,7 @@ export default function CheckoutForm({
   /** How much more USDC the connected wallet needs, as the checkout said on Pay. */
   const [shortfall, setShortfall] = useState<number | null>(null);
   const [topUpNote, setTopUpNote] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
   /** The way to pay. None until chosen, except a wallet already connected or installed, which is preselected once. */
   const [method, setMethod] = useState<Method | null>(null);
   const chosen = useRef(false);
@@ -299,7 +301,7 @@ export default function CheckoutForm({
     finish(order, cartOrders, false, signature, payingAs);
   }
 
-  function finish(order: string, cartOrders: { order: string; source: string; id: string }[], confirmed: boolean, signature: string | null, payer: string) {
+  function finish(order: string, cartOrders: { order: string; source: string; id: string }[], confirmed: boolean, signature: string | null, payer?: string) {
     if (onPaid) return onPaid(cartOrders, confirmed, payer);
     const qs = confirmed ? "" : `?pending=1${signature ? `&tx=${signature}` : ""}`;
     router.push(`/order/${order}${qs}`);
@@ -310,17 +312,18 @@ export default function CheckoutForm({
   const viaMoonPay = method === "card" || method === "bank";
   const way = method === "bank" ? m.checkout.sepaWay : m.checkout.cardWay;
 
-  // The ways on offer: a wallet always; eBay when every item has its eBay page; MoonPay's two when it's on.
-  const methods: Method[] = ["wallet", ...(onEbay ? (["ebay"] as const) : []), ...(moonPay ? (["card", "bank"] as const) : [])];
-  const icon: Record<Method, { name: "wallet" | "storefront" | "tag" | "buildings"; tone: "purple" | "blue" | "green" }> = {
+  // The ways on offer: a wallet here or on the phone (QR) always; eBay when every item has its eBay page; MoonPay's two when it's on.
+  const methods: Method[] = ["wallet", "qr", ...(onEbay ? (["ebay"] as const) : []), ...(moonPay ? (["card", "bank"] as const) : [])];
+  const icon: Record<Method, { name: "wallet" | "device-mobile" | "storefront" | "tag" | "buildings"; tone: "purple" | "blue" | "green" }> = {
     wallet: { name: "wallet", tone: "purple" },
+    qr: { name: "device-mobile", tone: "green" },
     ebay: { name: "storefront", tone: "blue" },
     card: { name: "tag", tone: "green" },
     bank: { name: "buildings", tone: "blue" },
   };
 
   return (
-    <form className="checkout-form" onSubmit={pay}>
+    <form className="checkout-form" onSubmit={pay} ref={formRef}>
       <fieldset className="pay-methods" disabled={busy}>
         <legend>{m.checkout.methodTitle}</legend>
         {methods.map((id) => {
@@ -387,7 +390,19 @@ export default function CheckoutForm({
             until && <p className="hint">{m.checkout.priceUntil(until)}</p>
           )}
 
-          {!wallet ? (
+          {method === "qr" ? (
+            // A wallet app on the phone: the QR code is the whole wallet step (lib/checkout/pay-session.ts).
+            <QrPay
+              quotes={tokens}
+              address={address}
+              validate={() => formRef.current?.reportValidity() ?? true}
+              disabled={expired}
+              onPriceExpired={() => setServerExpired(true)}
+              onPaid={(orders, confirmed) =>
+                finish(orders[0].order, orders.map((o) => ({ order: o.order, source: o.source, id: o.id })), confirmed, null)
+              }
+            />
+          ) : !wallet ? (
             <>
               {viaMoonPay && <p className="hint">{m.checkout.walletFirst}</p>}
               <WalletButton label={m.checkout.connect} onConnect={connected} onError={walletError} />

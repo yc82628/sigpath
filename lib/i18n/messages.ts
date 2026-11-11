@@ -362,6 +362,11 @@ const en = {
         sub: "PayPal, card, Klarna, Apple Pay: on eBay's own page",
         protect: "eBay's Money Back Guarantee, not SigPath's escrow.",
       },
+      qr: {
+        title: "Wallet on your phone (QR code)",
+        sub: "Scan with Phantom or Solflare on your phone",
+        protect: "SigPath's escrow, as with a wallet in this browser.",
+      },
       card: {
         title: "Card, Apple Pay or Google Pay",
         sub: "Through MoonPay: buys the USDC into your wallet, then you pay",
@@ -382,6 +387,26 @@ const en = {
     enough: "This wallet already holds enough USDC: you can pay straight away.",
     sepaWay: "MoonPay (SEPA)",
     cardWay: "MoonPay",
+    qr: {
+      show: "Show the QR code",
+      again: "Show a new QR code",
+      alt: "QR code to pay with a wallet app",
+      steps: [
+        "Open Phantom or Solflare on your phone.",
+        "Tap the scan icon and point it at this code.",
+        "Check the amount, then approve.",
+      ],
+      devnet: "Devnet only: set the wallet app to Devnet first (Phantom: Settings → Developer settings → Testnet mode).",
+      openHere: "On this phone? Open in the wallet app",
+      waiting: "Waiting for your phone…",
+      scanned: "Scanned. Approve the payment in your wallet app…",
+      until: (time: string): string => `This code works until ${time}.`,
+      failed: (why: string): string => `Your phone's wallet couldn't pay: ${why} You can scan the same code again.`,
+      short: (amount: string): string => `The wallet on your phone is ${amount} short. Add USDC to it, then scan the same code again.`,
+      gone: "This QR code has run out. Show a new one.",
+      expired: (devnet: boolean): string =>
+        `The payment didn't reach the network in time, so nothing was charged.${devnet ? " If the wallet app is set to Mainnet, switch it to Devnet." : ""} Show a new QR code to try again.`,
+    },
   },
   invoice: {
     title: "Invoice",
@@ -953,6 +978,11 @@ const de: Messages = {
         sub: "PayPal, Karte, Klarna, Apple Pay: auf eBays eigener Seite",
         protect: "eBay-Käuferschutz, nicht SigPaths Treuhand.",
       },
+      qr: {
+        title: "Wallet auf dem Handy (QR-Code)",
+        sub: "Mit Phantom oder Solflare auf dem Handy scannen",
+        protect: "SigPaths Treuhand, wie mit einer Wallet in diesem Browser.",
+      },
       card: {
         title: "Karte, Apple Pay oder Google Pay",
         sub: "Über MoonPay: kauft die USDC in deine Wallet, dann bezahlst du",
@@ -973,6 +1003,26 @@ const de: Messages = {
     enough: "Diese Wallet hat schon genug USDC: Du kannst direkt bezahlen.",
     sepaWay: "MoonPay (SEPA)",
     cardWay: "MoonPay",
+    qr: {
+      show: "QR-Code anzeigen",
+      again: "Neuen QR-Code anzeigen",
+      alt: "QR-Code zum Bezahlen mit einer Wallet-App",
+      steps: [
+        "Öffne Phantom oder Solflare auf deinem Handy.",
+        "Tippe auf das Scan-Symbol und richte es auf diesen Code.",
+        "Prüfe den Betrag und bestätige.",
+      ],
+      devnet: "Nur Devnet: Stelle die Wallet-App zuerst auf Devnet (Phantom: Einstellungen → Entwicklereinstellungen → Testnet-Modus).",
+      openHere: "Auf diesem Handy? In der Wallet-App öffnen",
+      waiting: "Warte auf dein Handy…",
+      scanned: "Gescannt. Bestätige die Zahlung in deiner Wallet-App…",
+      until: (time) => `Dieser Code gilt bis ${time} Uhr.`,
+      failed: (why) => `Die Wallet auf deinem Handy konnte nicht bezahlen: ${why} Du kannst denselben Code noch einmal scannen.`,
+      short: (amount) => `Der Wallet auf deinem Handy fehlen ${amount}. Lade USDC auf und scanne denselben Code noch einmal.`,
+      gone: "Dieser QR-Code ist abgelaufen. Lass dir einen neuen anzeigen.",
+      expired: (devnet) =>
+        `Die Zahlung hat das Netzwerk nicht rechtzeitig erreicht, daher wurde nichts abgebucht.${devnet ? " Ist die Wallet-App auf Mainnet gestellt, stelle sie auf Devnet um." : ""} Lass dir einen neuen QR-Code anzeigen, um es noch einmal zu versuchen.`,
+    },
   },
   invoice: {
     title: "Rechnungsübersicht",

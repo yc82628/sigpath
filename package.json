@@ -19,6 +19,7 @@
     "ethers": "^6.17.0",
     "jpeg-js": "^0.4.4",
     "next": "^14.2.35",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sas-lib": "^1.0.10",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "tsx": "^4.23.13",
