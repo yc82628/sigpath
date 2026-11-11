@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import HotDeals, { PopularSearches } from "./components/HotDeals";
 import { Badge, SLOGAN } from "./components/Logo";
 import { aliexpressOn } from "@/lib/legal/site";
@@ -40,12 +40,15 @@ export default function Home() {
           <div className="hero-plate">
           <h1 className="hero-title">
             {/* Wraps between the two halves, never inside one. */}
+            {/* The space sits outside both no-wrap spans: inside one it isn't a place the line may break. */}
             {SLOGAN.split(" – ").map((half, i) => (
-              <span key={half} className="nowrap">
+              <Fragment key={half}>
                 {i > 0 && " "}
-                {half}
-                {i === 0 && " –"}
-              </span>
+                <span className="nowrap">
+                  {half}
+                  {i === 0 && " –"}
+                </span>
+              </Fragment>
             ))}
           </h1>
           <p className="hero-sub">{m.home.sub}</p>

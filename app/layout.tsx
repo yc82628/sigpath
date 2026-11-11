@@ -35,10 +35,15 @@ import "./globals.css";
 const sans = Nunito({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
 const display = Fredoka({ subsets: ["latin"], display: "swap", variable: "--font-display" });
 
-export const metadata: Metadata = {
-  title: `SigPath — ${SLOGAN}`,
-  description: "See what a product really costs and get the best real deal: live prices across marketplaces, every offer scored against the market, fakes filtered out.",
-};
+// The description search engines and link previews show, in the page's language (the same cookie the page reads).
+const DESCRIPTION = {
+  en: "See what a product really costs and get the best real deal: live prices across marketplaces, every offer scored against the market, fakes filtered out.",
+  de: "Sieh, was ein Produkt wirklich kostet, und hol dir das beste echte Angebot: Live-Preise mehrerer Marktplätze, jedes Angebot am Markt gemessen, Fälschungen aussortiert.",
+} as const;
+
+export function generateMetadata(): Metadata {
+  return { title: `SigPath — ${SLOGAN}`, description: DESCRIPTION[getLang()] };
+}
 
 /** Offered only where it can answer: a model must be configured (lib/assistant/models.ts). */
 function ShoppingAssistant() {
