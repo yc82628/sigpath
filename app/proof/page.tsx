@@ -196,10 +196,10 @@ export default async function ProofPage({ searchParams }: { searchParams: { sour
             <li>
               <b>{p.orders.refunded}</b>
               <strong>{t.stats.refunded.label}</strong>
-              <span>{t.stats.refunded.line(usdc(p.orders.returned, lang, "down"))}</span>
+              <span>{t.stats.refunded.line(usdc(p.orders.returned, lang))}</span>
             </li>
             <li>
-              <b>{usdc(p.orders.heldNow, lang, "down")}</b>
+              <b>{usdc(p.orders.heldNow, lang)}</b>
               <strong>{t.stats.held.label}</strong>
               <span>{t.stats.held.line}</span>
             </li>
