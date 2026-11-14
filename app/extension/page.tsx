@@ -13,16 +13,18 @@ import { extensionStores, storesForVisitor, type Store } from "@/lib/extension/s
  */
 
 export function generateMetadata() {
-  return { title: getLang() === "de" ? "Die SigPath-Erweiterung — SigPath" : "The SigPath extension — SigPath" };
+  return getLang() === "de"
+    ? { title: "Die SigPath-Erweiterung — SigPath", description: "SigPath als Browser-Erweiterung: wie ein Preis zum Markt steht, Warnsignale und das beste geprüfte Angebot, direkt auf der Seite des Shops. Für Chrome, Edge, Brave und Firefox." }
+    : { title: "The SigPath extension — SigPath", description: "SigPath as a browser extension: how a price compares with the market, warning signs and the best checked offer, right on the shop's page. For Chrome, Edge, Brave and Firefox." };
 }
 
 type Tone = "purple" | "blue" | "green";
 
 const en = {
   title: "The SigPath extension",
-  lede: "How good the deal is, and SigPath's check, right on the shop's page.",
+  lede: "How good a deal is and what SigPath makes of it, right on the shop's page.",
   steps: [
-    { icon: "plus" as IconName, tone: "purple" as Tone, title: "Add it", line: "To Chrome, Edge, Brave or Firefox, once." },
+    { icon: "plus" as IconName, tone: "purple" as Tone, title: "Add it", line: "Once, to Chrome, Edge, Brave or Firefox." },
     { icon: "shopping-cart-simple" as IconName, tone: "blue" as Tone, title: "Shop as usual", line: "eBay, Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
     { icon: "seal-check" as IconName, tone: "green" as Tone, title: "See the deal", line: "How far from the market, red flags, the best deal." },
   ],
@@ -34,7 +36,7 @@ const en = {
   deal: "−12%",
   dealTone: "Good deal",
   usually: "New on eBay, usually 249 – 269 €",
-  best: "Best checked eBay deal: 205 €",
+  best: "Best checked eBay deal: 239 €",
   soldBy: "Sold by: Amazon",
   caption: "On every product page: the check appears at the bottom right.",
   resultsLabel: "On Amazon's results:",
@@ -70,9 +72,9 @@ const en = {
 
 const de: typeof en = {
   title: "Die SigPath-Erweiterung",
-  lede: "Wie gut das Angebot ist, und SigPaths Prüfung, direkt auf der Seite des Shops.",
+  lede: "Wie gut ein Angebot ist und was SigPath dazu sagt – direkt auf der Seite des Shops.",
   steps: [
-    { icon: "plus", tone: "purple", title: "Hinzufügen", line: "Zu Chrome, Edge, Brave oder Firefox, einmal." },
+    { icon: "plus", tone: "purple", title: "Hinzufügen", line: "Einmal zu Chrome, Edge, Brave oder Firefox hinzufügen." },
     { icon: "shopping-cart-simple", tone: "blue", title: "Einkaufen wie immer", line: "eBay, Amazon, AliExpress, OTTO, MediaMarkt, Saturn." },
     { icon: "seal-check", tone: "green", title: "Angebot sehen", line: "Wie weit vom Markt, Warnsignale, das beste Angebot." },
   ],
@@ -84,7 +86,7 @@ const de: typeof en = {
   deal: "−12 %",
   dealTone: "Gutes Angebot",
   usually: "Neu auf eBay meist 249 – 269 €",
-  best: "Bestes geprüftes eBay-Angebot: 205 €",
+  best: "Bestes geprüftes eBay-Angebot: 239 €",
   soldBy: "Verkauf durch: Amazon",
   caption: "Auf jeder Produktseite: Die Prüfung erscheint unten rechts.",
   resultsLabel: "In Amazons Suchergebnissen:",
@@ -102,8 +104,8 @@ const de: typeof en = {
   chromeAlso: "Der Chrome-Knopf funktioniert auch in Brave, Edge, Opera und Vivaldi.",
   byHand: "Oder von Hand installieren (für Entwickler)",
   soon: "Bald im Chrome Web Store. Bis dahin:",
-  step1a: "SigPath von",
-  step1b: "herunterladen (Code → Download ZIP) und entpacken.",
+  step1a: "Lade SigPath von",
+  step1b: "herunter (Code → Download ZIP) und entpacke es.",
   step2a: "Öffne",
   step2b: " und schalte den Entwicklermodus ein.",
   phone: "Auf dem Handy",
@@ -114,8 +116,8 @@ const de: typeof en = {
     "SigPath sucht es auf allen Marktplätzen, mit einer Prüfung bei jedem Angebot.",
   ],
   iphone: "Auf dem iPhone: Kopiere den Link des Produkts und füge ihn in SigPaths Suche ein.",
-  step3a: "„Entpackte Erweiterung laden“ → den Ordner",
-  step3b: "wählen.",
+  step3a: "Klicke auf „Entpackte Erweiterung laden“ und wähle den Ordner",
+  step3b: "aus.",
 };
 
 /** The extension at work on a product page: a drawing, not a screenshot of any real listing. */
