@@ -9,6 +9,7 @@ import { MESSAGES } from "@/lib/i18n/messages";
 import { translateCheck } from "@/lib/i18n/checks";
 import CheckoutForm from "./CheckoutForm";
 import Invoice from "./Invoice";
+import EscrowInfo from "./EscrowInfo";
 import { usdc } from "@/lib/i18n/money";
 
 /**
@@ -21,6 +22,10 @@ import { usdc } from "@/lib/i18n/money";
  */
 
 export const dynamic = "force-dynamic";
+
+export function generateMetadata() {
+  return { title: `${MESSAGES[getLang()].checkout.title} — SigPath` };
+}
 
 export default async function CheckoutPage({ searchParams }: { searchParams: { quote?: string } }) {
   const lang = getLang();
@@ -53,7 +58,6 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
   }
 
   const invoice = await invoiceFor([token], { upheldReports: await DecisionLog.fromEnv().upheldCounts() });
-  const days = (secs: number) => m.checkout.days(Math.round(secs / 86400));
 
   return (
     <main className="container checkout-page">
@@ -71,17 +75,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
             totalUsdc={invoice.totalUsdc}
             moonPay={moonPayAvailable() !== null}
             // About the escrow: the form shows it once the shopper picks a way that pays into it, not for eBay.
-            escrowInfo={
-              <section className="guarantees">
-                <h2>{m.checkout.moneyTitle}</h2>
-                <ul>
-                  <li>{m.checkout.money1}</li>
-                  <li>{m.checkout.money2(days(checkoutWindowSecs()))}</li>
-                  <li>{m.checkout.money3}</li>
-                </ul>
-                <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
-              </section>
-            }
+            escrowInfo={<EscrowInfo count={1} windowDays={Math.round(checkoutWindowSecs() / 86400)} retentionDays={Math.round(RETENTION_MAX_SECONDS / 86400)} />}
           />
         </>
       )}

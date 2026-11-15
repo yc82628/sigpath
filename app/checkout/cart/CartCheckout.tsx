@@ -8,6 +8,7 @@ import { readCart, writeCart } from "../../components/cart-store";
 import { useCheckText, useLang, useMessages } from "../../components/I18n";
 import CheckoutForm from "../CheckoutForm";
 import Invoice, { type InvoiceData } from "../Invoice";
+import EscrowInfo from "../EscrowInfo";
 import { usdc } from "@/lib/i18n/money";
 
 /**
@@ -47,7 +48,7 @@ function itemFromToken(token: string): CartItem | null {
   };
 }
 
-export default function CartCheckout({ max, moonPay, escrowInfo }: { max: number; moonPay: boolean; escrowInfo?: React.ReactNode }) {
+export default function CartCheckout({ max, moonPay, escrowDays }: { max: number; moonPay: boolean; escrowDays: { window: number; retention: number } }) {
   const m = useMessages();
   const lang = useLang();
   const tc = useCheckText();
@@ -206,7 +207,7 @@ export default function CartCheckout({ max, moonPay, escrowInfo }: { max: number
           usdcDisplay={usdc(invoice.totalUsdc, lang)}
           totalUsdc={invoice.totalUsdc}
           moonPay={moonPay}
-          escrowInfo={escrowInfo}
+          escrowInfo={<EscrowInfo count={state.ready.length} windowDays={escrowDays.window} retentionDays={escrowDays.retention} />}
           onRefresh={refresh}
           onPaid={(orders, confirmed, wallet) => {
             // Paid items leave the cart; their order pages, and this invoice, are the record now.

@@ -315,10 +315,14 @@ const en = {
     pending: "Payment sent; the network is still confirming.",
     onePerItem: "One order per item:",
     moneyTitle: "What happens to your money",
-    money1: "Each item is its own escrow order on Solana, held by the program, not by SigPath.",
-    money2: (days: string) => `SigPath is paid for an item only when it marks that order fulfilled, within ${days}.`,
-    money3: "If it doesn't, you (or anyone) can trigger that item's refund, straight back to your wallet.",
-    addressNote: (days: string) => `Your address is stored encrypted, used only for these deliveries, and deleted once each order is settled, within ${days} at most. Devnet only: use a wallet set to Devnet and test USDC.`,
+    money1: (n: number): string =>
+      n === 1 ? "Your item is an escrow order on Solana, held by the program, not by SigPath." : "Each item is its own escrow order on Solana, held by the program, not by SigPath.",
+    money2: (days: string, n: number) =>
+      n === 1 ? `SigPath is paid only when it marks the order fulfilled, within ${days}.` : `SigPath is paid for an item only when it marks that order fulfilled, within ${days}.`,
+    money3: (n: number): string =>
+      n === 1 ? "If it doesn't, you (or anyone) can trigger the refund, straight back to your wallet." : "If it doesn't, you (or anyone) can trigger that item's refund, straight back to your wallet.",
+    addressNote: (days: string, n: number) =>
+      `Your address is stored encrypted, used only for ${n === 1 ? "this delivery" : "these deliveries"}, and deleted once ${n === 1 ? "the order is" : "each order is"} settled, within ${days} at most. Devnet only: use a wallet set to Devnet and test USDC.`,
     days: (n: number): string => (n === 1 ? "1 day" : `${n} days`),
     // The form
     address: "Delivery address",
@@ -423,9 +427,9 @@ const en = {
     total: "Total",
     subtotal: "All items",
     totalUsdc: "Total to pay",
-    rate: (rate: string, source: string) => `Conversion: 1 EUR = ${rate} USD (${source}). 1 USDC = 1 USD.`,
+    rate: (rate: string, source: string) => `Conversion: 1 EUR = ${rate} USD (${source}). 1 USDC = 1 USD.`,
     rateSource: (s: string) => s,
-    usdOnly: "Priced in USD: 1 USDC = 1 USD.",
+    usdOnly: "Priced in USD: 1 USDC = 1 USD.",
     fees: "The fee sits in escrow with each item's price and is refunded with it if that order isn't fulfilled.",
     noFee: "No fee: you pay the item's price, nothing on top.",
     print: "Print or save as PDF",
@@ -934,10 +938,13 @@ const de: Messages = {
     pending: "Zahlung gesendet; das Netzwerk bestätigt noch.",
     onePerItem: "Eine Bestellung pro Artikel:",
     moneyTitle: "Was mit deinem Geld passiert",
-    money1: "Jeder Artikel ist eine eigene Treuhand-Bestellung auf Solana, verwahrt vom Programm, nicht von SigPath.",
-    money2: (days) => `SigPath bekommt das Geld für einen Artikel erst, wenn es die Bestellung innerhalb von ${days} als erfüllt markiert.`,
-    money3: "Passiert das nicht, kannst du (oder jeder andere) die Rückerstattung auslösen: Das Geld geht direkt zurück in deine Wallet.",
-    addressNote: (days) => `Deine Adresse wird verschlüsselt gespeichert, nur für diese Lieferungen verwendet und gelöscht, sobald jede Bestellung abgeschlossen ist, spätestens nach ${days}. Nur Devnet: nutze eine Wallet im Devnet und Test-USDC.`,
+    money1: (n) =>
+      n === 1 ? "Dein Artikel ist eine Treuhand-Bestellung auf Solana, verwahrt vom Programm, nicht von SigPath." : "Jeder Artikel ist eine eigene Treuhand-Bestellung auf Solana, verwahrt vom Programm, nicht von SigPath.",
+    money2: (days, n) =>
+      n === 1 ? `SigPath bekommt das Geld erst, wenn es die Bestellung innerhalb von ${days} als erfüllt markiert.` : `SigPath bekommt das Geld für einen Artikel erst, wenn es dessen Bestellung innerhalb von ${days} als erfüllt markiert.`,
+    money3: () => "Passiert das nicht, kannst du (oder jeder andere) die Rückerstattung auslösen: Das Geld geht direkt zurück in deine Wallet.",
+    addressNote: (days, n) =>
+      `Deine Adresse wird verschlüsselt gespeichert, nur für ${n === 1 ? "diese Lieferung" : "diese Lieferungen"} verwendet und gelöscht, sobald ${n === 1 ? "die Bestellung" : "jede Bestellung"} abgeschlossen ist, spätestens nach ${days}. Nur Devnet: Nutze eine Wallet im Devnet und Test-USDC.`,
     days: (n) => (n === 1 ? "1 Tag" : `${n} Tagen`),
     address: "Lieferadresse",
     fields: { name: "Vollständiger Name", line1: "Straße und Hausnummer", line2: "Adresszusatz (optional)", postcode: "Postleitzahl", city: "Ort", country: "Ländercode (z. B. DE)" },
@@ -997,7 +1004,7 @@ const de: Messages = {
     },
     ebayNote: "Du kaufst wie gewohnt auf eBay, mit eBays Zahlungsarten. SigPath hat Preis und Angebot bereits geprüft; die Treuhand und SigPaths Rückerstattung gelten dann nicht.",
     ebayNoteMany: "Jeder Artikel wird einzeln auf eBay gekauft, mit eBays Zahlungsarten. SigPath hat Preise und Angebote bereits geprüft; die Treuhand und SigPaths Rückerstattung gelten dann nicht.",
-    openOn: (shop) => `Bei ${shop} öffnen →`,
+    openOn: (shop) => `Auf ${shop} öffnen →`,
     walletFirst: "Die USDC kommen zuerst in eine Wallet, und du bezahlst daraus. Noch keine Wallet? Phantom ist kostenlos und in einer Minute eingerichtet.",
     buyWith: (amount, way) => `${amount} mit ${way} kaufen`,
     buyAny: (way) => `USDC mit ${way} kaufen`,
@@ -1040,9 +1047,13 @@ const de: Messages = {
     total: "Summe",
     subtotal: "Alle Artikel",
     totalUsdc: "Zu zahlen",
-    rate: (rate, source) => `Umrechnung: 1 EUR = ${rate.replace(".", ",")} USD (${source}). 1 USDC = 1 USD.`,
-    rateSource: (s) => s.replace("ECB reference rate", "EZB-Referenzkurs").replace("fallback rate from configuration", "Ersatzkurs aus der Konfiguration"),
-    usdOnly: "In USD bepreist: 1 USDC = 1 USD.",
+    rate: (rate, source) => `Umrechnung: 1 EUR = ${rate.replace(".", ",")} USD (${source}). 1 USDC = 1 USD.`,
+    rateSource: (s) =>
+      s
+        .replace("ECB reference rate", "EZB-Referenzkurs")
+        .replace("fallback rate from configuration", "Ersatzkurs aus der Konfiguration")
+        .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, "$3.$2.$1"),
+    usdOnly: "In USD bepreist: 1 USDC = 1 USD.",
     fees: "Die Gebühr liegt mit dem Preis jedes Artikels in der Treuhand und wird mit ihm erstattet, wenn diese Bestellung nicht erfüllt wird.",
     noFee: "Keine Gebühr: Du zahlst den Preis des Artikels, nichts obendrauf.",
     print: "Drucken oder als PDF speichern",

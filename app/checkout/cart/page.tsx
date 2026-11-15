@@ -23,7 +23,6 @@ export const dynamic = "force-dynamic";
 
 export default function CartCheckoutPage() {
   const m = getMessages();
-  const days = (secs: number) => m.checkout.days(Math.round(secs / 86400));
   const on = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
   if (!on) {
     return (
@@ -44,17 +43,7 @@ export default function CartCheckoutPage() {
         max={MAX_CART_ORDERS}
         moonPay={moonPayAvailable() !== null}
         // About the escrow: shown once the shopper picks a way that pays into it, not for eBay.
-        escrowInfo={
-          <section className="guarantees">
-            <h2>{m.checkout.moneyTitle}</h2>
-            <ul>
-              <li>{m.checkout.money1}</li>
-              <li>{m.checkout.money2(days(checkoutWindowSecs()))}</li>
-              <li>{m.checkout.money3}</li>
-            </ul>
-            <p className="hint">{m.checkout.addressNote(days(RETENTION_MAX_SECONDS))}</p>
-          </section>
-        }
+        escrowDays={{ window: Math.round(checkoutWindowSecs() / 86400), retention: Math.round(RETENTION_MAX_SECONDS / 86400) }}
       />
     </main>
   );
