@@ -13,7 +13,9 @@ import { queryFromShare } from "@/lib/marketplace/share-query";
  */
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Check a shared product — SigPath", robots: { index: false } };
+export function generateMetadata() {
+  return { title: getLang() === "de" ? "Geteiltes Produkt prüfen — SigPath" : "Check a shared product — SigPath", robots: { index: false } };
+}
 
 export default function SharePage({ searchParams }: { searchParams: { title?: string; text?: string; url?: string } }) {
   const q = queryFromShare({ title: searchParams.title, text: searchParams.text, url: searchParams.url });

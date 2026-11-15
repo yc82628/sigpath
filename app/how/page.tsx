@@ -10,7 +10,9 @@ const STEP_ICONS: { name: IconName; tone: Tone }[] = [
   { name: "seal-check", tone: "purple" },
 ];
 
-export const metadata = { title: "How SigPath keeps fakes out" };
+export function generateMetadata() {
+  return { title: `${getMessages().how.title} — SigPath` };
+}
 
 export default function HowPage() {
   const m = getMessages();
