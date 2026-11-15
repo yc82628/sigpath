@@ -73,10 +73,16 @@ export default function CartView({
 
   const sums = totals(cart, fresh);
   const gone = (c: CartItem) => fresh[c.key]?.status === "gone";
+  // What can still be bought: ended and sold-out items are neither counted nor added up.
+  const forSale = cart.filter((c) => !gone(c) && fresh[c.key]?.status !== "sold_out");
   // SigPath's checkout covers checked items; everything else is bought on its marketplace.
   const viaSigPath = checkoutOn ? checkoutCandidates(cart).filter((c) => !gone(c)) : [];
   const onEbay = cart.filter((c) => !viaSigPath.includes(c) && c.source !== "stub" && !gone(c));
   const bought = cart.filter((c) => c.bought);
+  const market = (c: CartItem) => MARKET[c.source] ?? c.source;
+  // One shop for the whole list: name it in the heading; several: "at each shop".
+  const shops = [...new Set(onEbay.map(market))];
+  const listShop = shops.length === 1 ? shops[0] : undefined;
   return (
     <>
       {checking && <p className="hint">{m.cart.checking}</p>}
@@ -94,7 +100,7 @@ export default function CartView({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
                 ) : (
-                  (MARKET[c.source] ?? c.source).slice(0, 1)
+                  (MARKET[c.source] ?? c.source).slice(0, 1).toUpperCase()
                 )}
               </div>
               <div className="body">
@@ -149,10 +155,13 @@ export default function CartView({
       </ul>
       <section className="cart-summary" aria-label={m.cart.title}>
         <p>
-          <strong>
-            {m.cart.items(cart.length)}
-          </strong>{" "}
-          {sums.length ? sums.map(formatMoney).join(" + ") : m.cart.nothingForSale}
+          {forSale.length && sums.length ? (
+            <>
+              <strong>{m.cart.items(forSale.length)}</strong> {sums.map(formatMoney).join(" + ")}
+            </>
+          ) : (
+            m.cart.nothingForSale
+          )}
         </p>
         {viaSigPath.length > 0 && (
           <p>
@@ -170,9 +179,9 @@ export default function CartView({
       </section>
 
       {onEbay.length > 0 && (
-        // eBay doesn't let other sites fill a buyer's eBay basket, so: one listing at a time, ticked off here.
-        <section className="cart-summary ebay-checklist" aria-label={m.cart.buyOnEbay}>
-          <h2>{viaSigPath.length ? m.cart.buyRest : m.cart.buyOnEbay}</h2>
+        // No shop lets other sites fill a buyer's basket there, so: one listing at a time, ticked off here.
+        <section className="cart-summary ebay-checklist" aria-label={m.cart.buyAll(listShop)}>
+          <h2>{viaSigPath.length ? m.cart.buyRest(listShop) : m.cart.buyAll(listShop)}</h2>
           <ol>
             {onEbay.map((c) => (
               <li key={c.key} className={c.bought ? "done" : ""}>
@@ -181,7 +190,7 @@ export default function CartView({
                   <span>{c.title}</span>
                 </label>
                 <a className="button ghost" href={c.url} target="_blank" rel="noopener noreferrer">
-                  {m.cart.openOnEbay}
+                  {m.cart.openOn(market(c))}
                 </a>
               </li>
             ))}

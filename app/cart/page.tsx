@@ -5,7 +5,9 @@ import { quoteSigningConfigured } from "@/lib/checkout/quote";
 import { AddressStore } from "@/lib/checkout/address-store";
 import { MAX_CART_ORDERS } from "@/lib/checkout/checkout";
 
-export const metadata = { title: "Your cart — SigPath" };
+export function generateMetadata() {
+  return { title: `${getMessages().cart.title} — SigPath` };
+}
 
 export default function CartPage() {
   const m = getMessages();

@@ -16,7 +16,9 @@ import CartCheckout from "./CartCheckout";
  * invoice shows every price and conversion before anything is paid.
  */
 
-export const metadata = { title: "Checkout — SigPath" };
+export function generateMetadata() {
+  return { title: `${getMessages().checkout.title} — SigPath` };
+}
 export const dynamic = "force-dynamic";
 
 export default function CartCheckoutPage() {
