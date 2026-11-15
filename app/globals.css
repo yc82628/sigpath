@@ -904,6 +904,16 @@ h2.with-icon > .pop-icon { margin-top: 0; }
 }
 .cart-title { gap: 12px; }
 .cart-list { list-style: none; margin: 16px 0 0; padding: 0; }
+
+/* My orders (app/orders): the signed-in wallet, then its orders as listings without a photo. */
+.account-bar p:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; }
+.account-orders { list-style: none; margin: 16px 0 0; padding: 0; }
+.account-orders .order-status { margin: 0 0 4px; font-weight: 700; }
+.account-orders .body p:last-child { margin: 10px 0 0; }
+@media (max-width: 560px) {
+  .account-orders .listing { grid-template-columns: 1fr; }
+  .account-orders .listing .price { grid-column: 1; }
+}
 .cart-item.gone { opacity: 0.7; }
 .cart-verdict { margin: 6px 0 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
 .cart-verdict.checked { color: var(--ok); }

@@ -245,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 710 tests, as of 2026-11-11
+npm test                                   # 718 tests, as of 2026-11-15
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -1425,6 +1425,24 @@ failed**, store empty at the end.
 Developer Settings → Testnet Mode), devnet USDC from [faucet.circle.com](https://faucet.circle.com),
 and ~0.006 SOL for fees and account rent. The checkout checks all of this
 before asking the wallet to sign.
+
+### My orders — signing in with a wallet
+
+SigPath has no shopper accounts, so the wallet is the login. On `/orders`
+(also in the menu and the wallet menu) the shopper signs a short text with
+their wallet: not a transaction, so it is free and moves nothing.
+`lib/account/session.ts` writes the text (site, wallet, nonce, time) with a
+token that MACs those values, checks the ed25519 signature against the
+wallet, and sets one HttpOnly cookie, `sigpath-wallet`, holding the wallet
+address and an expiry (30 days). Nothing is stored server-side; both tokens
+are HMACs under keys derived from `QUOTE_SECRET`, so sign-in is on wherever
+checkout is.
+
+The page then reads every order account whose buyer is that wallet straight
+from the chain (`lib/account/orders.ts`, one filtered `getProgramAccounts`),
+so the list is the same on every device: status, amount, dates and a link to
+each order page, where an open refund can be claimed. Like the order page it
+never shows the item or the address.
 
 ---
 

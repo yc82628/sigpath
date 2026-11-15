@@ -259,6 +259,17 @@ export default function PrivacyDe() {
             </ul>
             <p className="hint">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO, zur Durchführung deines Kaufs.</p>
           </Part>
+          <Part title="Anmeldung mit deiner Wallet" id="sign-in">
+            <p>
+              Unter <Link href="/orders">Meine Bestellungen</Link> kannst du dich anmelden, indem deine Wallet einen kurzen
+              Text signiert. Das kostet nichts und sendet keine Transaktion. SigPath prüft die Signatur und setzt ein Cookie,{" "}
+              <code>sigpath-wallet</code>, das nur die öffentliche Adresse deiner Wallet und ein Ablaufdatum enthält,
+              versiegelt, damit es nicht verändert werden kann. Es wird nur an SigPath gesendet, ist für Skripte auf der Seite
+              nicht lesbar und gilt 30 Tage oder bis du dich abmeldest. Sonst speichert SigPath nichts zur Anmeldung: Deine
+              Bestellungen werden bei jedem Öffnen der Seite von der Blockchain gelesen.
+            </p>
+            <p className="hint">Rechtsgrundlage: § 25 Abs. 2 Nr. 2 TDDDG (von dir gewünschte Speicherung) und Art. 6 Abs. 1 lit. b DSGVO, um dir deine Bestellungen zu zeigen.</p>
+          </Part>
         </>
       )}
 

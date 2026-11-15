@@ -67,6 +67,10 @@ export const RULES = {
   write: { name: "write", limit: 30, windowSecs: TEN_MIN, message: "Too many requests. Try again in a few minutes." },
   /** The page reading the connected wallet's balance: two RPC reads, on connect and on "Check again". */
   walletBalance: { name: "wallet-balance", limit: 60, windowSecs: TEN_MIN, message: "Too many balance checks. Try again in a few minutes." },
+  /** Signing in with a wallet: a text to sign, then its check. */
+  signIn: { name: "sign-in", limit: 30, windowSecs: TEN_MIN, message: "Too many sign-in attempts. Try again in a few minutes." },
+  /** "My orders": one filtered read of the order program per request. */
+  myOrders: { name: "my-orders", limit: 60, windowSecs: TEN_MIN, message: "Too many order look-ups. Try again in a few minutes." },
   /** The cart asking for its prices again: each request, and each eBay item in it (the daily quota). */
   cart: { name: "cart", limit: 30, windowSecs: TEN_MIN, message: "Too many cart refreshes. Try again in a few minutes." },
   cartItem: { name: "cart-item", limit: 150, windowSecs: TEN_MIN, message: "Too many price checks. Try again in a few minutes." },

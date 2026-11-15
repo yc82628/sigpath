@@ -38,6 +38,7 @@ export const MENU_SECTIONS: Section[] = [
       { href: "/search", label: (m) => m.menu.search },
       { href: "/check", label: (m) => m.menu.check },
       { href: "/cart", label: (m) => m.menu.cart },
+      { href: "/orders", label: (m) => m.menu.orders },
       { href: "/alerts", label: (m) => m.menu.alerts },
       { href: "/extension", label: (m) => m.menu.extension },
     ],

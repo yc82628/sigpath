@@ -256,6 +256,17 @@ function PrivacyEn() {
             </ul>
             <p className="hint">Legal basis: Art. 6(1)(b) GDPR, to carry out your purchase.</p>
           </Part>
+          <Part title="Signing in with your wallet" id="sign-in">
+            <p>
+              On <Link href="/orders">My orders</Link> you can sign in by having your wallet sign a short text. It costs
+              nothing and sends no transaction. SigPath checks the signature and sets one cookie, <code>sigpath-wallet</code>,
+              that holds only your wallet&apos;s public address and an expiry date, sealed so it can&apos;t be altered. It is
+              sent only to SigPath, can&apos;t be read by scripts on the page, and lasts 30 days or until you sign out.
+              SigPath stores nothing else about the sign-in: your orders are read from the blockchain each time you open the
+              page.
+            </p>
+            <p className="hint">Legal basis: § 25(2) no. 2 TDDDG (storage you asked for) and Art. 6(1)(b) GDPR, to show you your orders.</p>
+          </Part>
         </>
       )}
 

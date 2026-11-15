@@ -140,6 +140,9 @@ export default function WalletChip({ children }: { children: React.ReactNode }) 
                 <button type="button" onClick={copy}>
                   {copied ? m.wallet.copied : m.wallet.copy}
                 </button>
+                <a href="/orders" onClick={() => setOpen(false)}>
+                  {m.wallet.myOrders}
+                </a>
                 <a href={explorer} target="_blank" rel="noopener noreferrer">
                   {m.wallet.explorer}
                 </a>
