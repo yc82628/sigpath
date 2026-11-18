@@ -33,6 +33,7 @@ const en = {
   amountHint: "0,00",
   badAmount: "Enter an amount between 0,01 € and 1.000 €.",
   show: "Show QR code",
+  making: "Creating the code…",
   scan: "The customer scans this code with their banking app and confirms the transfer.",
   wait: "Only confirm once the money shows in your banking app. Instant transfers arrive in seconds; a normal transfer only arrives the next banking day.",
   paidButton: "Payment has arrived",
@@ -66,6 +67,7 @@ const de: typeof en = {
   amountHint: "0,00",
   badAmount: "Gib einen Betrag zwischen 0,01 € und 1.000 € ein.",
   show: "QR-Code zeigen",
+  making: "Code wird erstellt…",
   scan: "Der Kunde scannt diesen Code mit seiner Banking-App und bestätigt die Überweisung.",
   wait: "Bestätige erst, wenn das Geld in deiner Banking-App zu sehen ist. Echtzeitüberweisungen kommen in Sekunden an, eine normale Überweisung erst am nächsten Bankarbeitstag.",
   paidButton: "Zahlung ist angekommen",
@@ -120,6 +122,7 @@ export default function Till() {
   const [amountError, setAmountError] = useState("");
   const [open, setOpen] = useState<{ cents: number; reference: string; svg: string; n: number } | null>(null);
   const [done, setDone] = useState("");
+  const [making, setMaking] = useState(false);
 
   useEffect(() => {
     const s = read<Setup>(SETUP_KEY);
@@ -130,6 +133,11 @@ export default function Till() {
     setSales(kept);
     setLoaded(true);
   }, []);
+
+  // Load the QR drawing code ahead of the first sale, so the first code appears at once.
+  useEffect(() => {
+    if (setup) import("qrcode").catch(() => undefined);
+  }, [setup]);
 
   const saveSales = (next: TillSale[]) => {
     setSales(next);
@@ -149,7 +157,7 @@ export default function Till() {
 
   async function showCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!setup) return;
+    if (!setup || making) return;
     const cents = parseEuroCents(amount);
     if (!cents) return setAmountError(t.badAmount);
     setAmountError("");
@@ -158,10 +166,15 @@ export default function Till() {
     const n = sales.filter((s) => dayOf(s.at) === now.toDateString()).length + 1;
     const reference = paymentReference(setup.shop, now, n);
     const payload = epcPayload({ name: setup.holder, iban: setup.iban, cents, text: reference });
-    const QR = await import("qrcode");
-    // Level M is what the EPC guidelines ask for.
-    const svg = await QR.toString(payload, { type: "svg", margin: 2, errorCorrectionLevel: "M", color: { dark: "#0b0a1a", light: "#ffffff" } });
-    setOpen({ cents, reference, svg, n });
+    setMaking(true);
+    try {
+      const QR = await import("qrcode");
+      // Level M is what the EPC guidelines ask for.
+      const svg = await QR.toString(payload, { type: "svg", margin: 2, errorCorrectionLevel: "M", color: { dark: "#0b0a1a", light: "#ffffff" } });
+      setOpen({ cents, reference, svg, n });
+    } finally {
+      setMaking(false);
+    }
   }
 
   function close(status: TillSale["status"]) {
@@ -293,8 +306,8 @@ export default function Till() {
             </p>
           )}
           <p>
-            <button type="submit" className="primary">
-              {t.show}
+            <button type="submit" className="primary" disabled={making} aria-busy={making}>
+              {making ? t.making : t.show}
             </button>
           </p>
         </form>
@@ -330,8 +343,7 @@ export default function Till() {
         <p className="till-settings">
           <button type="button" className="link" onClick={() => setEditing(true)}>
             {t.edit}
-          </button>{" "}
-          ·{" "}
+          </button>
           <button type="button" className="link" onClick={wipe}>
             {t.wipe}
           </button>
