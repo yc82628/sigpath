@@ -1808,3 +1808,32 @@ a.chat-card-title:hover { text-decoration: underline; }
 .qr-text .hint { margin: 6px 0; }
 .qr-state { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-weight: 600; }
 @media (max-width: 560px) { .qr-code { width: 100%; max-width: 260px; margin: 0 auto; } }
+
+/* The shop till (app/till): one big amount, one big code, the day's list beneath. */
+.till-setup, .till-entry, .till-qr, .till-today {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin: 18px 0; max-width: 620px;
+}
+.till-setup h2, .till-today h2 { margin: 0 0 8px; font-size: 1.2rem; }
+.till-setup label { display: block; margin: 14px 0 0; font-weight: 600; }
+.till-setup label .hint { display: block; font-weight: 400; margin-top: 4px; }
+.till-setup input, .till-input {
+  display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: 1rem var(--font-sans);
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-sm); box-sizing: border-box;
+}
+.till-entry label { font-weight: 700; }
+.till-entry-row { display: flex; align-items: center; gap: 10px; }
+.till-input { font-size: 2.4rem; font-weight: 800; padding: 10px 14px; letter-spacing: -0.02em; }
+.till-euro { font-size: 2.2rem; font-weight: 800; color: var(--muted); }
+.till-qr { text-align: center; }
+.till-qr .qr-code { width: min(320px, 100%); margin: 8px auto 14px; box-sizing: border-box; }
+.till-amount { font-size: 2.6rem; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+.till-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; text-align: left; margin: 12px auto; max-width: 460px; font-size: 0.9rem; }
+.till-facts dt { color: var(--muted); }
+.till-facts dd { margin: 0; }
+@media (max-width: 560px) { .till-facts { grid-template-columns: 1fr; } .till-facts dd { margin-bottom: 6px; } }
+.till-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.till-list { list-style: none; margin: 8px 0 12px; padding: 0; }
+.till-list li { display: grid; grid-template-columns: 4.5em 4.5em 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+.till-list li.cancelled { color: var(--muted); text-decoration: line-through; }
+.till-sum { font-weight: 700; text-align: right; }
+.till-settings button.link { background: none; border: none; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; }

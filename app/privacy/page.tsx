@@ -221,6 +221,15 @@ function PrivacyEn() {
           &ldquo;Empty the cart&rdquo; or clearing this site&apos;s data removes them at once.
         </p>
       </Part>
+      <Part title="The shop till" id="till">
+        <p>
+          The <Link href="/till">shop till</Link> keeps the shop&apos;s name, account holder and IBAN, and the list of
+          sales of the last 31 days, only in that device&apos;s browser storage. The bank QR code is drawn on the device, and
+          nothing about the shop or its sales is sent to SigPath. Customers pay from their own banking app straight into
+          the shop&apos;s account: SigPath never sees the payment. &ldquo;Delete everything on this device&rdquo; removes it all at
+          once.
+        </p>
+      </Part>
       {ai && (
         <>
           <Part title="Ai-chan, the shopping assistant">

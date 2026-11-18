@@ -245,7 +245,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 718 tests, as of 2026-11-15
+npm test                                   # 723 tests, as of 2026-11-18
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -1425,6 +1425,24 @@ failed**, store empty at the end.
 Developer Settings → Testnet Mode), devnet USDC from [faucet.circle.com](https://faucet.circle.com),
 and ~0.006 SOL for fees and account rent. The checkout checks all of this
 before asking the wallet to sign.
+
+### Shop till — payments at the counter by bank QR
+
+`/till` turns a shop's phone or tablet into a till for bank payments. The shop
+enters its name, account holder (as at its bank) and IBAN once; they stay in
+that browser's storage. For each sale it types an amount and the till shows an
+EPC QR code (the GiroCode German banking apps scan, EPC069-12 version 002) with
+the amount, IBAN and a reference like "Späti 63 · 18.11. Nr. 7". The customer
+pays from their own banking app, as an instant transfer where their bank offers
+it, straight into the shop's account. The shop taps "Zahlung ist angekommen"
+once the money shows in its banking app; the day's list, total and a CSV export
+stay on the device (31 days).
+
+SigPath never receives, holds or passes on the money and the code is drawn in
+the browser, so nothing about the shop or its sales reaches the server
+(`lib/till/epc.ts`, `app/till`). Confirmation is by hand for now: matching
+payments automatically would need an open-banking partner. The till doesn't
+replace a certified cash register (KassenSichV), and says so.
 
 ### My orders — signing in with a wallet
 

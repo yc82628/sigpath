@@ -47,6 +47,7 @@ export const MENU_SECTIONS: Section[] = [
     title: (m) => m.menu.sell,
     links: [
       { href: "/seller", label: (m) => m.menu.forSellers },
+      { href: "/till", label: (m) => m.menu.till },
       { href: "/seller/verify", label: (m) => m.menu.verifySeller },
       { href: "/seller/business", label: (m) => m.menu.verifyBusiness },
       { href: "/suppliers", label: (m) => m.menu.supplier },

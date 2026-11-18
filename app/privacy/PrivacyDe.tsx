@@ -222,6 +222,15 @@ export default function PrivacyDe() {
           Tagen entfernt, und &bdquo;Warenkorb leeren&ldquo; oder das Löschen der Daten dieser Website entfernt sie sofort.
         </p>
       </Part>
+      <Part title="Die Shop-Kasse" id="till">
+        <p>
+          Die <Link href="/till">Shop-Kasse</Link> speichert den Namen des Ladens, den Kontoinhaber und die IBAN sowie die
+          Verkäufe der letzten 31 Tage nur im Browserspeicher des jeweiligen Geräts. Der Bank-QR-Code wird auf dem Gerät
+          erzeugt, und nichts über den Laden oder seine Verkäufe wird an SigPath gesendet. Kunden zahlen aus ihrer eigenen
+          Banking-App direkt auf das Konto des Ladens: SigPath sieht die Zahlung nie. &bdquo;Alles auf diesem Gerät löschen&ldquo;
+          entfernt alles auf einmal.
+        </p>
+      </Part>
       {ai && (
         <>
           <Part title="Ai-chan, die Einkaufsassistentin">
