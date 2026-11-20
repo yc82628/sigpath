@@ -51,7 +51,7 @@ async function main() {
   const { AddressStore } = await import("../lib/checkout/address-store");
   const { chainStatusReader, ordersRpcUrl, readOrder } = await import("../lib/checkout/checkout");
   const { fulfilOrder, refundOrderAsOperator } = await import("../lib/checkout/operator");
-  const { formatUsdc } = await import("../lib/chains/solana/orders");
+  const { formatToken } = await import("../lib/chains/solana/orders");
   const { formatMoney } = await import("../lib/marketplace/types");
 
   const store = AddressStore.fromEnv();
@@ -80,7 +80,7 @@ async function main() {
           console.log(`${order}\n   not on chain yet (checkout started, not paid)  ${title}\n`);
           continue;
         }
-        console.log(`${order}\n   ${state.status.padEnd(9)} ${formatUsdc(state.amount).padEnd(14)} ${hoursLeft(state.deadline)}\n   ${title}\n`);
+        console.log(`${order}\n   ${state.status.padEnd(9)} ${formatToken(state.amount, state.token).padEnd(14)} ${hoursLeft(state.deadline)}\n   ${title}\n`);
       }
       return;
     }
@@ -94,8 +94,10 @@ async function main() {
       const { record } = got;
       console.log(`order     ${order}`);
       console.log(`status    ${state.found ? state.status : "not on chain"}${state.found ? `  (${hoursLeft(state.deadline)})` : ""}`);
-      console.log(`paid      ${state.found ? formatUsdc(state.amount) : "-"}`);
-      if (record.feeUsdc && record.feeUsdc !== "0") console.log(`  of which SigPath service fee ${formatUsdc(BigInt(record.feeUsdc))}`);
+      console.log(`paid      ${state.found ? formatToken(state.amount, state.token) : "-"}`);
+      // Records from before EURC kept the fee as feeUsdc.
+      const fee = record.fee ?? record.feeUsdc;
+      if (fee && fee !== "0") console.log(`  of which SigPath service fee ${formatToken(BigInt(fee), record.token ?? "USDC")}`);
       console.log(`item      ${record.listing.title}`);
       console.log(`          ${record.listing.url}`);
       console.log(`quoted    ${formatMoney({ amount: record.listing.amount, currency: record.listing.currency })} (${record.listing.source})`);

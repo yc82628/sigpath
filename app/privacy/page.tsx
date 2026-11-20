@@ -244,7 +244,7 @@ function PrivacyEn() {
 
       {checkout && (
         <>
-          <Part title="Paying with USDC">
+          <Part title="Paying with EURC or USDC">
             <ul>
               <li>
                 <strong>Your delivery address</strong> (name, street, postcode, city, country) is stored {storage}, used only

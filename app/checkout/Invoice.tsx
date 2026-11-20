@@ -2,19 +2,21 @@
 
 import type { Lang } from "@/lib/i18n/lang";
 import type { Money } from "@/lib/marketplace/types";
-import { decimalText, moneyText, usdc, usdcCents, usdcNumber } from "@/lib/i18n/money";
+import { coinText, decimalText, moneyText, usdcCents, usdcNumber } from "@/lib/i18n/money";
+import type { PayToken } from "@/lib/chains/solana/tokens";
 import { useMounted } from "../components/useMounted";
 import { useLang, useMessages } from "../components/I18n";
 
 /**
  * The checkout's invoice: what is being bought, at what price, and every
- * conversion to USDC (the item, SigPath's fee, the total), as computed on the
+ * conversion to the coin paid in (the item, SigPath's fee, the total), as computed on the
  * server by the same code that builds the payment (invoiceFor in
  * lib/checkout/checkout.ts). After paying it gains the order numbers and a
  * print button. A summary of the payment, labelled as not a VAT invoice.
  */
 
 export interface InvoiceData {
+  token: PayToken;
   lines: {
     source: string;
     id: string;
@@ -22,12 +24,14 @@ export interface InvoiceData {
     url: string;
     amount: number;
     currency: string;
-    itemUsdc: string;
-    feeUsdc: string;
-    totalUsdc: string;
+    itemBase: string;
+    feeBase: string;
+    totalBase: string;
     feeBps: number;
   }[];
-  totalUsdc: string;
+  totalBase: string;
+  /** The total's worth in euros, cents: "= 150,00 €" beside a USDC total. */
+  euroCents: number | null;
   localTotals: { amount: number; currency: string }[];
   rate: { display: string; source: string } | null;
 }
@@ -57,7 +61,8 @@ export default function Invoice({
   // In the shopper's own timezone, so drawn in the browser only (useMounted): the server runs on UTC.
   const mounted = useMounted();
   const date = mounted ? new Date(paid?.at ?? Date.now()).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "";
-  const feeTotal = data.lines.reduce((t, l) => t + BigInt(l.feeUsdc), 0n);
+  const token = data.token;
+  const feeTotal = data.lines.reduce((t, l) => t + BigInt(l.feeBase), 0n);
   // No fee (the default): no column of zeros, and no item column that only repeats the total.
   const showFee = feeTotal > 0n;
   // One item: its line already is the total.
@@ -65,11 +70,14 @@ export default function Invoice({
   // Column names, also shown beside each value when a phone stacks the table.
   const cols = {
     price: m.invoice.price(oneCurrency ?? "EUR"),
-    item: m.invoice.inUsdc,
-    fee: m.invoice.fee(sameFee ? pct(feeBps) : "%"),
-    total: `${m.invoice.total} (USDC)`,
+    item: m.invoice.inCoin(token),
+    fee: m.invoice.fee(sameFee ? pct(feeBps) : "%", token),
+    total: `${m.invoice.total} (${token})`,
   };
-  const itemTotal = data.lines.reduce((t, l) => t + BigInt(l.itemUsdc), 0n);
+  const itemTotal = data.lines.reduce((t, l) => t + BigInt(l.itemBase), 0n);
+  // In USDC the number is higher than a euro price; say it is the same value, and what it is in euros.
+  const euroValue = token === "USDC" && data.euroCents !== null ? moneyText({ amount: data.euroCents, currency: "EUR" }, lang) : null;
+  const pricedInEuros = data.lines.some((l) => l.currency.toUpperCase() === "EUR");
 
   return (
     <section className="invoice" aria-label={m.invoice.title}>
@@ -140,10 +148,10 @@ export default function Invoice({
                     </span>
                   </th>
                   <td className="num" data-label={cols.price}>{formatMoney({ amount: l.amount, currency: l.currency })}</td>
-                  {showFee && <td className="num" data-label={cols.item}>{num(l.itemUsdc)}</td>}
-                  {showFee && <td className="num" data-label={cols.fee}>{num(l.feeUsdc)}</td>}
+                  {showFee && <td className="num" data-label={cols.item}>{num(l.itemBase)}</td>}
+                  {showFee && <td className="num" data-label={cols.fee}>{num(l.feeBase)}</td>}
                   <td className="num" data-label={cols.total}>
-                    <strong>{num(l.totalUsdc)}</strong>
+                    <strong>{num(l.totalBase)}</strong>
                   </td>
                 </tr>
               );
@@ -156,7 +164,7 @@ export default function Invoice({
                 <td className="num" data-label={cols.price}>{data.localTotals.map(formatMoney).join(" + ")}</td>
                 {showFee && <td className="num" data-label={cols.item}>{num(itemTotal.toString())}</td>}
                 {showFee && <td className="num" data-label={cols.fee}>{num(feeTotal.toString())}</td>}
-                <td className="num invoice-total" data-label={cols.total}>{num(data.totalUsdc)}</td>
+                <td className="num invoice-total" data-label={cols.total}>{num(data.totalBase)}</td>
               </tr>
             </tfoot>
           )}
@@ -164,10 +172,21 @@ export default function Invoice({
       </div>
 
       <p className="invoice-pay">
-        <span>{m.invoice.totalUsdc}</span> <strong>{usdc(data.totalUsdc, lang)}</strong>
+        <span>{m.invoice.totalUsdc}</span>{" "}
+        <span>
+          <strong>{coinText(data.totalBase, token, lang)}</strong>
+          {euroValue && <span className="invoice-eur">= {euroValue}</span>}
+        </span>
       </p>
-      {usdcNumber(data.totalUsdc) !== usdcCents(data.totalUsdc, "up") && <p className="hint">{m.invoice.exact(usdc(data.totalUsdc, lang, "exact"))}</p>}
-      <p className="hint">{data.rate ? m.invoice.rate(data.rate.display, m.invoice.rateSource(data.rate.source)) : m.invoice.usdOnly}</p>
+      {euroValue && pricedInEuros && <p className="hint">{m.invoice.sameValue}</p>}
+      {usdcNumber(data.totalBase) !== usdcCents(data.totalBase, "up") && <p className="hint">{m.invoice.exact(coinText(data.totalBase, token, lang, "exact"), token)}</p>}
+      <p className="hint">
+        {data.rate
+          ? (token === "EURC" ? m.invoice.rateEurc : m.invoice.rate)(data.rate.display, m.invoice.rateSource(data.rate.source))
+          : token === "EURC"
+            ? m.invoice.eurcOnly
+            : m.invoice.usdOnly}
+      </p>
       {showFee ? <p className="hint">{m.invoice.fees}</p> : <p className="hint">{m.invoice.noFee}</p>}
       {paid && (
         <p className="invoice-actions">

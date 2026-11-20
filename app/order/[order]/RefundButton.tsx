@@ -11,7 +11,7 @@ import { useLang } from "../../components/I18n";
  * Trigger the refund once the deadline has passed.
  *
  * Any wallet can do this, not just the buyer's — the program sends the money
- * to the buyer's own USDC account whoever signs, so there is nothing to gain by
+ * to the buyer's own account for the order's coin whoever signs, so there is nothing to gain by
  * calling it for someone else, and nothing anyone can do to stop it.
  */
 export default function RefundButton({ order }: { order: string }) {

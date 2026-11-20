@@ -10,10 +10,12 @@ import { translateCheck } from "@/lib/i18n/checks";
 import CheckoutForm from "./CheckoutForm";
 import Invoice from "./Invoice";
 import EscrowInfo from "./EscrowInfo";
-import { usdc } from "@/lib/i18n/money";
+import { coinText, moneyText } from "@/lib/i18n/money";
+import CoinChoice from "./CoinChoice";
 
 /**
- * app/checkout/page.tsx — pay for one listing with USDC.
+ * app/checkout/page.tsx — pay for one listing with EURC or USDC (?pay=eurc|usdc;
+ * EURC by default for a euro price).
  *
  * Everything shown about the item comes from the SIGNED quote the search page
  * issued; nothing on this page can be changed to alter what is charged. The
@@ -27,7 +29,7 @@ export function generateMetadata() {
   return { title: `${MESSAGES[getLang()].checkout.title} — SigPath` };
 }
 
-export default async function CheckoutPage({ searchParams }: { searchParams: { quote?: string } }) {
+export default async function CheckoutPage({ searchParams }: { searchParams: { quote?: string; pay?: string } }) {
   const lang = getLang();
   const m = MESSAGES[lang];
   const token = searchParams.quote ?? "";
@@ -57,7 +59,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
     );
   }
 
-  const invoice = await invoiceFor([token], { upheldReports: await DecisionLog.fromEnv().upheldCounts() });
+  const invoice = await invoiceFor([token], { upheldReports: await DecisionLog.fromEnv().upheldCounts() }, searchParams.pay);
 
   return (
     <main className="container checkout-page">
@@ -67,12 +69,16 @@ export default async function CheckoutPage({ searchParams }: { searchParams: { q
         <p className="notice withheld">{translateCheck(invoice.error, lang)}</p>
       ) : (
         <>
+          <CoinChoice token={invoice.token} />
           <Invoice data={invoice} />
 
           <CheckoutForm
             quote={token}
-            usdcDisplay={usdc(invoice.totalUsdc, lang)}
-            totalUsdc={invoice.totalUsdc}
+            token={invoice.token}
+            display={coinText(invoice.totalBase, invoice.token, lang)}
+            total={invoice.totalBase}
+            // In USDC, the euro value beside the amount on the Pay button.
+            localDisplay={invoice.token === "USDC" && invoice.euroCents !== null ? moneyText({ amount: invoice.euroCents, currency: "EUR" }, lang) : undefined}
             moonPay={moonPayAvailable() !== null}
             // About the escrow: the form shows it once the shopper picks a way that pays into it, not for eBay.
             escrowInfo={<EscrowInfo count={1} windowDays={Math.round(checkoutWindowSecs() / 86400)} retentionDays={Math.round(RETENTION_MAX_SECONDS / 86400)} />}

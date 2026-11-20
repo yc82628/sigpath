@@ -17,7 +17,8 @@ import { shortQuery } from "../marketplace/price-check";
 import { listingKey, sellerKey, totalPrice, type Listing } from "../marketplace/types";
 import { checkoutEligibility, priceCheckFor } from "../checkout/eligibility";
 import { signQuote, QUOTE_TTL_SECONDS } from "../checkout/quote";
-import { eurUsdRate, toUsdcBaseUnits, type FxRate } from "../checkout/fx";
+import { eurUsdRate, toTokenBaseUnits, type FxRate } from "../checkout/fx";
+import { defaultPayToken, type PayToken } from "../chains/solana/tokens";
 import { serviceFeeBps, withServiceFee } from "../checkout/fee";
 import { DecisionLog } from "../reports/reports";
 import { VerifiedSellerLog, badgeFor } from "../sellers/verified-log";
@@ -34,9 +35,9 @@ export type Requote =
   | { ok: true; key: string; token: string; usdc?: string; expiresAt: number; amount: number; currency: string }
   | { ok: false; key: string; reason: string };
 
-/** "163.41 USDC": rounded UP to the cent, as on the search page, so checkout never shows more. */
-function usdcPreview(baseUnits: bigint): string {
-  return `${(Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2)} USDC`;
+/** "150.00 EURC": rounded UP to the cent, as on the search page, so checkout never shows more. */
+function coinPreview(baseUnits: bigint, coin: PayToken): string {
+  return `${(Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2)} ${coin}`;
 }
 
 export interface RequoteDeps {
@@ -90,18 +91,19 @@ export async function requoteItem(item: RequoteItem, deps: RequoteDeps, env: Rec
       env,
       deps.now(),
     );
-    if (!token) return { ok: false, key, reason: "USDC checkout isn't set up here." };
-    const rate = total.currency.toUpperCase() === "USD" ? null : await deps.rate();
-    const itemUsdc = toUsdcBaseUnits(total.amount, total.currency, rate);
+    if (!token) return { ok: false, key, reason: "Checkout isn't set up here." };
+    // The preview in the coin the checkout starts with: EURC for a euro price, USDC for a dollar one, so no rate is needed.
+    const coin = defaultPayToken([total.currency]);
+    const itemBase = toTokenBaseUnits(total.amount, total.currency, coin, null);
     return {
       ok: true,
       key,
       token,
-      usdc: itemUsdc === null ? undefined : usdcPreview(withServiceFee(itemUsdc, serviceFeeBps(env)).total),
+      usdc: itemBase === null ? undefined : coinPreview(withServiceFee(itemBase, serviceFeeBps(env)).total, coin),
       expiresAt: deps.now() + QUOTE_TTL_SECONDS * 1000,
       amount: total.amount,
       currency: total.currency,
     };
   }
-  return { ok: false, key, reason: "SigPath's USDC checkout doesn't cover this marketplace." };
+  return { ok: false, key, reason: "SigPath's checkout doesn't cover this marketplace." };
 }

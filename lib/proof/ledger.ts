@@ -10,7 +10,7 @@
  *
  * WHAT IS READ
  *   - Every escrow order the orders program holds (programs/sigpath_orders):
- *     how many were paid out, how many refunded, how much USDC waits now.
+ *     how many were paid out, how many refunded, how much waits now (per coin).
  *   - Every upheld fake-product finding and every reversal SigPath has published
  *     to the Solana Attestation Service, and how many verified-seller badges and
  *     verified businesses stand.
@@ -70,6 +70,8 @@ export interface OrderSummary {
   heldNow: number;
   paidOut: number;
   returned: number;
+  /** The same three for orders paid in EURC (euro base units). */
+  eurc: { heldNow: number; paidOut: number; returned: number };
 }
 
 export interface ProofFinding {
@@ -98,14 +100,16 @@ export interface Proof {
 // Pure parts (tests/proof.test.ts)
 // ---------------------------------------------------------------------------
 
-export function summariseOrders(orders: { status: OrderStatus; amount: bigint }[]): OrderSummary {
-  const s: OrderSummary = { total: orders.length, funded: 0, fulfilled: 0, refunded: 0, heldNow: 0, paidOut: 0, returned: 0 };
+export function summariseOrders(orders: { status: OrderStatus; amount: bigint; token?: "EURC" | "USDC" }[]): OrderSummary {
+  const s: OrderSummary = { total: orders.length, funded: 0, fulfilled: 0, refunded: 0, heldNow: 0, paidOut: 0, returned: 0, eurc: { heldNow: 0, paidOut: 0, returned: 0 } };
   for (const o of orders) {
     const amount = Number(o.amount);
+    // Dollars and euros are never added together.
+    const sums = o.token === "EURC" ? s.eurc : s;
     s[o.status] += 1;
-    if (o.status === "funded") s.heldNow += amount;
-    if (o.status === "fulfilled") s.paidOut += amount;
-    if (o.status === "refunded") s.returned += amount;
+    if (o.status === "funded") sums.heldNow += amount;
+    if (o.status === "fulfilled") sums.paidOut += amount;
+    if (o.status === "refunded") sums.returned += amount;
   }
   return s;
 }
@@ -183,7 +187,8 @@ export async function readProof(rpcUrl: string = SOLANA_RPC_URL): Promise<Proof>
 
   const [orderAccounts, reports, reversals, badges, businesses] = await Promise.all([
     conn.getProgramAccounts(ORDERS_PROGRAM_ID, {
-      filters: [{ dataSize: ORDER_LAYOUT.size }, { memcmp: { offset: 0, bytes: getBase58Decoder().decode(ORDER_ACCOUNT_DISCRIMINATOR) } }],
+      // No size filter: orders since EURC are longer (their coin follows the record).
+      filters: [{ memcmp: { offset: 0, bytes: getBase58Decoder().decode(ORDER_ACCOUNT_DISCRIMINATOR) } }],
     }),
     attestationsOf(conn, reportSchema),
     attestationsOf(conn, reversalSchema),
@@ -212,7 +217,7 @@ export async function readProof(rpcUrl: string = SOLANA_RPC_URL): Promise<Proof>
       })
     : [];
 
-  const orders: { status: OrderStatus; amount: bigint }[] = [];
+  const orders: { status: OrderStatus; amount: bigint; token: "EURC" | "USDC" }[] = [];
   for (const a of orderAccounts) {
     try {
       orders.push(decodeOrder(a.account.data));

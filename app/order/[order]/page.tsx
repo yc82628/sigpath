@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { NotAnOrderError, ordersRpcUrl, readOrder } from "@/lib/checkout/checkout";
 import { AddressStore } from "@/lib/checkout/address-store";
-import { formatUsdc, ORDERS_PROGRAM_ID } from "@/lib/chains/solana/orders";
+import { formatToken, ORDERS_PROGRAM_ID } from "@/lib/chains/solana/orders";
 import RefundButton from "./RefundButton";
 import OrderWatch from "./OrderWatch";
 import { REPORT_WINDOW_SECS } from "@/lib/reports/order-meta";
@@ -169,7 +169,7 @@ export default async function OrderPage({
 
       <dl className="order-facts">
         <dt>{t.amount}</dt>
-        <dd>{decimalText(formatUsdc(state.amount), getLang())}</dd>
+        <dd>{decimalText(formatToken(state.amount, state.token), getLang())}</dd>
         <dt>{t.placed}</dt>
         <dd>{when(state.createdAt)}</dd>
         <dt>{t.deadline}</dt>

@@ -109,18 +109,19 @@ async function main() {
   console.log("\n1. checkout 249.00 EUR -> pay -> operator fulfils");
   {
     const r = await prepareCheckout(
-      { quote: quote(24900, "EUR", "1"), buyer: buyer.publicKey.toBase58(), address },
+      { quote: quote(24900, "EUR", "1"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" },
       { env, conn, store, fetchImpl: offline },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("priced at 283.0383 USDC (249.00 EUR x 1.1367) + 2% service fee = 288.699066", r.usdcBaseUnits === "288699066" && r.feeBaseUnits === "5660766", r.usdcDisplay);
+    // No shopper fee (the default since 2026-11-06): the item's price, converted, nothing on top.
+    check("priced at 283.0383 USDC (249.00 EUR x 1.1367), no fee", r.baseUnits === "283038300" && r.feeBaseUnits === "0", r.display);
     check("address stored before the transaction was handed out", (await store.get(r.order)) !== null);
 
     const before = await bal(buyerAta);
     await walletSignsAndSends(r.transaction, buyer);
     const state = await readOrder(conn, new PublicKey(r.order));
     check("the chain accepted a transaction signed ONLY by the shopper", state.found && state.status === "funded");
-    check("escrow holds exactly the quoted amount, fee included", state.found && state.amount === 288_699_066n);
+    check("escrow holds exactly the quoted amount", state.found && state.amount === 283_038_300n);
     check("shopper debited exactly that", (await bal(buyerAta)) === before - 283_038_300n);
 
     const opBefore = await bal(operatorAta);
@@ -135,11 +136,11 @@ async function main() {
   console.log("\n2. checkout 50.00 USD -> pay -> operator refunds (item unavailable)");
   {
     const r = await prepareCheckout(
-      { quote: quote(5000, "USD", "2"), buyer: buyer.publicKey.toBase58(), address },
+      { quote: quote(5000, "USD", "2"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" },
       { env, conn, store, fetchImpl: offline },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("USD needs no exchange rate (50 USDC + 2% fee)", r.usdcBaseUnits === "51000000" && r.rate === null);
+    check("USD needs no exchange rate (50 USDC)", r.baseUnits === "50000000" && r.rate === null);
     const before = await bal(buyerAta);
     await walletSignsAndSends(r.transaction, buyer);
     const res = await refundOrderAsOperator(conn, operator, new PublicKey(r.order), store);
@@ -151,7 +152,7 @@ async function main() {
   console.log("\n3. checkout started, never paid");
   {
     const r = await prepareCheckout(
-      { quote: quote(1000, "EUR", "3"), buyer: buyer.publicKey.toBase58(), address },
+      { quote: quote(1000, "EUR", "3"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" },
       { env, conn, store, fetchImpl: offline },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
@@ -165,7 +166,7 @@ async function main() {
   console.log(`\n4. deadline passes (waiting ${o.MIN_WINDOW_SECS + 5}s), anyone refunds`);
   {
     const r = await prepareCheckout(
-      { quote: quote(2000, "EUR", "4"), buyer: buyer.publicKey.toBase58(), address },
+      { quote: quote(2000, "EUR", "4"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" },
       { env: { ...env, CHECKOUT_WINDOW_SECS: String(o.MIN_WINDOW_SECS) }, conn, store, fetchImpl: offline },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
@@ -183,6 +184,34 @@ async function main() {
 
     const swept = await store.sweep(chainStatusReader(conn));
     check("the sweep deletes a refunded order's address", swept.some((d) => d.order === r.order && d.reason === "order refunded"));
+  }
+
+  // --- 5. a euro price paid in EURC: the default, one to one ---------------------
+  console.log("\n5. checkout 150.00 EUR in EURC (the default) -> pay -> operator fulfils");
+  {
+    const buyerEurc = spl.associatedTokenAddress(buyer.publicKey, o.EURC_MINT);
+    const operatorEurc = spl.associatedTokenAddress(operator.publicKey, o.EURC_MINT);
+    await sendAndConfirmTransaction(
+      conn,
+      new Transaction().add(
+        spl.createAtaIdempotentIx(operator.publicKey, buyer.publicKey, o.EURC_MINT),
+        spl.createAtaIdempotentIx(operator.publicKey, operator.publicKey, o.EURC_MINT),
+        spl.mintToIx({ mint: o.EURC_MINT, destination: buyerEurc, authority: operator.publicKey, amount: 200_000_000n }),
+      ),
+      [operator],
+    );
+    // No token given: a euro price starts in EURC.
+    const r = await prepareCheckout({ quote: quote(15000, "EUR", "5"), buyer: buyer.publicKey.toBase58(), address }, { env, conn, store, fetchImpl: offline });
+    if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
+    check("150.00 EUR is 150 EURC, with no exchange rate", r.token === "EURC" && r.baseUnits === "150000000" && r.rate === null, r.display);
+    const usdcBefore = await bal(buyerAta);
+    await walletSignsAndSends(r.transaction, buyer);
+    const state = await readOrder(conn, new PublicKey(r.order));
+    check("the escrow holds 150 EURC, and the order says EURC", state.found && state.amount === 150_000_000n && state.token === "EURC");
+    check("shopper's EURC debited, USDC untouched", (await bal(buyerEurc)) === 50_000_000n && (await bal(buyerAta)) === usdcBefore);
+    const opBefore = await bal(operatorEurc);
+    const res = await fulfilOrder(conn, operator, new PublicKey(r.order), "EBAY-ORDER-55", store);
+    check("the operator is paid in EURC, and the address deleted", (await bal(operatorEurc)) === opBefore + 150_000_000n && res.addressDeleted);
   }
 
   check("no addresses left behind", readdirSync(storeDir).length === 0);

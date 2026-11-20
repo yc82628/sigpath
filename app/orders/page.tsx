@@ -6,7 +6,7 @@ import { decimalText } from "@/lib/i18n/money";
 import { SESSION_COOKIE, sessionWallet, signInConfigured } from "@/lib/account/session";
 import { ordersForBuyer, refundOpen, type WalletOrder } from "@/lib/account/orders";
 import { ordersRpcUrl } from "@/lib/checkout/checkout";
-import { formatUsdc } from "@/lib/chains/solana/orders";
+import { formatToken } from "@/lib/chains/solana/orders";
 import { SignedIn, SignInButton } from "./SignIn";
 
 /**
@@ -83,7 +83,7 @@ export default async function OrdersPage() {
                         </Link>
                       </p>
                     </div>
-                    <div className="price">{decimalText(formatUsdc(o.amount), lang)}</div>
+                    <div className="price">{decimalText(formatToken(o.amount, o.token), lang)}</div>
                   </li>
                 );
               })}

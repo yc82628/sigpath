@@ -16,7 +16,8 @@ import type { Flag } from "@/lib/marketplace/anomaly";
 import { signQuote, quoteSigningConfigured } from "@/lib/checkout/quote";
 import { checkoutEligibility, priceCheckFor } from "@/lib/checkout/eligibility";
 import { AddressStore } from "@/lib/checkout/address-store";
-import { eurUsdRate, toUsdcBaseUnits } from "@/lib/checkout/fx";
+import { eurUsdRate, toTokenBaseUnits } from "@/lib/checkout/fx";
+import { defaultPayToken, type PayToken } from "@/lib/chains/solana/tokens";
 import { formatFeeRate, serviceFeeBps, withServiceFee } from "@/lib/checkout/fee";
 import { DecisionLog } from "@/lib/reports/reports";
 import { VerifiedSellerLog, badgeFor, type BadgeView } from "@/lib/sellers/verified-log";
@@ -81,12 +82,17 @@ function i18n() {
 /** A price in the shopper's language: "229.00 EUR", or "229,00 €" on German pages. */
 const money = (x: Money) => moneyText(x, getLang());
 
-/** Checkout offer for one listing: a signed quote, a reason there is none, or null when checkout is off. */
+/**
+ * Checkout offer for one listing: a signed quote, a reason there is none, or
+ * null when checkout is off. `usdc` (the name kept for carts already saved in
+ * browsers) is the pay button's preview in the coin the checkout starts with:
+ * "150,00 EURC" for a euro price, "163,41 USDC" for a dollar one.
+ */
 type CheckoutOffer = { token: string; usdc?: string } | { reason: string } | null;
 
-/** "163.41 USDC": a preview rounded UP to the cent, so the checkout never shows more than this. */
-function usdcPreview(baseUnits: bigint): string {
-  return `${decimalText((Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2), getLang())} USDC`;
+/** "150.00 EURC": a preview rounded UP to the cent, so the checkout never shows more than this. */
+function coinPreview(baseUnits: bigint, coin: PayToken): string {
+  return `${decimalText((Number((baseUnits + 9_999n) / 10_000n) / 100).toFixed(2), getLang())} ${coin}`;
 }
 
 function ListingRow({
@@ -739,14 +745,16 @@ async function SearchResults({
   // Checkout is offered only when BOTH secrets exist: one to sign prices, one to
   // encrypt delivery addresses. Missing either, no listing gets a pay button.
   const checkoutReady = quoteSigningConfigured() && AddressStore.fromEnv() !== null;
-  // The conversion shown on each pay button: the same ECB rate and service fee
-  // the checkout charges. One rate fetch per page (it is cached), and none if
-  // checkout is off. No rate: the button simply shows no amount.
+  // The amount shown on each pay button, in the coin the checkout starts with
+  // (EURC for a euro price, so nothing is converted) and with the service fee
+  // it charges. The rate is fetched once per page (it is cached) for the line
+  // about USDC above the results, and not at all if checkout is off.
   const feeBps = serviceFeeBps();
   const rate = checkoutReady ? await eurUsdRate().catch(() => null) : null;
   const usdcFor = (amount: number, currency: string) => {
-    const item = toUsdcBaseUnits(amount, currency, currency.toUpperCase() === "USD" ? null : rate);
-    return item === null ? undefined : usdcPreview(withServiceFee(item, feeBps).total);
+    const coin = defaultPayToken([currency]);
+    const item = toTokenBaseUnits(amount, currency, coin, rate);
+    return item === null ? undefined : coinPreview(withServiceFee(item, feeBps).total, coin);
   };
   const checkoutOffer = (l: Listing, flags: Flag[]): CheckoutOffer => {
     if (!checkoutReady || !a) return null;

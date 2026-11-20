@@ -161,13 +161,17 @@ shopper is on by a bookmark. Ai-chan answers there too, on Google Gemini.
   (see [The cart](#the-cart--no-account-prices-checked-again)).
 - **Price-drop alerts with no account.** A browser notification when a
   *checked* deal hits your price. Bait listings never trigger "price dropped!".
-- **Pay with USDC, protected by escrow.** The seller isn't paid until the order is
+- **Pay with EURC or USDC, protected by escrow.** A euro price is paid in EURC
+  (a digital euro) one to one: 150,00 € is 150 EURC, nothing converted. USDC (a
+  digital dollar) stays as the other choice, and then the page shows the euro
+  value beside the total (164,88 USDC = 150,00 €), so nobody mistakes the
+  exchange rate for a surcharge. The seller isn't paid until the order is
   fulfilled. If it isn't fulfilled in time, anyone can trigger the refund, and
-  it can only go back to the buyer. Your delivery address is stored encrypted and
-  deleted when the order ends.
-- **One small, upfront fee.** SigPath adds a 2% service fee, shown in euros and
-  USDC before you pay. It sits in the same escrow and is refunded with the price
-  if the order isn't fulfilled.
+  it can only go back to the buyer, in the coin they paid. Your delivery
+  address is stored encrypted and deleted when the order ends.
+- **No fee for shoppers.** You pay the item's price, nothing on top
+  (`SIGPATH_FEE_BPS` can set one; any fee would be shown before you pay, sit in
+  the same escrow and be refunded with the price).
 
 ## How fakes are kept out, and why it needs a blockchain
 
@@ -245,7 +249,7 @@ on unless switched off, and setting `STUB_FEED=false` on Vercel didn't reach
 the running deploy; the default now lives in code.
 
 ```powershell
-npm test                                   # 723 tests, as of 2026-11-18
+npm test                                   # 730 tests, as of 2026-11-20
 npx tsx scripts/devnet-checkout.ts         # the checkout against the deployed escrow
 npx tsx scripts/devnet-report.ts           # report, right of reply, penalty and reversal on chain
 npx tsx scripts/devnet-verified-seller.ts  # the badge: claimed, shown, burned by an upheld report
@@ -264,7 +268,7 @@ The rest of this README is the engineering detail:
 - [The cart](#the-cart--no-account-prices-checked-again) · [The browser extension](#the-browser-extension-and-amazon-seen-by-shoppers) · [The menu, the footer and the fonts](#the-menu-the-footer-and-the-fonts) · [Deutsch / English](#deutsch--english) · [Price-drop alerts](#price-drop-alerts--no-account-checked-deals-only) · [The SigPath-checked label](#the-sigpath-checked-label--every-check-one-verdict)
 - [Check a price: Amazon, AliExpress or any shop](#check-a-price--amazon-aliexpress-or-any-shop) · [AliExpress](#aliexpress--live-prices-kept-out-of-the-median)
 - [Ai-chan, the shopping assistant](#ai-chan--the-shopping-assistant) · [For AI agents: a paid deal check through pay.sh](#for-ai-agents--a-paid-deal-check-through-paysh) · [The verification API](#the-verification-api--for-other-apps-b2b)
-- [Pay with USDC: the order escrow](#pay-with-usdc--the-order-escrow)
+- [Pay with EURC or USDC: the order escrow](#pay-with-eurc-or-usdc--the-order-escrow)
 - [Fake-product reports](#fake-product-reports--a-penalty-that-follows-the-seller) · [Verified sellers](#verified-sellers--a-soulbound-badge-earned-and-revocable)
 - [Solana Attestation Service](#solana-attestation-service) · [Identity engine quickstart](#identity-engine-quickstart--exact-commands)
 - [Where records are kept](#where-records-are-kept) · [Security headers and rate limits](#security-headers-and-rate-limits) · [Known toolchain traps](#known-toolchain-traps) · [Scripts](#scripts)
@@ -1227,21 +1231,31 @@ through eBay's application growth check once there is real traffic.
 
 ---
 
-## Pay with USDC — the order escrow
+## Pay with EURC or USDC — the order escrow
 
-`programs/sigpath_orders` lets a shopper pay on SigPath with USDC instead of
-typing a card number into every retailer's site. Amazon, eBay and AliExpress do not
-take USDC, so SigPath buys the item on the shopper's behalf — which means the
+`programs/sigpath_orders` lets a shopper pay on SigPath with a stablecoin instead
+of typing a card number into every retailer's site: **EURC** (Circle's digital
+euro, the default for euro prices, paid one to one) or **USDC** (Circle's digital
+dollar, at the ECB rate). Amazon, eBay and AliExpress do not take either, so
+SigPath buys the item on the shopper's behalf — which means the
 shopper is trusting SigPath with their money. The program is what earns that
 trust:
 
 | Rule | Enforced by |
 |---|---|
-| USDC sits in a vault only the program can sign for | vault owned by the order PDA |
+| The money sits in a vault only the program can sign for | vault owned by the order PDA |
+| Only USDC or EURC, nothing else | `is_accepted_mint`, `WrongMint` |
+| An order is settled in the coin it was paid in | the vault is a token account of that mint; TransferChecked refuses another; refunds check the vault's mint (`WrongMint`) |
 | The operator is paid only via `fulfil`, only **before** the deadline | `DeadlinePassed` |
 | After the deadline **anyone** can trigger `refund` — it cannot be withheld | permissionless `refund` |
-| A refund can only go to the **buyer's own** USDC account | parsed and checked, `RefundNotToBuyer` |
-| Stray USDC sent into a vault cannot freeze the order | settlement moves the full balance |
+| A refund can only go to the **buyer's own** account for that coin | parsed and checked, `RefundNotToBuyer` |
+| Stray coins sent into a vault cannot freeze the order | settlement moves the full balance |
+
+**Which coin an order holds.** Each new order writes its mint's 32 bytes just
+after the order record (`ORDER_MINT_OFFSET`), so `/order/<address>`, *My
+orders* and the operator's tools still know the coin once the vault is closed.
+Orders made before EURC end at the record (147 bytes) and were all USDC; the
+readers accept both sizes, and nothing filters on the size.
 
 **What it does not prove.** A chain cannot see a parcel arrive. `fulfil` commits
 a hash of the retailer's order or tracking reference, but the program takes the
@@ -1252,19 +1266,21 @@ design step, not something this already does.
 
 Devnet program: [`3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW`](https://explorer.solana.com/address/3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW?cluster=devnet)
 — **deployed 2026-09-30** (slot 505717243, 204,168 bytes, upgrade authority
-the operator). Accepts only Circle's devnet USDC
-(`4zMMC9…DncDU`). Operator and mint are constants in the code, so the deployed
-program itself states who can be paid and in what.
+the operator); **upgraded 2026-11-20** (slot 524376157) to accept Circle's
+EURC (`HzwqbK…EDKtr`, the same address on devnet and mainnet) beside devnet
+USDC (`4zMMC9…DncDU`). The bytes on devnet match the tested build
+(sha256 `cc9455210125b8f3…`). Operator and mints are constants in the code, so
+the deployed program itself states who can be paid and in what.
 
 ### Prove it locally (no SOL, no faucet)
 
 The round-trip runs against a local validator loaded with the program and a
-copy of the USDC mint **at its real address**, written with the operator as mint
-authority so the test can mint freely.
+copy of the USDC and EURC mints **at their real addresses**, written with the
+operator as mint authority so the test can mint freely.
 
 ```powershell
-# Windows: write the local mint account
-npx tsx scripts/orders-roundtrip.ts --write-mint .\usdc-mint.json
+# Windows: write the local mint accounts
+npx tsx scripts/orders-roundtrip.ts --write-mint .\usdc-mint.json --write-eurc-mint .\eurc-mint.json
 ```
 
 ```bash
@@ -1272,6 +1288,7 @@ npx tsx scripts/orders-roundtrip.ts --write-mint .\usdc-mint.json
 cd /mnt/c/Users/oyc82/Desktop/sigpath
 solana-test-validator --reset --quiet --ledger ~/sigpath-orders-ledger \
   --account 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU ./usdc-mint.json \
+  --account HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr ./eurc-mint.json \
   --bpf-program 3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW target/deploy/sigpath_orders.so
 ```
 
@@ -1280,9 +1297,10 @@ solana-test-validator --reset --quiet --ledger ~/sigpath-orders-ledger \
 npx tsx scripts/orders-roundtrip.ts --local
 ```
 
-19 checks, including every attack in the table above; the deadline case waits
-65 seconds for a real on-chain clock. Measured 2026-09-25: **19 passed, 0
-failed.**
+30 checks, including every attack in the table above (for EURC too: an EURC
+order can't be paid out or refunded as USDC, and no other coin gets in); the
+deadline case waits 65 seconds for a real on-chain clock. Measured 2026-11-20
+on the EURC build: **30 passed, 0 failed.**
 
 ### Deploy to devnet
 
@@ -1290,8 +1308,8 @@ Build with `anchor build --no-idl -p sigpath_orders` (WSL). Rent scales with
 the binary, so it is built for size: `opt-level = "z"` (root `Cargo.toml`) took
 it from 281 KB to 251 KB, and the `no-idl` + `no-log-ix-name` features (on by
 default in `programs/sigpath_orders/Cargo.toml`) drop Anchor's on-chain IDL
-instructions and per-call name logs, which nothing here uses — **204 KB**.
-Both end-to-end suites pass 19/19 on exactly that binary.
+instructions and per-call name logs, which nothing here uses — **204 KB**
+(205,280 bytes with EURC). Both end-to-end suites pass on exactly that binary.
 
 The deploy cost **1.0399 SOL** in total: 1.0381 SOL rent for the program data
 (recoverable with `solana program close` if the program is ever retired), the
@@ -1309,9 +1327,27 @@ solana program deploy target/deploy/sigpath_orders.so   --program-id target/depl
 build needs `solana program extend`. If an upload fails partway, its buffer
 keeps the rent until `solana program close --buffers --url devnet` returns it.
 
+**The EURC upgrade (done 2026-11-20).** The build is 1,112 bytes bigger, so the
+program account had to grow first. Devnet (Agave 4.5) now refuses to extend a
+program by less than **10,240 bytes** at a time, so it grew by that much, which
+also leaves room for later upgrades (data length now 214,408 bytes). Then the
+new build went in at the same address (operator wallet, WSL):
+
+```bash
+solana program extend 3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW 10240 --url devnet
+solana program deploy target/deploy/sigpath_orders.so --program-id target/deploy/sigpath_orders-keypair.json --url devnet --with-compute-unit-price 10000
+solana program dump 3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW onchain.so --url devnet   # compare with the build
+```
+
+Cost: **0.053 SOL** in all (rent for the extra space and fees; the upload
+buffer's rent came back at the deploy, and no buffer was left). Orders already
+on chain keep working: their layout is unchanged, and they settle in USDC as
+before. A simulated EURC order on devnet passes the program's coin check; a
+made-up coin is refused with `WrongMint`.
+
 ### The checkout
 
-Search → **Pay with USDC** → `/checkout` → the shopper's wallet signs → `/order/<address>`.
+Search → **Pay with EURC or USDC** → `/checkout` (pick the coin; EURC first for a euro price) → the shopper's wallet signs → `/order/<address>`.
 
 Any Solana wallet works (Phantom, Solflare, Backpack…): the pages find installed
 wallets through the [Wallet Standard](https://github.com/wallet-standard/wallet-standard)
@@ -1325,7 +1361,8 @@ use when there is more than one.
 | SigPath won't buy a likely scam with its own money | Listings the anomaly checks flagged get **no pay button**, and no quote is ever signed for them |
 | SigPath won't buy a price nobody could check | A listing must have been compared against enough listings **of its own condition** — new with new, used with used. Too few comparables, unknown condition, or a marketplace down: no pay button, with the reason shown |
 | No under-quoting | Listings with unpublished shipping (all of AliExpress, some eBay) can't be checked out |
-| The price shown is the price charged | EUR→USDC at the ECB rate, shown with its date, integer arithmetic, rounded **up** |
+| The price shown is the price charged | EUR→EURC one to one; EUR→USDC (and USD→EURC) at the ECB rate, shown with its date, integer arithmetic, rounded **up** |
+| A dollar total doesn't look like a surcharge | in USDC the invoice shows the euro value beside the total and says it is the same value, counted in dollars |
 | The fee shown is the fee charged | SigPath's service fee is **signed into each quote** with the price, so it can't be edited in the browser, and a later change to the setting doesn't touch quotes already shown |
 | The fee is protected like the price | It is paid into the escrow with the price: SigPath receives it only through `fulfil`, and a refund returns it with everything else |
 | Both currencies, before paying | Pay buttons show the USDC total, fee included; the checkout ends with an EUR + USDC breakdown, and the Pay button names both |
@@ -1418,8 +1455,8 @@ npx tsx scripts/checkout-e2e.ts
 A keypair stands in for the shopper's wallet: the server builds each transaction, only the
 buyer signs, the chain decides — then it checks that every way an order ends
 (fulfilled, refunded early, refunded after the deadline by a stranger,
-abandoned) also deletes the address. Measured 2026-09-25: **19 passed, 0
-failed**, store empty at the end.
+abandoned) also deletes the address, and pays one euro price in EURC by default.
+Measured 2026-11-20: **23 passed, 0 failed**, store empty at the end.
 
 **Shoppers need:** a Solana wallet set to **Devnet** (in Phantom: Settings →
 Developer Settings → Testnet Mode), devnet USDC from [faucet.circle.com](https://faucet.circle.com),

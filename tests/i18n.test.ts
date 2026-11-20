@@ -96,7 +96,7 @@ test("the language choice: German only when chosen, every key in both languages"
   const keys = (o: object, p = ""): string[] =>
     Object.entries(o).flatMap(([k, v]) => (v && typeof v === "object" && !Array.isArray(v) ? keys(v, `${p}${k}.`) : [`${p}${k}`]));
   assert.deepEqual(keys(MESSAGES.de).sort(), keys(MESSAGES.en).sort());
-  assert.equal(MESSAGES.de.cart.proceed(2), "Zur Kasse · 2 Artikel in USDC →");
+  assert.equal(MESSAGES.de.cart.proceed(2), "Zur Kasse · 2 Artikel →");
   assert.notEqual(MESSAGES.de.home.sub, MESSAGES.en.home.sub);
 });
 

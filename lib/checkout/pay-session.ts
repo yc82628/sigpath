@@ -30,6 +30,7 @@ import { UpstashKv } from "../kv/upstash";
 import { backendFromEnv, EncryptedStore, keyFromEnv, type RecordBackend } from "./encrypted-store";
 import type { ShippingAddress } from "./address-store";
 import { dataDir } from "../data-dir";
+import type { PayToken } from "../chains/solana/tokens";
 
 /** How long a QR code can be scanned: the same fifteen minutes an unpaid checkout's address is kept. */
 export const PAY_SESSION_SECS = 15 * 60;
@@ -37,12 +38,14 @@ export const PAY_SESSION_SECS = 15 * 60;
 export interface PaySessionRecord {
   quotes: string[];
   address: ShippingAddress;
+  /** The coin chosen on the page. Absent: the default for the items (EURC for euro prices). */
+  token?: PayToken;
 }
 
 /** What the waiting page may know: no address, only what the scan did. */
 export type ScanState =
   | { state: "scanned"; orders: { order: string; source: string; id: string; title: string }[]; validUntil: number; buyer: string }
-  | { state: "failed"; message: string; shortfallUsdc?: number };
+  | { state: "failed"; message: string; shortfall?: number; token?: PayToken };
 
 /** A session's id: 32 random bytes, written as a Solana address so the encrypted store accepts it as a key. */
 export function newSessionId(): string {

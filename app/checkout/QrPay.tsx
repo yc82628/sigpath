@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { DEVNET, isMobileDevice, waitForPayment } from "../components/wallet";
 import { useCheckText, useLang, useMessages } from "../components/I18n";
-import { usdc } from "@/lib/i18n/money";
+import { coinText } from "@/lib/i18n/money";
+import type { PayToken } from "@/lib/chains/solana/tokens";
 
 /**
  * Pay by scanning a QR code with a phone wallet (lib/checkout/pay-session.ts).
@@ -21,6 +22,7 @@ type Phase = "idle" | "creating" | "waiting" | "scanned" | "error";
 
 export default function QrPay({
   quotes,
+  token,
   address,
   validate,
   disabled,
@@ -28,6 +30,8 @@ export default function QrPay({
   onPriceExpired,
 }: {
   quotes: string[];
+  /** The coin chosen above the invoice: the phone is charged in it. */
+  token: PayToken;
   address: Record<string, string>;
   /** The form's own check of the address fields, before anything is sent. */
   validate: () => boolean;
@@ -53,6 +57,13 @@ export default function QrPay({
       run.current++;
     };
   }, []);
+  // Another coin: a code already shown would charge the old one, so it goes.
+  useEffect(() => {
+    run.current++;
+    setPhase("idle");
+    setSvg("");
+    setNote("");
+  }, [token]);
 
   async function start() {
     if (!validate()) return;
@@ -64,7 +75,7 @@ export default function QrPay({
       const res = await fetch("/api/pay/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ quotes, address }),
+        body: JSON.stringify({ quotes, address, token }),
       });
       const body = await res.json().catch(() => ({}));
       if (body.code === "quote_expired") onPriceExpired();
@@ -88,7 +99,7 @@ export default function QrPay({
     while (mine === run.current) {
       await new Promise((r) => setTimeout(r, 2000));
       if (mine !== run.current) return;
-      let s: { state: string; orders?: Order[]; validUntil?: number; message?: string; shortfallUsdc?: number };
+      let s: { state: string; orders?: Order[]; validUntil?: number; message?: string; shortfall?: number; token?: PayToken };
       try {
         s = await (await fetch(`/api/pay/${id}/status`, { cache: "no-store" })).json();
       } catch {
@@ -101,8 +112,8 @@ export default function QrPay({
         return;
       }
       if (s.state === "failed") {
-        // The wallet couldn't pay (short of USDC, a price run out): said, and the same code still works.
-        setNote(s.shortfallUsdc ? q.short(usdc(String(Math.ceil(s.shortfallUsdc * 1e6)), lang)) : q.failed(tc(s.message ?? "")));
+        // The wallet couldn't pay (short of the coin, a price run out): said, and the same code still works.
+        setNote(s.shortfall ? q.short(coinText(String(Math.ceil(s.shortfall * 1e6)), s.token ?? token, lang)) : q.failed(tc(s.message ?? "")));
         continue;
       }
       if (s.state === "scanned" && s.orders?.length) {

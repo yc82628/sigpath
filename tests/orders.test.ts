@@ -41,10 +41,14 @@ test("the client's program id matches declare_id!", () => {
   assert.equal(o.ORDERS_PROGRAM_ID.toBase58(), m[1]);
 });
 
-test("OPERATOR, USDC_MINT and the token program match the program", () => {
+test("OPERATOR, both mints and the token program match the program", () => {
   assert.equal(o.OPERATOR.toBase58(), rustPubkey("OPERATOR"));
   assert.equal(o.USDC_MINT.toBase58(), rustPubkey("USDC_MINT"));
+  assert.equal(o.EURC_MINT.toBase58(), rustPubkey("EURC_MINT"));
   assert.equal(rustPubkey("TOKEN_PROGRAM_ID"), "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+  // The program takes exactly these two, and nothing else.
+  assert.match(RUST, /\*mint == USDC_MINT \|\| \*mint == EURC_MINT/);
+  assert.ok(o.mintOf("EURC").equals(o.EURC_MINT) && o.mintOf("USDC").equals(o.USDC_MINT));
 });
 
 test("the window and amount limits match the program", () => {
@@ -53,7 +57,7 @@ test("the window and amount limits match the program", () => {
   assert.equal(rustConst("MAX_WINDOW_SECS"), "30 * 24 * 3600");
   assert.equal(o.MAX_AMOUNT, 1_000n * 1_000_000n);
   assert.equal(rustConst("MAX_AMOUNT"), "1_000 * 1_000_000");
-  assert.equal(String(o.USDC_DECIMALS), rustConst("USDC_DECIMALS"));
+  assert.equal(String(o.TOKEN_DECIMALS), rustConst("TOKEN_DECIMALS"));
 });
 
 test("the error list is in exactly the program's declaration order", () => {
@@ -94,7 +98,7 @@ test("instruction account order matches each Accounts struct", () => {
   ]);
 
   const buyer = Keypair.generate().publicKey;
-  const ix = o.createOrderIx({ buyer, nonce: 7n, amount: 1n, listingHash: Buffer.alloc(32, 1), windowSecs: 3600 });
+  const ix = o.createOrderIx({ buyer, nonce: 7n, amount: 1n, listingHash: Buffer.alloc(32, 1), windowSecs: 3600, mint: o.USDC_MINT });
   const [order] = o.orderPda(buyer, 7n);
   assert.ok(ix.keys[0].pubkey.equals(buyer) && ix.keys[0].isSigner && ix.keys[0].isWritable);
   assert.ok(ix.keys[1].pubkey.equals(order));
@@ -103,10 +107,24 @@ test("instruction account order matches each Accounts struct", () => {
   assert.ok(ix.keys[4].pubkey.equals(o.USDC_MINT));
 });
 
+test("an EURC order names EURC and the buyer's EURC account, in all three instructions", () => {
+  const buyer = Keypair.generate().publicKey;
+  const create = o.createOrderIx({ buyer, nonce: 8n, amount: 1n, listingHash: Buffer.alloc(32, 1), windowSecs: 3600, mint: o.EURC_MINT });
+  assert.ok(create.keys[3].pubkey.equals(associatedTokenAddress(buyer, o.EURC_MINT)));
+  assert.ok(create.keys[4].pubkey.equals(o.EURC_MINT));
+  const [order] = o.orderPda(buyer, 8n);
+  const fulfil = o.fulfilIx({ order, buyer, fulfilmentRef: Buffer.alloc(32, 2), mint: o.EURC_MINT });
+  assert.ok(fulfil.keys[4].pubkey.equals(associatedTokenAddress(o.OPERATOR, o.EURC_MINT)), "the operator is paid in EURC");
+  assert.ok(fulfil.keys[5].pubkey.equals(o.EURC_MINT));
+  const refund = o.refundIx({ caller: buyer, order, buyer, mint: o.EURC_MINT });
+  assert.ok(refund.keys[3].pubkey.equals(associatedTokenAddress(buyer, o.EURC_MINT)), "refunded to the buyer's EURC account");
+  assert.ok(refund.keys[5].pubkey.equals(o.EURC_MINT));
+});
+
 test("create_order encodes to the program's argument layout", () => {
   const buyer = Keypair.generate().publicKey;
   const hash = Buffer.alloc(32, 0xab);
-  const ix = o.createOrderIx({ buyer, nonce: 0x0102030405060708n, amount: 5_000_000n, listingHash: hash, windowSecs: 86400 });
+  const ix = o.createOrderIx({ buyer, nonce: 0x0102030405060708n, amount: 5_000_000n, listingHash: hash, windowSecs: 86400, mint: o.USDC_MINT });
   const d = ix.data;
   assert.equal(d.length, 64);
   assert.deepEqual(d.subarray(0, 8), createHash("sha256").update("global:create_order").digest().subarray(0, 8));
@@ -126,7 +144,7 @@ test("the order PDA uses the nonce little-endian, matching to_le_bytes()", () =>
 
 test("the client refuses out-of-range orders before they cost a fee", () => {
   const buyer = Keypair.generate().publicKey;
-  const base = { buyer, nonce: 1n, listingHash: Buffer.alloc(32), windowSecs: 3600 };
+  const base = { buyer, nonce: 1n, listingHash: Buffer.alloc(32), windowSecs: 3600, mint: o.USDC_MINT };
   assert.throws(() => o.createOrderIx({ ...base, amount: 0n }), /Amount/);
   assert.throws(() => o.createOrderIx({ ...base, amount: o.MAX_AMOUNT + 1n }), /Amount/);
   assert.throws(() => o.createOrderIx({ ...base, amount: 1n, windowSecs: 59 }), /Window/);
@@ -154,12 +172,28 @@ test("an order account decodes by the program's layout", () => {
   assert.equal(d.amount, 5_000_000n);
   assert.equal(d.deadline, 1_790_000_000);
   assert.equal(d.status, "fulfilled");
+  assert.equal(d.token, "USDC", "an order from before EURC, with no coin after the record, was USDC");
 });
 
-test("the layout size matches 8 + INIT_SPACE", () => {
+test("an order since EURC carries its coin after the record", () => {
+  const b = Buffer.concat([fakeOrder(0), o.EURC_MINT.toBuffer()]);
+  assert.equal(b.length, o.ORDER_LAYOUT.sizeWithMint);
+  const d = o.decodeOrder(b);
+  assert.equal(d.token, "EURC");
+  assert.ok(d.mint.equals(o.EURC_MINT));
+  assert.equal(o.decodeOrder(Buffer.concat([fakeOrder(0), o.USDC_MINT.toBuffer()])).token, "USDC");
+  // A coin the program never accepts is refused, not shown as dollars.
+  assert.throws(() => o.decodeOrder(Buffer.concat([fakeOrder(0), Keypair.generate().publicKey.toBuffer()])), /unknown coin/);
+});
+
+test("the layout size matches 8 + INIT_SPACE, and the coin follows it", () => {
   // buyer 32, nonce 8, amount 8, listing_hash 32, created_at 8, deadline 8,
   // status 1, fulfilment_ref 32, settled_at 8, bump 1, vault_bump 1
   assert.equal(o.ORDER_LAYOUT.size, 8 + 32 + 8 + 8 + 32 + 8 + 8 + 1 + 32 + 8 + 1 + 1);
+  assert.equal(o.ORDER_LAYOUT.mint, o.ORDER_LAYOUT.size);
+  assert.equal(o.ORDER_LAYOUT.sizeWithMint, o.ORDER_LAYOUT.size + 32);
+  assert.equal(rustConst("ORDER_MINT_OFFSET"), "8 + Order::INIT_SPACE");
+  assert.match(RUST, /space = ORDER_MINT_OFFSET \+ 32,/);
 });
 
 test("an account that is not an Order is refused, not misread", () => {
@@ -187,6 +221,7 @@ test("USDC amounts parse without float arithmetic", () => {
   assert.equal(o.formatUsdc(155_727_900n), "155.7279 USDC");
   assert.equal(o.formatUsdc(1n), "0.000001 USDC");
   assert.equal(o.formatUsdc(5_000_000n), "5.00 USDC");
+  assert.equal(o.formatToken(150_000_000n, "EURC"), "150.00 EURC");
 });
 
 test("the listing commitment covers source, id and URL", () => {

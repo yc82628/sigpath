@@ -4,7 +4,7 @@ import { limited, RULES } from "@/lib/guard/limit";
 import { MIN_SOL_LAMPORTS, ordersRpcUrl, walletFunds } from "@/lib/checkout/checkout";
 
 // GET /api/wallet/balance?wallet=<address>
-//   -> { usdc: "<base units>", lamports, minSolLamports }
+//   -> { eurc: "<base units>", usdc: "<base units>", lamports, minSolLamports }
 //
 // What the connected wallet can pay with, read from the same network and in
 // the same way as the checkout (walletFunds), so the page can say "short by X"
@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { usdc, lamports } = await walletFunds(new Connection(ordersRpcUrl(), "confirmed"), owner);
+    const { balances, lamports } = await walletFunds(new Connection(ordersRpcUrl(), "confirmed"), owner);
     return NextResponse.json(
-      { usdc: usdc.toString(), lamports, minSolLamports: MIN_SOL_LAMPORTS },
+      { eurc: balances.EURC.toString(), usdc: balances.USDC.toString(), lamports, minSolLamports: MIN_SOL_LAMPORTS },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

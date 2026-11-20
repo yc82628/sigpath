@@ -9,7 +9,9 @@ import { useCheckText, useLang, useMessages } from "../../components/I18n";
 import CheckoutForm from "../CheckoutForm";
 import Invoice, { type InvoiceData } from "../Invoice";
 import EscrowInfo from "../EscrowInfo";
-import { usdc } from "@/lib/i18n/money";
+import { coinText, moneyText } from "@/lib/i18n/money";
+import type { PayToken } from "@/lib/chains/solana/tokens";
+import CoinChoice from "../CoinChoice";
 
 /**
  * The cart's checkout: its SigPath-checked items, fresh prices, the invoice,
@@ -54,6 +56,9 @@ export default function CartCheckout({ max, moonPay, escrowDays }: { max: number
   const tc = useCheckText();
   const [state, setState] = useState<{ ready: Ready[]; notReady: NotReady[]; later: number } | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
+  /** The coin picked; until then the server's default (EURC when every price is in euros). */
+  const coin = useRef<PayToken | null>(null);
+  const [switching, setSwitching] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ orders: Record<string, string>; list: { order: string; title: string }[]; confirmed: boolean; wallet?: string; at: number } | null>(null);
   const started = useRef(false);
@@ -87,7 +92,7 @@ export default function CartCheckout({ max, moonPay, escrowDays }: { max: number
         const res = await fetch("/api/checkout/invoice", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ quotes: tokens }),
+          body: JSON.stringify({ quotes: tokens, ...(coin.current ? { token: coin.current } : {}) }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return body.error ?? m.cart.checkFailed;
@@ -198,14 +203,30 @@ export default function CartCheckout({ max, moonPay, escrowDays }: { max: number
 
   return (
     <>
+      {invoice && (
+        <CoinChoice
+          token={invoice.token}
+          disabled={switching}
+          onPick={async (t) => {
+            // The same prices, drawn again in the other coin; the form and its address stay.
+            coin.current = t;
+            setSwitching(true);
+            const why = await loadInvoice(state.ready.map((r) => r.token));
+            setSwitching(false);
+            if (why) setInvoiceError(why);
+          }}
+        />
+      )}
       {invoice ? <Invoice data={invoice} /> : invoiceError ? <p className="notice withheld">{tc(invoiceError)}</p> : <p className="hint">{m.invoice.loading}</p>}
       {state.notReady.length > 0 && <NotReadyList items={state.notReady} />}
       {state.later > 0 && <p className="hint">{m.checkout.later(state.later, max)}</p>}
       {invoice && (
         <CheckoutForm
           quotes={state.ready.map((r) => r.token)}
-          usdcDisplay={usdc(invoice.totalUsdc, lang)}
-          totalUsdc={invoice.totalUsdc}
+          token={invoice.token}
+          display={coinText(invoice.totalBase, invoice.token, lang)}
+          total={invoice.totalBase}
+          localDisplay={invoice.token === "USDC" && invoice.euroCents !== null ? moneyText({ amount: invoice.euroCents, currency: "EUR" }, lang) : undefined}
           moonPay={moonPay}
           escrowInfo={<EscrowInfo count={state.ready.length} windowDays={escrowDays.window} retentionDays={escrowDays.retention} />}
           onRefresh={refresh}

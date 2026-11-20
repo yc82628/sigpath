@@ -33,12 +33,14 @@ const noFetch = (async () => {
 
 function conn(usdc: bigint, lamports = 1_000_000_000): Connection {
   const blockhash = Keypair.generate().publicKey.toBase58();
+  const account = () => {
+    const data = Buffer.alloc(165);
+    data.writeBigUInt64LE(usdc, 64);
+    return { owner: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), data, executable: false, lamports: 1 };
+  };
   return {
-    getAccountInfo: async () => {
-      const data = Buffer.alloc(165);
-      data.writeBigUInt64LE(usdc, 64);
-      return { owner: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), data, executable: false, lamports: 1 };
-    },
+    // The same balance in EURC and USDC, so a cart test is never short of the coin it pays in.
+    getMultipleAccountsInfo: async (pks: PublicKey[]) => pks.map(account),
     getBalance: async () => lamports,
     getLatestBlockhash: async () => ({ blockhash, lastValidBlockHeight: 100 }),
   } as unknown as Connection;
@@ -60,7 +62,11 @@ test("a cart of four pays in one transaction: one escrow order per item, each wi
   assert.equal(tx.signatures.every((x) => x.signature === null), true, "the server signs nothing");
   // Every order's amount is its own quote's price plus fee, and the total is their sum.
   const amounts = tx.instructions.map((ix) => ix.data.readBigUInt64LE(16));
-  assert.deepEqual(amounts.map(String), r.orders.map((o) => o.usdcBaseUnits));
+  assert.deepEqual(amounts.map(String), r.orders.map((o) => o.baseUnits));
+  // Euro prices, so EURC by default: each order is its price, one to one.
+  assert.equal(r.token, "EURC");
+  assert.deepEqual(amounts, [100_000_000n, 200_000_000n, 300_000_000n, 400_000_000n]);
+  assert.ok(tx.instructions.every((ix) => ix.keys[4].pubkey.equals(orders.EURC_MINT)), "every order in the same coin");
   assert.equal(amounts.reduce((a, b) => a + b, 0n).toString(), r.totalBaseUnits);
   for (const o of r.orders) {
     const rec = (await s.get(o.order))?.record;
@@ -75,7 +81,7 @@ test("the wallet must cover the whole cart, and SOL for every order's rent", asy
   const short = await prepareCartCheckout({ quotes, buyer, address: ADDRESS }, { env: ENV, store: store(), metaStore: null, conn: conn(150_000_000n), fetchImpl: noFetch });
   assert.equal(short.ok, false);
   assert.match(!short.ok ? short.error : "", /these orders need/);
-  assert.ok(!short.ok && short.shortfallUsdc! > 0);
+  assert.ok(!short.ok && short.shortfall! > 0);
   const noSol = await prepareCartCheckout({ quotes, buyer, address: ADDRESS }, { env: ENV, store: store(), metaStore: null, conn: conn(10_000_000_000n, MIN_SOL_LAMPORTS * 2 - 1), fetchImpl: noFetch });
   assert.equal(noSol.ok, false, "rent for two orders, not one");
 });

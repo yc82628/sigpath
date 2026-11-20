@@ -1,9 +1,9 @@
 /**
  * scripts/orders-roundtrip.ts — prove the escrow against a live validator.
  *
- *   # write a USDC mint account (at the real devnet USDC address, with the
- *   # operator as mint authority) for the local validator to load:
- *   npx tsx scripts/orders-roundtrip.ts --write-mint ./usdc-mint.json
+ *   # write USDC and EURC mint accounts (at the real devnet addresses, with
+ *   # the operator as mint authority) for the local validator to load:
+ *   npx tsx scripts/orders-roundtrip.ts --write-mint ./usdc-mint.json --write-eurc-mint ./eurc-mint.json
  *
  *   # then, with solana-test-validator running (see README):
  *   npx tsx scripts/orders-roundtrip.ts --local
@@ -12,9 +12,9 @@
  * fail. A test that only walks the happy path would pass against an escrow that
  * paid anyone who asked; the attacks are the point.
  *
- * Local mode mints test USDC freely, which only works because the local mint
- * account was written with the operator as mint authority. Nothing here can
- * mint on devnet.
+ * Local mode mints test USDC and EURC freely, which only works because the
+ * local mint accounts were written with the operator as mint authority.
+ * Nothing here can mint on devnet.
  */
 
 import { readFileSync, writeFileSync } from "fs";
@@ -63,24 +63,21 @@ async function main() {
     throw new Error(`ISSUER_SECRET is ${operator.publicKey.toBase58()}, but the program's OPERATOR is ${o.OPERATOR.toBase58()}.`);
   }
 
-  // --- mode 1: write the local mint account ---------------------------------
-  const wi = args.indexOf("--write-mint");
-  if (wi !== -1) {
-    const out = args[wi + 1];
-    if (!out) throw new Error("--write-mint needs a path");
+  // --- mode 1: write the local mint accounts --------------------------------
+  const writeMint = (mint: PublicKey, name: string, out: string) => {
     // SPL Mint, 82 bytes: mint_authority COption<Pubkey> (4+32) | supply u64
     // | decimals u8 | is_initialized u8 | freeze_authority COption<Pubkey> (4+32)
     const data = Buffer.alloc(82);
     data.writeUInt32LE(1, 0);
     operator.publicKey.toBuffer().copy(data, 4);
     data.writeBigUInt64LE(0n, 36);
-    data.writeUInt8(o.USDC_DECIMALS, 44);
+    data.writeUInt8(o.TOKEN_DECIMALS, 44);
     data.writeUInt8(1, 45);
     data.writeUInt32LE(0, 46);
     writeFileSync(
       out,
       JSON.stringify({
-        pubkey: o.USDC_MINT.toBase58(),
+        pubkey: mint.toBase58(),
         account: {
           lamports: 1_461_600,
           data: [data.toString("base64"), "base64"],
@@ -91,7 +88,19 @@ async function main() {
         },
       }),
     );
-    console.log(`wrote local USDC mint (authority ${operator.publicKey.toBase58()}) to ${out}`);
+    console.log(`wrote local ${name} mint (authority ${operator.publicKey.toBase58()}) to ${out}`);
+  };
+  const wi = args.indexOf("--write-mint");
+  const we = args.indexOf("--write-eurc-mint");
+  if (wi !== -1 || we !== -1) {
+    if (wi !== -1) {
+      if (!args[wi + 1]) throw new Error("--write-mint needs a path");
+      writeMint(o.USDC_MINT, "USDC", args[wi + 1]);
+    }
+    if (we !== -1) {
+      if (!args[we + 1]) throw new Error("--write-eurc-mint needs a path");
+      writeMint(o.EURC_MINT, "EURC", args[we + 1]);
+    }
     return;
   }
 
@@ -149,6 +158,7 @@ async function main() {
     [operator],
   );
   check("buyer funded with 100 test USDC", (await bal(buyerAta)) === 100_000_000n);
+  const USDC = o.USDC_MINT;
 
   const listing = o.listingHash({ source: "ebay", id: "v1|123|0", url: "https://www.ebay.de/itm/123" });
   let nonce = BigInt(Date.now());
@@ -164,7 +174,7 @@ async function main() {
     const buyerBefore = await bal(buyerAta);
     const opBefore = await bal(operatorAta);
     await send(
-      [o.createOrderIx({ buyer: buyer.publicKey, nonce: n, amount: 5_000_000n, listingHash: listing, windowSecs: 3600 })],
+      [o.createOrderIx({ buyer: buyer.publicKey, nonce: n, amount: 5_000_000n, listingHash: listing, windowSecs: 3600, mint: USDC })],
       [buyer],
     );
     const vault = o.vaultPda(order)[0];
@@ -172,22 +182,23 @@ async function main() {
     check("buyer debited 5 USDC", (await bal(buyerAta)) === buyerBefore - 5_000_000n);
     const created = await orderState(order);
     check("order recorded as funded, for this listing", created.status === "funded" && created.listingHash.equals(listing));
+    check("order records its coin: USDC", created.token === "USDC");
 
     await expectError(
       "a non-operator cannot fulfil (and so cannot be paid)",
       "NotOperator",
-      [o.fulfilIx({ order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("x"), operator: stranger.publicKey, operatorToken: strangerAta })],
+      [o.fulfilIx({ order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("x"), mint: USDC, operator: stranger.publicKey, operatorToken: strangerAta })],
       [stranger],
     );
     await expectError(
       "a stranger cannot refund before the deadline",
       "DeadlineNotReached",
-      [o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey })],
+      [o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey, mint: USDC })],
       [stranger],
     );
 
     await send(
-      [o.fulfilIx({ order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("AMZ-302-1234567") })],
+      [o.fulfilIx({ order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("AMZ-302-1234567"), mint: USDC })],
       [operator],
     );
     const done = await orderState(order);
@@ -197,7 +208,7 @@ async function main() {
     await expectError(
       "a fulfilled order cannot also be refunded",
       "NotFunded",
-      [o.refundIx({ caller: operator.publicKey, order, buyer: buyer.publicKey })],
+      [o.refundIx({ caller: operator.publicKey, order, buyer: buyer.publicKey, mint: USDC })],
       [operator],
     );
   }
@@ -208,10 +219,10 @@ async function main() {
     const { nonce: n, order } = nextOrder();
     const before = await bal(buyerAta);
     await send(
-      [o.createOrderIx({ buyer: buyer.publicKey, nonce: n, amount: 3_000_000n, listingHash: listing, windowSecs: 3600 })],
+      [o.createOrderIx({ buyer: buyer.publicKey, nonce: n, amount: 3_000_000n, listingHash: listing, windowSecs: 3600, mint: USDC })],
       [buyer],
     );
-    await send([o.refundIx({ caller: operator.publicKey, order, buyer: buyer.publicKey })], [operator]);
+    await send([o.refundIx({ caller: operator.publicKey, order, buyer: buyer.publicKey, mint: USDC })], [operator]);
     check("buyer made whole", (await bal(buyerAta)) === before);
     check("order marked refunded", (await orderState(order)).status === "refunded");
   }
@@ -222,7 +233,7 @@ async function main() {
     const { nonce: n, order } = nextOrder();
     const before = await bal(buyerAta);
     await send(
-      [o.createOrderIx({ buyer: buyer.publicKey, nonce: n, amount: 7_000_000n, listingHash: listing, windowSecs: o.MIN_WINDOW_SECS })],
+      [o.createOrderIx({ buyer: buyer.publicKey, nonce: n, amount: 7_000_000n, listingHash: listing, windowSecs: o.MIN_WINDOW_SECS, mint: USDC })],
       [buyer],
     );
     const vault = o.vaultPda(order)[0];
@@ -231,13 +242,13 @@ async function main() {
     await expectError(
       "the operator cannot fulfil late and race the refund",
       "DeadlinePassed",
-      [o.fulfilIx({ order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("late") })],
+      [o.fulfilIx({ order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("late"), mint: USDC })],
       [operator],
     );
     await expectError(
       "a stranger cannot redirect the refund to their own account",
       "RefundNotToBuyer",
-      [o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey, buyerToken: strangerAta })],
+      [o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey, mint: USDC, buyerToken: strangerAta })],
       [stranger],
     );
 
@@ -249,15 +260,73 @@ async function main() {
     check("grief: an extra unit landed in the vault", (await bal(vault)) === 7_000_001n);
 
     // Anyone may now trigger the refund; it can only go to the buyer.
-    await send([o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey })], [stranger]);
+    await send([o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey, mint: USDC })], [stranger]);
     check("a stranger CAN trigger the refund once the deadline passes", (await orderState(order)).status === "refunded");
     check("buyer made whole, the stray unit included", (await bal(buyerAta)) === before + 1n);
     check("vault closed despite the grief attempt", (await conn.getAccountInfo(vault)) === null);
     await expectError(
       "a refunded order cannot be refunded twice",
       "NotFunded",
-      [o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey })],
+      [o.refundIx({ caller: stranger.publicKey, order, buyer: buyer.publicKey, mint: USDC })],
       [stranger],
+    );
+  }
+
+  // --- D. an order paid in EURC ------------------------------------------------
+  console.log("\nD. paid in EURC: the coin is kept straight end to end");
+  {
+    const EURC = o.EURC_MINT;
+    const buyerEurc = spl.associatedTokenAddress(buyer.publicKey, EURC);
+    const operatorEurc = spl.associatedTokenAddress(operator.publicKey, EURC);
+    await send(
+      [
+        spl.createAtaIdempotentIx(operator.publicKey, buyer.publicKey, EURC),
+        spl.createAtaIdempotentIx(operator.publicKey, operator.publicKey, EURC),
+        spl.mintToIx({ mint: EURC, destination: buyerEurc, authority: operator.publicKey, amount: 50_000_000n }),
+      ],
+      [operator],
+    );
+    check("buyer funded with 50 test EURC", (await bal(buyerEurc)) === 50_000_000n);
+
+    // Fulfilled in EURC.
+    const a = nextOrder();
+    const usdcBefore = await bal(buyerAta);
+    await send([o.createOrderIx({ buyer: buyer.publicKey, nonce: a.nonce, amount: 15_000_000n, listingHash: listing, windowSecs: 3600, mint: EURC })], [buyer]);
+    check("EURC order: buyer debited 15 EURC, no USDC touched", (await bal(buyerEurc)) === 35_000_000n && (await bal(buyerAta)) === usdcBefore);
+    const info = await conn.getAccountInfo(a.order);
+    check("the order account is the longer one, with the coin after the record", info?.data.length === o.ORDER_LAYOUT.sizeWithMint);
+    check("the order records its coin: EURC", (await orderState(a.order)).token === "EURC");
+    await expectError(
+      "the operator cannot take an EURC order's money as USDC",
+      "code 3", // the token program's MintMismatch
+      [o.fulfilIx({ order: a.order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("EUR-1"), mint: USDC })],
+      [operator],
+    );
+    const opEurcBefore = await bal(operatorEurc);
+    await send([o.fulfilIx({ order: a.order, buyer: buyer.publicKey, fulfilmentRef: o.fulfilmentRefHash("EUR-1"), mint: EURC })], [operator]);
+    check("operator paid exactly 15 EURC", (await bal(operatorEurc)) === opEurcBefore + 15_000_000n);
+    check("the order still says EURC after the vault closed", (await orderState(a.order)).token === "EURC");
+
+    // Refunded in EURC, and only in EURC.
+    const b = nextOrder();
+    await send([o.createOrderIx({ buyer: buyer.publicKey, nonce: b.nonce, amount: 10_000_000n, listingHash: listing, windowSecs: 3600, mint: EURC })], [buyer]);
+    await expectError(
+      "an EURC refund cannot be sent to the buyer's USDC account",
+      "WrongMint",
+      [o.refundIx({ caller: operator.publicKey, order: b.order, buyer: buyer.publicKey, mint: USDC })],
+      [operator],
+    );
+    await send([o.refundIx({ caller: operator.publicKey, order: b.order, buyer: buyer.publicKey, mint: EURC })], [operator]);
+    check("buyer made whole in EURC", (await bal(buyerEurc)) === 35_000_000n);
+
+    // Any other coin is refused at the door.
+    const c = nextOrder();
+    const fakeMint = Keypair.generate().publicKey;
+    await expectError(
+      "an order in any other coin is refused",
+      "WrongMint",
+      [o.createOrderIx({ buyer: buyer.publicKey, nonce: c.nonce, amount: 1_000_000n, listingHash: listing, windowSecs: 3600, mint: fakeMint, buyerToken: buyerAta })],
+      [buyer],
     );
   }
 

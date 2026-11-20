@@ -963,6 +963,9 @@ h2.with-icon > .pop-icon { margin-top: 0; }
 .invoice-pay { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 6px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .invoice-pay { font-size: 1.05rem; }
 .invoice-pay strong { font-size: 1.5rem; letter-spacing: -0.01em; }
+/* On a phone the label, the amount and its euro value wrap as whole pieces: never "164,88" on one line and "USDC" on the next. */
+.invoice-pay { flex-wrap: wrap; gap: 4px 12px; }
+.invoice-pay > span:first-child, .invoice-pay strong { white-space: nowrap; }
 .invoice-actions { margin: 12px 0 0; }
 /* The checkout pages read a size up: the money, the steps and the small print all matter here. */
 .checkout-page { font-size: 1.0625rem; }
@@ -1037,6 +1040,23 @@ h2.with-icon > .pop-icon { margin-top: 0; }
 .checkout-form .pay-method-text b { font-size: 1rem; color: var(--fg); }
 .checkout-form .pay-method-text span { display: block; margin: 0; font-size: 0.88rem; color: var(--muted); }
 .checkout-form .pay-method-text .pay-method-protect { font-size: 0.82rem; color: var(--fg); opacity: 0.85; }
+/* Which coin: EURC (a digital euro) or USDC (a digital dollar). Two tiles side by side, the chosen one outlined; stacked on phones. */
+.coin-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 16px; padding: 0; border: 0; min-width: 0; }
+.coin-choice legend { grid-column: 1 / -1; padding: 0; margin-bottom: 6px; font-weight: 700; }
+.coin-choice label.coin {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; cursor: pointer; min-width: 0;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); transition: border-color 0.15s ease;
+}
+.coin-choice label.coin:hover { border-color: var(--brand); }
+.coin-choice label.coin.on { border: 2px solid var(--brand); padding: 11px 13px; background: var(--brand-soft); }
+.coin-choice label.coin input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--brand); }
+.coin-choice label.coin input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.coin-choice label.coin > span { display: grid; gap: 2px; min-width: 0; }
+.coin-choice label.coin .hint { margin: 0; font-size: 0.85rem; }
+.coin-choice:disabled label.coin { opacity: 0.6; cursor: progress; }
+@media (max-width: 560px) { .coin-choice { grid-template-columns: 1fr; } }
+/* The euro value beside a USDC total: "164,88 USDC = 150,00 €". */
+.invoice-pay .invoice-eur { margin-left: 8px; font-size: 1.05rem; color: var(--muted); white-space: nowrap; }
 .pay-ebay { margin: 0 0 16px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .pay-ebay > .hint { margin-top: 0; }
 .pay-ebay ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

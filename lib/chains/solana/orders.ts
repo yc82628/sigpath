@@ -20,6 +20,7 @@ import { createHash } from "crypto";
 import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { discriminator } from "./instructions";
 import { TOKEN_PROGRAM_ID, associatedTokenAddress } from "./spl";
+import { PAY_TOKENS, tokenForMint, type PayToken } from "./tokens";
 
 /** Mirrors declare_id! in programs/sigpath_orders/src/lib.rs. */
 export const ORDERS_PROGRAM_ID = new PublicKey(
@@ -28,10 +29,19 @@ export const ORDERS_PROGRAM_ID = new PublicKey(
 /** Mirrors OPERATOR. The only key that can fulfil — and be paid for — an order. */
 export const OPERATOR = new PublicKey("AaFcCzgJ53SPpqheu8KGM6fA3i4cwd57SL8goz6jdfXg");
 /** Mirrors USDC_MINT: Circle's devnet USDC. */
-export const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
-export const USDC_DECIMALS = 6;
+export const USDC_MINT = new PublicKey(PAY_TOKENS.USDC.mint);
+/** Mirrors EURC_MINT: Circle's EURC, the same address on devnet and mainnet. */
+export const EURC_MINT = new PublicKey(PAY_TOKENS.EURC.mint);
+/** Mirrors TOKEN_DECIMALS: both coins have six. */
+export const TOKEN_DECIMALS = 6;
+export const USDC_DECIMALS = TOKEN_DECIMALS;
 
-/** Mirrors MIN_WINDOW_SECS / MAX_WINDOW_SECS / MAX_AMOUNT. */
+/** The mint of a coin the escrow accepts. */
+export function mintOf(token: PayToken): PublicKey {
+  return token === "EURC" ? EURC_MINT : USDC_MINT;
+}
+
+/** Mirrors MIN_WINDOW_SECS / MAX_WINDOW_SECS / MAX_AMOUNT (1,000 of either coin). */
 export const MIN_WINDOW_SECS = 60;
 export const MAX_WINDOW_SECS = 30 * 24 * 3600;
 export const MAX_AMOUNT = 1_000n * 1_000_000n;
@@ -91,15 +101,19 @@ export function usdcToBaseUnits(value: string): bigint {
 
 /**
  * Exact, never truncated: 155_727_900n -> "155.7279 USDC", 12_340_000n ->
- * "12.34 USDC". A display cut to two decimals would show 155.72 while the
+ * "12.34 EURC". A display cut to two decimals would show 155.72 while the
  * wallet charges 155.7279 — understating what is taken, however slightly, is
  * the one direction a price display must never err in.
  */
-export function formatUsdc(base: bigint): string {
+export function formatToken(base: bigint, token: PayToken): string {
   const whole = base / 1_000_000n;
   let frac = (base % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
   if (frac.length < 2) frac = frac.padEnd(2, "0");
-  return `${whole}.${frac} USDC`;
+  return `${whole}.${frac} ${token}`;
+}
+
+export function formatUsdc(base: bigint): string {
+  return formatToken(base, "USDC");
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +126,9 @@ export interface CreateOrderArgs {
   amount: bigint;
   listingHash: Uint8Array;
   windowSecs: number;
-  /** Defaults to the buyer's associated USDC account. */
+  /** The coin it is paid in: USDC_MINT or EURC_MINT. */
+  mint: PublicKey;
+  /** Defaults to the buyer's associated account for that coin. */
   buyerToken?: PublicKey;
   programId?: PublicKey;
 }
@@ -140,8 +156,8 @@ export function createOrderIx(a: CreateOrderArgs): TransactionInstruction {
       { pubkey: a.buyer, isSigner: true, isWritable: true },
       { pubkey: order, isSigner: false, isWritable: true },
       { pubkey: vault, isSigner: false, isWritable: true },
-      { pubkey: a.buyerToken ?? associatedTokenAddress(a.buyer, USDC_MINT), isSigner: false, isWritable: true },
-      { pubkey: USDC_MINT, isSigner: false, isWritable: false },
+      { pubkey: a.buyerToken ?? associatedTokenAddress(a.buyer, a.mint), isSigner: false, isWritable: true },
+      { pubkey: a.mint, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
@@ -154,6 +170,8 @@ export function fulfilIx(a: {
   order: PublicKey;
   buyer: PublicKey;
   fulfilmentRef: Uint8Array;
+  /** The order's coin (DecodedOrder.mint): the operator is paid in it. */
+  mint: PublicKey;
   operator?: PublicKey;
   operatorToken?: PublicKey;
   programId?: PublicKey;
@@ -174,8 +192,8 @@ export function fulfilIx(a: {
       { pubkey: a.order, isSigner: false, isWritable: true },
       { pubkey: a.buyer, isSigner: false, isWritable: true },
       { pubkey: vault, isSigner: false, isWritable: true },
-      { pubkey: a.operatorToken ?? associatedTokenAddress(operator, USDC_MINT), isSigner: false, isWritable: true },
-      { pubkey: USDC_MINT, isSigner: false, isWritable: false },
+      { pubkey: a.operatorToken ?? associatedTokenAddress(operator, a.mint), isSigner: false, isWritable: true },
+      { pubkey: a.mint, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
     data,
@@ -187,7 +205,9 @@ export function refundIx(a: {
   caller: PublicKey;
   order: PublicKey;
   buyer: PublicKey;
-  /** Defaults to the buyer's associated USDC account — the only valid destination. */
+  /** The order's coin (DecodedOrder.mint): the refund goes back in it. */
+  mint: PublicKey;
+  /** Defaults to the buyer's associated account for that coin — the only valid destination. */
   buyerToken?: PublicKey;
   programId?: PublicKey;
 }): TransactionInstruction {
@@ -199,9 +219,9 @@ export function refundIx(a: {
       { pubkey: a.caller, isSigner: true, isWritable: false },
       { pubkey: a.order, isSigner: false, isWritable: true },
       { pubkey: a.buyer, isSigner: false, isWritable: true },
-      { pubkey: a.buyerToken ?? associatedTokenAddress(a.buyer, USDC_MINT), isSigner: false, isWritable: true },
+      { pubkey: a.buyerToken ?? associatedTokenAddress(a.buyer, a.mint), isSigner: false, isWritable: true },
       { pubkey: vault, isSigner: false, isWritable: true },
-      { pubkey: USDC_MINT, isSigner: false, isWritable: false },
+      { pubkey: a.mint, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
     data: discriminator("refund"),
@@ -212,7 +232,11 @@ export function refundIx(a: {
 // Reading an order
 // ---------------------------------------------------------------------------
 
-/** Byte offsets of the Order account, after the 8-byte account discriminator. */
+/**
+ * Byte offsets of the Order account, after the 8-byte account discriminator.
+ * `mint` follows the record (ORDER_MINT_OFFSET in lib.rs): orders made since
+ * EURC are `sizeWithMint` bytes; older ones end at `size` and were all USDC.
+ */
 export const ORDER_LAYOUT = {
   buyer: 8,
   nonce: 40,
@@ -226,6 +250,8 @@ export const ORDER_LAYOUT = {
   bump: 145,
   vaultBump: 146,
   size: 147,
+  mint: 147,
+  sizeWithMint: 179,
 } as const;
 
 export const ORDER_ACCOUNT_DISCRIMINATOR = createHash("sha256").update("account:Order").digest().subarray(0, 8);
@@ -240,6 +266,9 @@ export interface DecodedOrder {
   status: OrderStatus;
   fulfilmentRef: Buffer;
   settledAt: number;
+  /** The coin it was paid in. */
+  mint: PublicKey;
+  token: PayToken;
 }
 
 export function decodeOrder(data: Buffer | Uint8Array): DecodedOrder {
@@ -252,6 +281,9 @@ export function decodeOrder(data: Buffer | Uint8Array): DecodedOrder {
   const statusByte = b.readUInt8(ORDER_LAYOUT.status);
   const status = (Object.keys(ORDER_STATUS) as OrderStatus[]).find((k) => ORDER_STATUS[k] === statusByte);
   if (!status) throw new Error(`Unknown order status ${statusByte}`);
+  const mint = b.length >= ORDER_LAYOUT.sizeWithMint ? new PublicKey(b.subarray(ORDER_LAYOUT.mint, ORDER_LAYOUT.mint + 32)) : USDC_MINT;
+  const token = tokenForMint(mint.toBase58());
+  if (!token) throw new Error(`Order paid in an unknown coin ${mint.toBase58()}`);
   return {
     buyer: new PublicKey(b.subarray(ORDER_LAYOUT.buyer, ORDER_LAYOUT.buyer + 32)),
     nonce: b.readBigUInt64LE(ORDER_LAYOUT.nonce),
@@ -262,6 +294,8 @@ export function decodeOrder(data: Buffer | Uint8Array): DecodedOrder {
     status,
     fulfilmentRef: b.subarray(ORDER_LAYOUT.fulfilmentRef, ORDER_LAYOUT.fulfilmentRef + 32),
     settledAt: Number(b.readBigInt64LE(ORDER_LAYOUT.settledAt)),
+    mint,
+    token,
   };
 }
 

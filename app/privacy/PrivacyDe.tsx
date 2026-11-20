@@ -246,7 +246,7 @@ export default function PrivacyDe() {
 
       {checkout && (
         <>
-          <Part title="Bezahlen mit USDC">
+          <Part title="Bezahlen mit EURC oder USDC">
             <ul>
               <li>
                 <strong>Deine Lieferadresse</strong> (Name, Straße, Postleitzahl, Ort, Land) wird {storage} gespeichert, nur

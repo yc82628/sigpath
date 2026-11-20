@@ -201,9 +201,9 @@ export function useWalletChange(boundAddress: string | null | undefined, onChang
 
 export type Funds =
   | { status: "idle" | "loading" | "error" }
-  | { status: "ok"; usdc: bigint; lamports: number; minSolLamports: number };
+  | { status: "ok"; usdc: bigint; eurc: bigint; lamports: number; minSolLamports: number };
 
-/** What `address` holds (USDC and SOL), from /api/wallet/balance. `refresh` reads it again. */
+/** What `address` holds (EURC, USDC and SOL), from /api/wallet/balance. `refresh` reads it again. */
 export function useWalletFunds(address: string | null | undefined): Funds & { refresh(): void } {
   const [funds, setFunds] = useState<Funds>({ status: "idle" });
   const latest = useRef(0);
@@ -217,7 +217,7 @@ export function useWalletFunds(address: string | null | undefined): Funds & { re
         if (!res.ok) throw new Error(body.error);
         // A slower answer for an account the page has since left is dropped.
         if (id === latest.current) {
-          setFunds({ status: "ok", usdc: BigInt(body.usdc), lamports: body.lamports, minSolLamports: body.minSolLamports });
+          setFunds({ status: "ok", usdc: BigInt(body.usdc), eurc: BigInt(body.eurc ?? "0"), lamports: body.lamports, minSolLamports: body.minSolLamports });
         }
       })
       .catch(() => {

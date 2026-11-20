@@ -31,19 +31,19 @@ const en = {
   title: "Don't trust us. Check.",
   lede: "Any site can say it's safe. Everything on this page is read live from the Solana blockchain, not from SigPath's database: SigPath can't edit it, and you can open every record yourself.",
   devnet:
-    "SigPath runs on Solana's test network (devnet) while it's being built: the money is test USDC, and the records below were made while testing. The rules are the ones a launch will run.",
+    "SigPath runs on Solana's test network (devnet) while it's being built: the money is test USDC and EURC, and the records below were made while testing. The rules are the ones a launch will run.",
   liveTitle: "Live from Solana",
   readAt: (t: string) => `Read from Solana at ${t} UTC.`,
   unreadable: "Solana didn't answer just now. Every record is still there: open them through the links below.",
   stats: {
     paid: { label: "orders paid out", line: "Only once SigPath recorded the shop's order, before the deadline" },
-    refunded: { label: "orders refunded", line: (usdc: string) => `${usdc} USDC back to the buyers' own wallets` },
-    held: { label: "USDC in escrow now", line: "Held by the program: no person holds a key to it" },
+    refunded: { label: "orders refunded", line: (amounts: string) => `${amounts} back to the buyers' own wallets` },
+    held: { label: "in escrow now", line: "Held by the program: no person holds a key to it" },
     findings: { label: "findings against sellers", line: (n: number) => `${n} reversed since, and still on record` },
   },
   moneyTitle: "Your money follows rules, not promises",
   rules: [
-    { icon: "vault", title: "Held by code", line: "Your USDC waits in a vault only the escrow program can move. Not SigPath, not anyone with a key." },
+    { icon: "vault", title: "Held by code", line: "Your payment waits in a vault only the escrow program can move. Not SigPath, not anyone with a key." },
     { icon: "lock-key", title: "Paid out only for a real order", line: "SigPath is paid only when it records the shop's order or tracking number, and only before the deadline." },
     { icon: "wallet", title: "A refund no one can stop", line: "After the deadline anyone can trigger the refund, and it can only go to your own wallet." },
     { icon: "info", title: "What it can't prove", line: "A blockchain can't see a parcel arrive. If an order is recorded and never comes, that's a report, not an automatic refund." },
@@ -68,7 +68,7 @@ const en = {
   neverTitle: "SigPath will never",
   never: [
     "ask for your recovery phrase or private key",
-    "ask you to send USDC straight to a wallet: every payment goes into the escrow, and you sign it in your own wallet",
+    "ask you to send USDC or EURC straight to a wallet: every payment goes into the escrow, and you sign it in your own wallet",
     "ask for a password: there are no accounts",
     "ask for card details",
   ],
@@ -95,19 +95,19 @@ const de: typeof en = {
   title: "Vertrau uns nicht. Prüf es nach.",
   lede: "Sicher nennen kann sich jede Website. Alles auf dieser Seite wird live von der Solana-Blockchain gelesen, nicht aus der Datenbank von SigPath: SigPath kann es nicht ändern, und du kannst jeden Eintrag selbst öffnen.",
   devnet:
-    "SigPath läuft während der Entwicklung im Testnetz von Solana (Devnet): Das Geld ist Test-USDC, und die Einträge unten sind beim Testen entstanden. Die Regeln sind die, mit denen SigPath startet.",
+    "SigPath läuft während der Entwicklung im Testnetz von Solana (Devnet): Das Geld ist Test-USDC und -EURC, und die Einträge unten sind beim Testen entstanden. Die Regeln sind die, mit denen SigPath startet.",
   liveTitle: "Live von Solana",
   readAt: (t) => `Von Solana gelesen um ${t} UTC.`,
   unreadable: "Solana hat gerade nicht geantwortet. Alle Einträge sind trotzdem da: Öffne sie über die Links unten.",
   stats: {
     paid: { label: "Bestellungen ausgezahlt", line: "Erst als SigPath die Bestellung beim Shop festgehalten hat, vor der Frist" },
-    refunded: { label: "Bestellungen erstattet", line: (usdc) => `${usdc} USDC zurück in die eigenen Wallets der Käufer` },
-    held: { label: "USDC jetzt in Treuhand", line: "Verwahrt vom Programm: Kein Mensch hat einen Schlüssel dazu" },
+    refunded: { label: "Bestellungen erstattet", line: (amounts) => `${amounts} zurück in die eigenen Wallets der Käufer` },
+    held: { label: "jetzt in Treuhand", line: "Verwahrt vom Programm: Kein Mensch hat einen Schlüssel dazu" },
     findings: { label: "Befunde gegen Verkäufer", line: (n) => `${n} davon aufgehoben, und weiter sichtbar` },
   },
   moneyTitle: "Dein Geld folgt Regeln, nicht Versprechen",
   rules: [
-    { icon: "vault", title: "Verwahrt von Code", line: "Deine USDC liegen in einem Tresor, den nur das Treuhandprogramm bewegen kann. Nicht SigPath, niemand mit einem Schlüssel." },
+    { icon: "vault", title: "Verwahrt von Code", line: "Deine Zahlung liegt in einem Tresor, den nur das Treuhandprogramm bewegen kann. Nicht SigPath, niemand mit einem Schlüssel." },
     { icon: "lock-key", title: "Ausgezahlt nur für eine echte Bestellung", line: "SigPath wird nur bezahlt, wenn es die Bestell- oder Sendungsnummer des Shops festhält, und nur vor der Frist." },
     { icon: "wallet", title: "Eine Erstattung, die niemand aufhalten kann", line: "Nach der Frist kann jeder die Erstattung auslösen, und sie geht nur an deine eigene Wallet." },
     { icon: "info", title: "Was sie nicht beweisen kann", line: "Eine Blockchain sieht kein Paket ankommen. Wird eine Bestellung festgehalten und kommt nie an, ist das eine Meldung, keine automatische Erstattung." },
@@ -132,7 +132,7 @@ const de: typeof en = {
   neverTitle: "SigPath wird dich nie",
   never: [
     "nach deiner Wiederherstellungsphrase oder deinem privaten Schlüssel fragen",
-    "bitten, USDC direkt an eine Wallet zu schicken: Jede Zahlung geht in die Treuhand, und du bestätigst sie in deiner eigenen Wallet",
+    "bitten, USDC oder EURC direkt an eine Wallet zu schicken: Jede Zahlung geht in die Treuhand, und du bestätigst sie in deiner eigenen Wallet",
     "nach einem Passwort fragen: Es gibt keine Konten",
     "nach Kartendaten fragen",
   ],
@@ -158,6 +158,9 @@ const de: typeof en = {
 const day = (s: number) => new Date(s * 1000).toISOString().slice(0, 10);
 const usdc = (base: number, lang: "en" | "de") =>
   (base / 1e6).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** "12.50 USDC", and "· 5.00 EURC" beside it once any order was paid in EURC: dollars and euros are never added. */
+const coins = (usdcBase: number, eurcBase: number, lang: "en" | "de") =>
+  `${usdc(usdcBase, lang)} USDC${eurcBase > 0 ? ` · ${usdc(eurcBase, lang)} EURC` : ""}`;
 const short = (hex: string) => `${hex.slice(0, 6)}…${hex.slice(-4)}`;
 const explorer = (a: string) => `https://explorer.solana.com/address/${a}${ON_DEVNET ? "?cluster=devnet" : ""}`;
 
@@ -196,10 +199,10 @@ export default async function ProofPage({ searchParams }: { searchParams: { sour
             <li>
               <b>{p.orders.refunded}</b>
               <strong>{t.stats.refunded.label}</strong>
-              <span>{t.stats.refunded.line(usdc(p.orders.returned, lang))}</span>
+              <span>{t.stats.refunded.line(coins(p.orders.returned, p.orders.eurc.returned, lang))}</span>
             </li>
             <li>
-              <b>{usdc(p.orders.heldNow, lang)}</b>
+              <b>{coins(p.orders.heldNow, p.orders.eurc.heldNow, lang)}</b>
               <strong>{t.stats.held.label}</strong>
               <span>{t.stats.held.line}</span>
             </li>

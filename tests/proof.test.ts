@@ -19,15 +19,20 @@ const report = (s: number, index: number, upheldAt: number, category = 1): RawRe
   upheldAt,
 });
 
-test("the escrow's totals: counts per status, and the USDC each status holds", () => {
+test("the escrow's totals: counts per status, and what each status holds, dollars and euros apart", () => {
   const s = summariseOrders([
     { status: "funded", amount: 2_500_000n },
     { status: "fulfilled", amount: 1_000_000n },
-    { status: "fulfilled", amount: 500_000n },
+    { status: "fulfilled", amount: 500_000n, token: "USDC" },
     { status: "refunded", amount: 750_000n },
+    { status: "funded", amount: 150_000_000n, token: "EURC" },
   ]);
-  assert.deepStrictEqual(s, { total: 4, funded: 1, fulfilled: 2, refunded: 1, heldNow: 2_500_000, paidOut: 1_500_000, returned: 750_000 });
-  assert.deepStrictEqual(summariseOrders([]), { total: 0, funded: 0, fulfilled: 0, refunded: 0, heldNow: 0, paidOut: 0, returned: 0 });
+  assert.deepStrictEqual(s, {
+    total: 5, funded: 2, fulfilled: 2, refunded: 1,
+    heldNow: 2_500_000, paidOut: 1_500_000, returned: 750_000,
+    eurc: { heldNow: 150_000_000, paidOut: 0, returned: 0 },
+  });
+  assert.deepStrictEqual(summariseOrders([]), { total: 0, funded: 0, fulfilled: 0, refunded: 0, heldNow: 0, paidOut: 0, returned: 0, eurc: { heldNow: 0, paidOut: 0, returned: 0 } });
 });
 
 test("a finding's number comes back from its nonce, and its reversal is paired by seller and number", () => {

@@ -36,6 +36,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import * as orders from "../chains/solana/orders";
+import type { PayToken } from "../chains/solana/tokens";
 import { associatedTokenAddress, createAtaIdempotentIx, transferCheckedIx } from "../chains/solana/spl";
 import type { Business } from "./business";
 
@@ -43,12 +44,13 @@ type Env = Record<string, string | undefined>;
 
 /**
  * Circle's EURC: the same address on Solana devnet and mainnet (checked on both,
- * 2026-11-06: classic SPL Token, 6 decimals), so nothing changes at launch.
+ * 2026-11-06: classic SPL Token, 6 decimals), so nothing changes at launch. The
+ * one table of both coins is lib/chains/solana/tokens.ts; the checkout uses it too.
  */
-export const EURC_MINT = new PublicKey("HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr");
-export type PayToken = "EURC" | "USDC";
+export const EURC_MINT = orders.EURC_MINT;
+export type { PayToken };
 export const PAY_TOKENS: Record<PayToken, { mint: PublicKey; decimals: number }> = {
-  EURC: { mint: EURC_MINT, decimals: 6 },
+  EURC: { mint: EURC_MINT, decimals: orders.TOKEN_DECIMALS },
   USDC: { mint: orders.USDC_MINT, decimals: orders.USDC_DECIMALS },
 };
 

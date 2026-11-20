@@ -9,7 +9,8 @@ import QrPay from "./QrPay";
 import { DEVNET, WalletError, waitForPayment } from "../components/wallet";
 import { shortAddress, useWallet, useWalletErrorText, useWalletFunds } from "../components/WalletProvider";
 import { useCheckText, useLang, useMessages } from "../components/I18n";
-import { usdc } from "@/lib/i18n/money";
+import { coinText, usdc } from "@/lib/i18n/money";
+import type { PayToken } from "@/lib/chains/solana/tokens";
 import { firstExpiry, readQuote } from "@/lib/checkout/quote-public";
 import { useMounted } from "../components/useMounted";
 
@@ -36,12 +37,14 @@ import { useMounted } from "../components/useMounted";
  * anyway (some wallets time out after sending), so nobody pays twice.
  *
  * HOW TO PAY
- * The shopper picks a way first. A wallet pays the escrow in USDC. "Pay on
- * eBay" opens each listing on eBay, to pay there with eBay's own methods and
+ * The coin is picked above the invoice (CoinChoice): EURC or USDC. Then the
+ * shopper picks a way. A wallet pays the escrow in that coin. "Pay on eBay"
+ * opens each listing on eBay, to pay there with eBay's own methods and
  * protection, with no address or wallet here. Card and bank transfer (when
- * MoonPay is on) buy the USDC into the shopper's wallet first, then pay as a
- * wallet does: the escrow only ever takes USDC from the buyer's own wallet.
- * Ways that aren't available aren't shown.
+ * MoonPay is on, and only for USDC, the coin MoonPay sells here) buy the USDC
+ * into the shopper's wallet first, then pay as a wallet does: the escrow only
+ * ever takes coins from the buyer's own wallet. Ways that aren't available
+ * aren't shown.
  *
  * THE PRICE
  * A quote lasts thirty minutes. The form says until when, and once it has run
@@ -66,8 +69,9 @@ export default function CheckoutForm({
   onPaid,
   onRefresh,
   escrowInfo,
-  usdcDisplay,
-  totalUsdc,
+  token,
+  display,
+  total,
   localDisplay,
   moonPay = false,
 }: {
@@ -81,10 +85,13 @@ export default function CheckoutForm({
   onRefresh?: () => Promise<string | null>;
   /** "What happens to your money": about the escrow, so shown only once a way that pays into it is chosen. */
   escrowInfo?: React.ReactNode;
-  usdcDisplay: string;
-  /** The total in USDC base units (the invoice's), to compare with the wallet's balance before Pay. */
-  totalUsdc?: string;
-  /** The same total in the listing's currency, for reference (e.g. "145,82 €"). */
+  /** The coin the invoice is in, and so the payment. */
+  token: PayToken;
+  /** The total as shown, e.g. "150,00 EURC". */
+  display: string;
+  /** The total in base units of `token` (the invoice's), to compare with the wallet's balance before Pay. */
+  total?: string;
+  /** The same total in euros, for reference beside a USDC amount (e.g. "145,82 €"). */
   localDisplay?: string;
   /** Whether to offer MoonPay when the wallet is short (see MOONPAY_ENABLED). */
   moonPay?: boolean;
@@ -104,7 +111,7 @@ export default function CheckoutForm({
   const [message, setMessage] = useState("");
   /** An order whose payment couldn't be told apart from a slow one: link to it rather than pay again. */
   const [unclearOrder, setUnclearOrder] = useState<string | null>(null);
-  /** How much more USDC the connected wallet needs, as the checkout said on Pay. */
+  /** How much more of the coin the connected wallet needs, as the checkout said on Pay. */
   const [shortfall, setShortfall] = useState<number | null>(null);
   const [topUpNote, setTopUpNote] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
@@ -144,15 +151,21 @@ export default function CheckoutForm({
   const mounted = useMounted();
   const expired = serverExpired || (mounted && expiresAt !== null && now / 1000 > expiresAt);
 
-  // Another account is another balance: what the checkout said about the last one no longer holds.
+  // Another account, or another coin, is another balance: what the checkout said about the last one no longer holds.
   useEffect(() => {
     setShortfall(null);
     setTopUpNote("");
-  }, [wallet?.address]);
+  }, [wallet?.address, token]);
+  // MoonPay sells USDC here: picking EURC drops a MoonPay way already chosen.
+  const moonPayHere = moonPay && token === "USDC";
+  useEffect(() => {
+    if (!moonPayHere && (method === "card" || method === "bank")) setMethod(null);
+  }, [moonPayHere, method]);
 
   // Known before Pay: the balance against the invoice's total, and SOL for the fees.
   const orderCount = quotes?.length ?? 1;
-  const shortBy = funds.status === "ok" && totalUsdc ? BigInt(totalUsdc) - funds.usdc : 0n;
+  const have = funds.status === "ok" ? (token === "EURC" ? funds.eurc : funds.usdc) : 0n;
+  const shortBy = funds.status === "ok" && total ? BigInt(total) - have : 0n;
   const needSol = funds.status === "ok" && funds.lamports < funds.minSolLamports * orderCount ? (funds.minSolLamports * orderCount) / 1e9 : 0;
   const short = shortfall ?? (shortBy > 0n ? Number(shortBy) / 1e6 : null);
 
@@ -248,11 +261,11 @@ export default function CheckoutForm({
       const res = await fetch(cart ? "/api/checkout/cart" : "/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(cart ? { quotes, buyer: payingAs, address } : { quote, buyer: payingAs, address }),
+        body: JSON.stringify(cart ? { quotes, buyer: payingAs, address, token } : { quote, buyer: payingAs, address, token }),
       });
       const body = await res.json();
       if (res.status === 402) {
-        if (typeof body.shortfallUsdc === "number") setShortfall(body.shortfallUsdc);
+        if (typeof body.shortfall === "number") setShortfall(body.shortfall);
         funds.refresh();
       }
       if (body.code === "quote_expired") setServerExpired(true);
@@ -313,7 +326,7 @@ export default function CheckoutForm({
   const way = method === "bank" ? m.checkout.sepaWay : m.checkout.cardWay;
 
   // The ways on offer: a wallet here or on the phone (QR) always; eBay when every item has its eBay page; MoonPay's two when it's on.
-  const methods: Method[] = ["wallet", "qr", ...(onEbay ? (["ebay"] as const) : []), ...(moonPay ? (["card", "bank"] as const) : [])];
+  const methods: Method[] = ["wallet", "qr", ...(onEbay ? (["ebay"] as const) : []), ...(moonPayHere ? (["card", "bank"] as const) : [])];
   const icon: Record<Method, { name: "wallet" | "device-mobile" | "storefront" | "tag" | "buildings"; tone: "purple" | "blue" | "green" }> = {
     wallet: { name: "wallet", tone: "purple" },
     qr: { name: "device-mobile", tone: "green" },
@@ -340,6 +353,7 @@ export default function CheckoutForm({
             </label>
           );
         })}
+        {moonPay && !moonPayHere && <p className="hint">{m.checkout.moonpayUsdcOnly}</p>}
       </fieldset>
 
       {method === "ebay" && (
@@ -394,6 +408,7 @@ export default function CheckoutForm({
             // A wallet app on the phone: the QR code is the whole wallet step (lib/checkout/pay-session.ts).
             <QrPay
               quotes={tokens}
+              token={token}
               address={address}
               validate={() => formRef.current?.reportValidity() ?? true}
               disabled={expired}
@@ -414,7 +429,7 @@ export default function CheckoutForm({
                 {" · "}
                 {m.wallet.balance}{" "}
                 {funds.status === "ok"
-                  ? usdc(funds.usdc.toString(), lang, "down")
+                  ? coinText(have.toString(), token, lang, "down")
                   : funds.status === "error"
                     ? m.wallet.balanceUnavailable
                     : m.wallet.checking}{" "}
@@ -438,7 +453,7 @@ export default function CheckoutForm({
               )}
               {!viaMoonPay && (shortBy > 0n || needSol > 0) && shortfall === null && (
                 <p className="notice withheld" role="status">
-                  {shortBy > 0n && m.wallet.short(usdc(shortBy.toString(), lang))}
+                  {shortBy > 0n && m.wallet.short(coinText(shortBy.toString(), token, lang))}
                   {shortBy > 0n && needSol > 0 && " "}
                   {needSol > 0 && m.wallet.needSol(needSol.toLocaleString(lang, { maximumFractionDigits: 3 }))}
                 </p>
@@ -449,7 +464,7 @@ export default function CheckoutForm({
                 </p>
               )}
               <button type="submit" className="primary" disabled={busy || expired}>
-                {busy ? m.checkout.working : m.checkout.payButton(`${usdcDisplay}${localDisplay ? ` (${localDisplay})` : ""}`)}
+                {busy ? m.checkout.working : m.checkout.payButton(`${display}${localDisplay ? ` (${localDisplay})` : ""}`)}
               </button>
             </>
           )}
@@ -469,7 +484,7 @@ export default function CheckoutForm({
           {method === "wallet" && short !== null && wallet && (
             <section className="top-up">
               <h3>{m.checkout.topUp}</h3>
-              {moonPay ? (
+              {moonPayHere ? (
                 <>
                   <p className="hint">{m.checkout.moonpay}</p>
                   <button type="button" className="primary" onClick={buyWithMoonPay}>
@@ -477,11 +492,11 @@ export default function CheckoutForm({
                   </button>
                 </>
               ) : (
-                <p className="hint">{m.checkout.addUsdc}</p>
+                <p className="hint">{m.checkout.addCoin(token)}</p>
               )}
               {DEVNET && (
                 <p className="hint">
-                  {m.checkout.faucet}{" "}
+                  {m.checkout.faucet(token)}{" "}
                   <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer">
                     faucet.circle.com
                   </a>

@@ -1,8 +1,9 @@
 /**
- * lib/checkout/fx.ts — euro prices to USDC.
+ * lib/checkout/fx.ts — prices in the coin the shopper pays with.
  *
- * USDC tracks the US dollar, and most listings here are priced in euros, so
- * every checkout needs an exchange rate. The rate is the European Central
+ * EURC is a digital euro: a euro price is paid one to one, with no rate at all.
+ * USDC tracks the US dollar, and most listings here are priced in euros, so a
+ * USDC checkout needs an exchange rate (as does a dollar listing paid in EURC). The rate is the European Central
  * Bank's daily reference rate (via Frankfurter, free and keyless), and the
  * checkout SHOWS it — rate and date — rather than burying a conversion inside
  * the number. A shopper paying 283.43 USDC for a 249.00 EUR item should be able
@@ -17,6 +18,8 @@
  * 1_136_700), because a float rate times a float price is exactly how a
  * checkout ends up charging 283.4299999 and then rounding the wrong way.
  */
+
+import type { PayToken } from "../chains/solana/tokens";
 
 const ECB_URL = "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD";
 const CACHE_MS = 60 * 60 * 1000;
@@ -104,6 +107,49 @@ export function toUsdcBaseUnits(minorUnits: number, currency: string, rate: FxRa
     default:
       return null;
   }
+}
+
+/**
+ * Minor units of a currency -> base units of the coin paid with (6 decimals).
+ *
+ *   EUR in EURC, USD in USDC: 1 cent = 10_000 base units, no conversion.
+ *   EUR in USDC: cents * rate (toUsdcBaseUnits).
+ *   USD in EURC: cents / rate:
+ *        (cents / 100) USD / (micro / 1e6) USD/EUR * 1e6 base/EUR
+ *        = cents * 1e10 / micro
+ *
+ * Rounded UP like every amount to pay. Null for any other currency, or when a
+ * conversion is needed and there is no rate.
+ */
+export function toTokenBaseUnits(minorUnits: number, currency: string, token: PayToken, rate: FxRate | null): bigint | null {
+  if (token === "USDC") return toUsdcBaseUnits(minorUnits, currency, rate);
+  if (!Number.isInteger(minorUnits) || minorUnits <= 0) return null;
+  const cents = BigInt(minorUnits);
+  switch (currency.toUpperCase()) {
+    case "EUR":
+      return cents * 10_000n;
+    case "USD": {
+      if (!rate) return null;
+      return (cents * 10_000_000_000n + rate.micro - 1n) / rate.micro;
+    }
+    default:
+      return null;
+  }
+}
+
+/** Whether pricing in `token` needs the EUR/USD rate: a listing in the other coin's currency. */
+export function needsRate(currencies: readonly string[], token: PayToken): boolean {
+  const own = token === "EURC" ? "EUR" : "USD";
+  return currencies.some((c) => c.toUpperCase() !== own);
+}
+
+/**
+ * What an amount in USDC is worth in euro cents at `rate`, to the nearest cent:
+ * for the "= 150,00 €" beside a USDC total. base / micro euros, so
+ * base * 100 / micro cents.
+ */
+export function usdcInEuroCents(base: bigint, rate: FxRate): number {
+  return Number((base * 100n + rate.micro / 2n) / rate.micro);
 }
 
 /** Test hook: forget the cached rate. */

@@ -50,7 +50,7 @@ test("the scan's outcome holds no address, and runs out with the session", async
   const id = newSessionId();
   const now = Date.now();
   assert.equal(await scans.get(id, now), null);
-  await scans.set(id, { state: "failed", message: "This wallet holds 0.00 USDC; the order needs 100.93 USDC.", shortfallUsdc: 100.93 }, now);
+  await scans.set(id, { state: "failed", message: "This wallet holds 0.00 USDC; the order needs 100.93 USDC.", shortfall: 100.93, token: "USDC" }, now);
   assert.equal((await scans.get(id, now))?.state, "failed");
   await scans.set(id, { state: "scanned", orders: [{ order: "o", source: "ebay", id: "1", title: "t" }], validUntil: 100, buyer: "b" }, now);
   const s = await scans.get(id, now);

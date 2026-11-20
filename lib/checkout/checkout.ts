@@ -12,7 +12,7 @@
  *
  *   1. verify the quote          — price comes from the signature, not the form
  *   2. validate the address      — only the fields delivery needs
- *   3. price in USDC             — at a rate that is shown, never invented
+ *   3. price in the coin chosen  — EURC one to one for euros; USDC at a rate that is shown, never invented
  *   4. check the wallet can pay  — a plain message beats a failed signature
  *   5. build the transaction     (one escrow order per item: a cart pays for several at once)
  *   6. store the address         — BEFORE returning the transaction
@@ -28,7 +28,8 @@ import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import * as orders from "../chains/solana/orders";
 import { associatedTokenAddress, tokenAmountFromData } from "../chains/solana/spl";
 import { verifyQuote, type QuotedListing } from "./quote";
-import { eurUsdRate, toUsdcBaseUnits, type FxRate } from "./fx";
+import { eurUsdRate, needsRate, toTokenBaseUnits, usdcInEuroCents, type FxRate } from "./fx";
+import { defaultPayToken, parsePayToken, type PayToken } from "../chains/solana/tokens";
 import { withServiceFee } from "./fee";
 import { AddressStore, validateAddress } from "./address-store";
 import { OrderMetaStore, type ChainOrderView } from "../reports/order-meta";
@@ -88,16 +89,19 @@ export async function readOrder(conn: Connection, order: PublicKey): Promise<Cha
 }
 
 /**
- * What a wallet can pay with: its USDC (base units, 0 without a token account)
- * and its SOL. The checkout and the page's balance check read it the same way,
- * so the page never says "enough" where the checkout will say "short".
+ * What a wallet can pay with: its EURC and USDC (base units, 0 without a token
+ * account) and its SOL. The checkout and the page's balance check read it the
+ * same way, so the page never says "enough" where the checkout will say "short".
  */
-export async function walletFunds(conn: Connection, owner: PublicKey): Promise<{ usdc: bigint; lamports: number }> {
-  const [tokenInfo, lamports] = await Promise.all([
-    conn.getAccountInfo(associatedTokenAddress(owner, orders.USDC_MINT)),
+export async function walletFunds(conn: Connection, owner: PublicKey): Promise<{ balances: Record<PayToken, bigint>; lamports: number }> {
+  const [infos, lamports] = await Promise.all([
+    conn.getMultipleAccountsInfo([associatedTokenAddress(owner, orders.EURC_MINT), associatedTokenAddress(owner, orders.USDC_MINT)]),
     conn.getBalance(owner),
   ]);
-  return { usdc: tokenAmountFromData(tokenInfo?.data) ?? 0n, lamports };
+  return {
+    balances: { EURC: tokenAmountFromData(infos[0]?.data) ?? 0n, USDC: tokenAmountFromData(infos[1]?.data) ?? 0n },
+    lamports,
+  };
 }
 
 /** For OrderMetaStore.sweep: status AND settlement time, since the report window runs from settlement. */
@@ -133,9 +137,11 @@ export interface PreparedCheckout {
   /** Unsigned transaction, base64. The wallet signs and sends it. */
   transaction: string;
   order: string;
-  /** Total the escrow takes: item + service fee. */
-  usdcBaseUnits: string;
-  usdcDisplay: string;
+  /** The coin paid in. */
+  token: PayToken;
+  /** Total the escrow takes: item + service fee, in base units of `token`. */
+  baseUnits: string;
+  display: string;
   /** The service fee within the total. */
   feeBaseUnits: string;
   rate: FxRate | null;
@@ -148,8 +154,8 @@ export interface PreparedCheckout {
 /** One order of a cart checkout. */
 export interface PreparedOrder {
   order: string;
-  usdcBaseUnits: string;
-  usdcDisplay: string;
+  baseUnits: string;
+  display: string;
   feeBaseUnits: string;
   listing: QuotedListing;
 }
@@ -159,6 +165,7 @@ export interface PreparedCartCheckout {
   ok: true;
   transaction: string;
   orders: PreparedOrder[];
+  token: PayToken;
   totalBaseUnits: string;
   totalDisplay: string;
   rate: FxRate | null;
@@ -172,8 +179,9 @@ export interface CheckoutError {
   /** HTTP status the route should answer with. */
   status: number;
   error: string;
-  /** When the wallet is short of USDC: how much more it needs, in whole USDC. */
-  shortfallUsdc?: number;
+  /** When the wallet is short of the coin: how much more it needs, in whole coins. */
+  shortfall?: number;
+  token?: PayToken;
   /** "quote_expired": a price ran out; the form offers to fetch the current one, keeping the address. */
   code?: "quote_expired";
 }
@@ -199,18 +207,19 @@ type CheckoutDeps = {
 };
 
 export async function prepareCheckout(
-  input: { quote: unknown; buyer: unknown; address: unknown },
+  input: { quote: unknown; buyer: unknown; address: unknown; token?: unknown },
   deps: CheckoutDeps = {},
 ): Promise<PreparedCheckout | CheckoutError> {
-  const r = await prepareOrders({ quotes: [input.quote], buyer: input.buyer, address: input.address }, deps);
+  const r = await prepareOrders({ quotes: [input.quote], buyer: input.buyer, address: input.address, token: input.token }, deps);
   if (!r.ok) return r;
   const o = r.orders[0];
   return {
     ok: true,
     transaction: r.transaction,
     order: o.order,
-    usdcBaseUnits: o.usdcBaseUnits,
-    usdcDisplay: o.usdcDisplay,
+    token: r.token,
+    baseUnits: o.baseUnits,
+    display: o.display,
     feeBaseUnits: o.feeBaseUnits,
     rate: r.rate,
     windowSecs: r.windowSecs,
@@ -221,14 +230,19 @@ export async function prepareCheckout(
 
 /** A cart: up to MAX_CART_ORDERS signed quotes, paid with one approval. */
 export async function prepareCartCheckout(
-  input: { quotes: unknown; buyer: unknown; address: unknown },
+  input: { quotes: unknown; buyer: unknown; address: unknown; token?: unknown },
   deps: CheckoutDeps = {},
 ): Promise<PreparedCartCheckout | CheckoutError> {
   if (!Array.isArray(input.quotes) || input.quotes.length === 0) return { ok: false, status: 400, error: "Nothing to pay for." };
   if (input.quotes.length > MAX_CART_ORDERS) {
     return { ok: false, status: 400, error: `One payment covers up to ${MAX_CART_ORDERS} items. Pay for the rest in a second payment.` };
   }
-  return prepareOrders({ quotes: input.quotes, buyer: input.buyer, address: input.address }, deps);
+  return prepareOrders({ quotes: input.quotes, buyer: input.buyer, address: input.address, token: input.token }, deps);
+}
+
+/** The coin asked for, or the default for these listings: EURC when all are in euros. */
+export function chooseToken(asked: unknown, listings: { currency: string }[]): PayToken {
+  return parsePayToken(asked) ?? defaultPayToken(listings.map((l) => l.currency));
 }
 
 /** Step 1, shared by the payment and its invoice: every quote verified, no item twice, no penalised seller. */
@@ -270,45 +284,58 @@ function verifyQuotes(quotes: unknown[], env: Record<string, string | undefined>
   return { ok: true, listings };
 }
 
+type Priced = { listing: QuotedListing; item: bigint; total: bigint; fee: bigint };
+
 /**
- * Step 3, shared by the payment and its invoice: each item in USDC at one
- * rate, plus the service fee signed into its quote. The invoice can't show a
- * number the payment wouldn't charge.
+ * Step 3, shared by the payment and its invoice: each item in the chosen coin
+ * (EURC one to one for euros, otherwise at one ECB rate for the whole
+ * payment), plus the service fee signed into its quote. The invoice can't show
+ * a number the payment wouldn't charge.
  */
 async function priceListings(
   listings: QuotedListing[],
+  token: PayToken,
   env: Record<string, string | undefined>,
   fetchImpl?: typeof fetch,
-): Promise<{ ok: true; rate: FxRate | null; priced: { listing: QuotedListing; item: bigint; usdc: bigint; fee: bigint }[]; total: bigint } | CheckoutError> {
+): Promise<{ ok: true; rate: FxRate | null; priced: Priced[]; total: bigint } | CheckoutError> {
   const many = listings.length > 1;
-  const rate = listings.every((l) => l.currency.toUpperCase() === "USD") ? null : await eurUsdRate(env, fetchImpl);
-  const priced: { listing: QuotedListing; item: bigint; usdc: bigint; fee: bigint }[] = [];
+  const rate = needsRate(listings.map((l) => l.currency), token) ? await eurUsdRate(env, fetchImpl) : null;
+  const priced: Priced[] = [];
   for (const listing of listings) {
-    const usd = listing.currency.toUpperCase() === "USD";
-    const itemUsdc = toUsdcBaseUnits(listing.amount, listing.currency, usd ? null : rate);
-    if (itemUsdc === null) {
+    const item = toTokenBaseUnits(listing.amount, listing.currency, token, rate);
+    if (item === null) {
+      const known = ["EUR", "USD"].includes(listing.currency.toUpperCase());
       return {
         ok: false,
-        status: listing.currency.toUpperCase() === "EUR" ? 503 : 400,
-        error:
-          listing.currency.toUpperCase() === "EUR"
-            ? `No exchange rate is available right now, so ${many ? "these" : "this"} cannot be priced in USDC.`
-            : `Listings priced in ${listing.currency} cannot be paid in USDC yet.`,
+        status: known ? 503 : 400,
+        error: known
+          ? `No exchange rate is available right now, so ${many ? "these" : "this"} cannot be priced in ${token}.`
+          : `Listings priced in ${listing.currency} cannot be paid in ${token} yet.`,
       };
     }
     // SigPath's service fee, at the rate signed into the quote, goes into the
     // escrow with the price: paid out on fulfilment, refunded with it otherwise.
-    const { fee, total } = withServiceFee(itemUsdc, listing.feeBps ?? 0);
+    const { fee, total } = withServiceFee(item, listing.feeBps ?? 0);
     if (total > orders.MAX_AMOUNT) {
       return {
         ok: false,
         status: 400,
-        error: `${many ? `"${listing.title}" costs` : "This costs"} ${orders.formatUsdc(total)}, over the ${orders.formatUsdc(orders.MAX_AMOUNT)} per-order limit.`,
+        error: `${many ? `"${listing.title}" costs` : "This costs"} ${orders.formatToken(total, token)}, over the ${orders.formatToken(orders.MAX_AMOUNT, token)} per-order limit.`,
       };
     }
-    priced.push({ listing, item: itemUsdc, usdc: total, fee });
+    priced.push({ listing, item, total, fee });
   }
-  return { ok: true, rate, priced, total: priced.reduce((t, x) => t + x.usdc, 0n) };
+  return { ok: true, rate, priced, total: priced.reduce((t, x) => t + x.total, 0n) };
+}
+
+/**
+ * What a total is worth in euros, in cents: the "= 150,00 €" beside it. EURC
+ * is euros already; USDC is converted back at the same rate it was priced at.
+ * Null when there is no rate to say it with (a USDC payment of dollar listings).
+ */
+export function euroValueCents(total: bigint, token: PayToken, rate: FxRate | null): number | null {
+  if (token === "EURC") return Number((total + 5_000n) / 10_000n);
+  return rate ? usdcInEuroCents(total, rate) : null;
 }
 
 /** One line of the invoice shown before (and after) paying. */
@@ -320,37 +347,43 @@ export interface InvoiceLine {
   /** The listing's price including shipping, in its own currency (minor units). */
   amount: number;
   currency: string;
-  /** In USDC base units: the item, the service fee, and the two together. */
-  itemUsdc: string;
-  feeUsdc: string;
-  totalUsdc: string;
+  /** In base units of the coin paid in: the item, the service fee, and the two together. */
+  itemBase: string;
+  feeBase: string;
+  totalBase: string;
   feeBps: number;
 }
 
 export interface Invoice {
   ok: true;
+  /** The coin this invoice is in. */
+  token: PayToken;
   lines: InvoiceLine[];
-  totalUsdc: string;
+  totalBase: string;
   totalDisplay: string;
+  /** The total's worth in euros (cents), for "= 150,00 €" beside it; null without a rate. */
+  euroCents: number | null;
   /** Per currency, in minor units: what the items cost before conversion. */
   localTotals: { amount: number; currency: string }[];
   rate: { display: string; source: string } | null;
 }
 
-/** The invoice for these quotes: what's being bought, and every conversion to USDC. Charges nothing. */
-export async function invoiceFor(quotes: unknown, deps: CheckoutDeps = {}): Promise<Invoice | CheckoutError> {
+/** The invoice for these quotes in the chosen coin: what's being bought, and every conversion. Charges nothing. */
+export async function invoiceFor(quotes: unknown, deps: CheckoutDeps = {}, asked?: unknown): Promise<Invoice | CheckoutError> {
   const env = deps.env ?? process.env;
   if (!Array.isArray(quotes) || quotes.length === 0 || quotes.length > MAX_CART_ORDERS) {
     return { ok: false, status: 400, error: "Nothing to show." };
   }
   const v = verifyQuotes(quotes, env, deps);
   if (!v.ok) return v;
-  const p = await priceListings(v.listings, env, deps.fetchImpl);
+  const token = chooseToken(asked, v.listings);
+  const p = await priceListings(v.listings, token, env, deps.fetchImpl);
   if (!p.ok) return p;
   const local = new Map<string, number>();
   for (const l of v.listings) local.set(l.currency, (local.get(l.currency) ?? 0) + l.amount);
   return {
     ok: true,
+    token,
     lines: p.priced.map((x) => ({
       source: x.listing.source,
       id: x.listing.id,
@@ -358,20 +391,21 @@ export async function invoiceFor(quotes: unknown, deps: CheckoutDeps = {}): Prom
       url: x.listing.url,
       amount: x.listing.amount,
       currency: x.listing.currency,
-      itemUsdc: x.item.toString(),
-      feeUsdc: x.fee.toString(),
-      totalUsdc: x.usdc.toString(),
+      itemBase: x.item.toString(),
+      feeBase: x.fee.toString(),
+      totalBase: x.total.toString(),
       feeBps: x.listing.feeBps ?? 0,
     })),
-    totalUsdc: p.total.toString(),
-    totalDisplay: orders.formatUsdc(p.total),
+    totalBase: p.total.toString(),
+    totalDisplay: orders.formatToken(p.total, token),
+    euroCents: euroValueCents(p.total, token, p.rate),
     localTotals: [...local].map(([currency, amount]) => ({ currency, amount })),
     rate: p.rate ? { display: p.rate.display, source: p.rate.source } : null,
   };
 }
 
 async function prepareOrders(
-  input: { quotes: unknown[]; buyer: unknown; address: unknown },
+  input: { quotes: unknown[]; buyer: unknown; address: unknown; token?: unknown },
   deps: CheckoutDeps,
 ): Promise<PreparedCartCheckout | CheckoutError> {
   const env = deps.env ?? process.env;
@@ -399,21 +433,25 @@ async function prepareOrders(
   const addr = validateAddress(input.address);
   if (!addr.ok) return { ok: false, status: 400, error: addr.error };
 
-  // 3. prices in USDC, at one rate for the whole payment
-  const p = await priceListings(listings, env, deps.fetchImpl);
+  // 3. prices in the chosen coin, at one rate for the whole payment if any is needed
+  const token = chooseToken(input.token, listings);
+  const p = await priceListings(listings, token, env, deps.fetchImpl);
   if (!p.ok) return p;
   const { rate, priced, total } = p;
 
   // 4. can this wallet pay for all of it?
   const conn = deps.conn ?? new Connection(ordersRpcUrl(env), "confirmed");
-  const buyerToken = associatedTokenAddress(buyer, orders.USDC_MINT);
-  const { usdc: have, lamports } = await walletFunds(conn, buyer);
+  const mint = orders.mintOf(token);
+  const buyerToken = associatedTokenAddress(buyer, mint);
+  const { balances, lamports } = await walletFunds(conn, buyer);
+  const have = balances[token];
   if (have < total) {
     return {
       ok: false,
       status: 402,
-      shortfallUsdc: Number(total - have) / 10 ** orders.USDC_DECIMALS,
-      error: `This wallet holds ${orders.formatUsdc(have)}; ${many ? "these orders need" : "the order needs"} ${orders.formatUsdc(total)}.`,
+      shortfall: Number(total - have) / 10 ** orders.TOKEN_DECIMALS,
+      token,
+      error: `This wallet holds ${orders.formatToken(have, token)}; ${many ? "these orders need" : "the order needs"} ${orders.formatToken(total, token)}.`,
     };
   }
   // Each order pays rent for its own account and vault.
@@ -437,9 +475,10 @@ async function prepareOrders(
       orders.createOrderIx({
         buyer,
         nonce,
-        amount: p.usdc,
+        amount: p.total,
         listingHash: orders.listingHash(p.listing),
         windowSecs,
+        mint,
         buyerToken,
       }),
     );
@@ -478,7 +517,7 @@ async function prepareOrders(
     try {
       await store.put(
         b.order.toBase58(),
-        { address: addr.address, buyer: buyer.toBase58(), listing, usdc: b.usdc.toString(), feeUsdc: b.fee.toString() },
+        { address: addr.address, buyer: buyer.toBase58(), listing, token, amount: b.total.toString(), fee: b.fee.toString() },
         deps.now,
       );
     } catch {
@@ -491,13 +530,14 @@ async function prepareOrders(
     transaction: serialized.toString("base64"),
     orders: built.map((b) => ({
       order: b.order.toBase58(),
-      usdcBaseUnits: b.usdc.toString(),
-      usdcDisplay: orders.formatUsdc(b.usdc),
+      baseUnits: b.total.toString(),
+      display: orders.formatToken(b.total, token),
       feeBaseUnits: b.fee.toString(),
       listing: b.listing,
     })),
+    token,
     totalBaseUnits: total.toString(),
-    totalDisplay: orders.formatUsdc(total),
+    totalDisplay: orders.formatToken(total, token),
     rate,
     windowSecs,
     validUntil: lastValidBlockHeight,
@@ -535,7 +575,7 @@ export async function prepareRefund(
 
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
   const tx = new Transaction({ feePayer: caller, blockhash, lastValidBlockHeight }).add(
-    orders.refundIx({ caller, order, buyer: state.buyer }),
+    orders.refundIx({ caller, order, buyer: state.buyer, mint: state.mint }),
   );
   return { ok: true, transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64") };
 }

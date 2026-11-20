@@ -10,22 +10,28 @@
 import type { Connection, PublicKey } from "@solana/web3.js";
 import { getBase58Decoder } from "@solana/kit";
 import { decodeOrder, ORDER_ACCOUNT_DISCRIMINATOR, ORDER_LAYOUT, ORDERS_PROGRAM_ID, type OrderStatus } from "../chains/solana/orders";
+import type { PayToken } from "../chains/solana/tokens";
 
 export interface WalletOrder {
   /** The order account's address: its page is /order/<address>. */
   address: string;
   status: OrderStatus;
-  /** USDC base units. */
+  /** Base units of `token`. */
   amount: bigint;
+  /** The coin it was paid in. */
+  token: PayToken;
   createdAt: number;
   deadline: number;
   settledAt: number;
 }
 
-/** The filters for one buyer's orders: SigPath order accounts whose buyer field is this wallet. */
+/**
+ * The filters for one buyer's orders: SigPath order accounts whose buyer field
+ * is this wallet. No size filter: orders since EURC are longer (their coin
+ * follows the record), and both sizes are this buyer's orders.
+ */
 export function buyerFilters(buyer: PublicKey) {
   return [
-    { dataSize: ORDER_LAYOUT.size },
     { memcmp: { offset: 0, bytes: getBase58Decoder().decode(ORDER_ACCOUNT_DISCRIMINATOR) } },
     { memcmp: { offset: ORDER_LAYOUT.buyer, bytes: buyer.toBase58() } },
   ];
@@ -39,7 +45,7 @@ export async function ordersForBuyer(conn: Pick<Connection, "getProgramAccounts"
     try {
       const o = decodeOrder(account.data);
       if (!o.buyer.equals(buyer)) continue;
-      out.push({ address: pubkey.toBase58(), status: o.status, amount: o.amount, createdAt: o.createdAt, deadline: o.deadline, settledAt: o.settledAt });
+      out.push({ address: pubkey.toBase58(), status: o.status, amount: o.amount, token: o.token, createdAt: o.createdAt, deadline: o.deadline, settledAt: o.settledAt });
     } catch {
       /* not an order after all */
     }

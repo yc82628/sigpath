@@ -62,12 +62,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (metaStore) await metaStore.sweep(chainStateReader(conn)).catch(() => undefined);
 
   const result = await prepareCartCheckout(
-    { quotes: session.quotes, buyer: body?.account, address: session.address },
+    { quotes: session.quotes, buyer: body?.account, address: session.address, token: session.token },
     { store: addresses, metaStore, conn, upheldReports: await DecisionLog.fromEnv().upheldCounts() },
   );
   if (!result.ok) {
     // The page shows why (a short balance, a price run out); the session stays, so the same code can be scanned again.
-    await scans.set(params.id, { state: "failed", message: result.error, ...(result.shortfallUsdc ? { shortfallUsdc: result.shortfallUsdc } : {}) }).catch(() => undefined);
+    await scans.set(params.id, { state: "failed", message: result.error, ...(result.shortfall ? { shortfall: result.shortfall, token: result.token } : {}) }).catch(() => undefined);
     return reply({ message: result.error }, result.status);
   }
 

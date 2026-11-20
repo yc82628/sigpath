@@ -63,6 +63,10 @@ export function usdcCents(base: string, round: "up" | "down"): string {
 export const usdc = (base: string, lang: Lang = "en", round: "up" | "down" | "exact" = "up") =>
   `${decimalText(round === "exact" ? usdcNumber(base) : usdcCents(base, round), lang)} USDC`;
 
+/** The same for either coin: "150,00 EURC", "164,88 USDC". */
+export const coinText = (base: string, token: "EURC" | "USDC", lang: Lang = "en", round: "up" | "down" | "exact" = "up") =>
+  `${decimalText(round === "exact" ? usdcNumber(base) : usdcCents(base, round), lang)} ${token}`;
+
 /** Every "125.19 EUR" inside a sentence, written the German way. For the check reasons. */
 export function germanMoneyInText(s: string): string {
   return s.replace(/\b(\d+)\.(\d{2}) (EUR|USD|GBP|CHF)\b/g, (_, whole: string, cents: string, cur: string) =>

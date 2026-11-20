@@ -6,7 +6,7 @@ import { join } from "path";
 import { randomBytes, createHmac } from "crypto";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { signQuote, verifyQuote, QUOTE_TTL_SECONDS } from "../lib/checkout/quote";
-import { eurUsdRate, rateToMicro, toUsdcBaseUnits, _resetFxCache } from "../lib/checkout/fx";
+import { eurUsdRate, rateToMicro, toTokenBaseUnits, toUsdcBaseUnits, _resetFxCache } from "../lib/checkout/fx";
 import {
   AddressStore,
   validateAddress,
@@ -16,7 +16,7 @@ import {
 } from "../lib/checkout/address-store";
 import { checkoutEligibility, priceCheckFor } from "../lib/checkout/eligibility";
 import { analyse } from "../lib/marketplace/anomaly";
-import { prepareCheckout, prepareRefund, walletFunds, MIN_SOL_LAMPORTS } from "../lib/checkout/checkout";
+import { euroValueCents, prepareCheckout, prepareRefund, walletFunds, MIN_SOL_LAMPORTS } from "../lib/checkout/checkout";
 import { OrderMetaStore } from "../lib/reports/order-meta";
 import * as orders from "../lib/chains/solana/orders";
 import { associatedTokenAddress } from "../lib/chains/solana/spl";
@@ -399,9 +399,19 @@ test("nothing is price-checked while a marketplace is failing", () => {
 // prepareCheckout, against a fake connection
 // ---------------------------------------------------------------------------
 
-function fakeConn(opts: { usdc: bigint | null; lamports: number; order?: Buffer | null }): Connection {
+function tokenAccount(amount: bigint | null) {
+  if (amount === null) return null;
+  const data = Buffer.alloc(165);
+  data.writeBigUInt64LE(amount, 64);
+  return { owner: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), data, executable: false, lamports: 1 };
+}
+
+/** `eurc` defaults to the same balance as `usdc`, so a test about one coin isn't short of the other. */
+function fakeConn(opts: { usdc: bigint | null; eurc?: bigint | null; lamports: number; order?: Buffer | null }): Connection {
   const blockhash = Keypair.generate().publicKey.toBase58();
   return {
+    // walletFunds asks for [EURC account, USDC account], in that order.
+    getMultipleAccountsInfo: async (pks: PublicKey[]) => pks.map((_, i) => tokenAccount(i === 0 ? (opts.eurc === undefined ? opts.usdc : opts.eurc) : opts.usdc)),
     getAccountInfo: async (pk: PublicKey) => {
       if (opts.order !== undefined && opts.order !== null) {
         return { owner: orders.ORDERS_PROGRAM_ID, data: opts.order, executable: false, lamports: 1 };
@@ -424,15 +434,16 @@ test("a valid checkout returns a transaction for exactly the quoted amount", asy
   const buyer = Keypair.generate().publicKey;
   const r = await prepareCheckout(
     // A fee set on purpose (the default is none), so the arithmetic with one is checked.
-    { quote: signQuote(LISTING, { ...ENV, SIGPATH_FEE_BPS: "200" })!, buyer: buyer.toBase58(), address: ADDRESS },
+    { quote: signQuote(LISTING, { ...ENV, SIGPATH_FEE_BPS: "200" })!, buyer: buyer.toBase58(), address: ADDRESS, token: "USDC" },
     { env: ENV, store, conn: rich(), fetchImpl: noFetch },
   );
   assert.ok(r.ok, !r.ok ? r.error : "");
   if (!r.ok) return;
 
   // Item 283.0383 USDC (249.00 EUR at 1.1367) + the 2% service fee 5.660766 = 288.699066.
+  assert.equal(r.token, "USDC");
   assert.equal(r.feeBaseUnits, "5660766");
-  assert.equal(r.usdcBaseUnits, "288699066");
+  assert.equal(r.baseUnits, "288699066");
   const tx = Transaction.from(Buffer.from(r.transaction, "base64"));
   assert.ok(tx.feePayer?.equals(buyer), "the buyer pays the fee");
   assert.equal(tx.instructions.length, 1);
@@ -441,13 +452,62 @@ test("a valid checkout returns a transaction for exactly the quoted amount", asy
   assert.equal(ix.data.readBigUInt64LE(16), 288_699_066n, "the amount signed for is the amount quoted, fee included");
   assert.deepEqual(ix.data.subarray(24, 56), orders.listingHash(LISTING), "the order commits to this listing");
   assert.ok(ix.keys[3].pubkey.equals(associatedTokenAddress(buyer, orders.USDC_MINT)));
+  assert.ok(ix.keys[4].pubkey.equals(orders.USDC_MINT));
   assert.equal(tx.signatures.every((s) => s.signature === null), true, "the server signs nothing");
 
-  // The address was stored BEFORE the transaction was handed back, with the fee noted for the operator.
+  // The address was stored BEFORE the transaction was handed back, with the coin and fee noted for the operator.
   const rec = (await store.get(r.order))?.record;
   assert.equal(rec?.address.city, "Berlin");
-  assert.equal(rec?.usdc, "288699066");
-  assert.equal(rec?.feeUsdc, "5660766");
+  assert.equal(rec?.token, "USDC");
+  assert.equal(rec?.amount, "288699066");
+  assert.equal(rec?.fee, "5660766");
+});
+
+test("a euro price is paid in EURC by default: one to one, no rate, the EURC mint", async () => {
+  const { store } = tmpStore();
+  const buyer = Keypair.generate().publicKey;
+  // No fetch at all: a euro price in EURC needs no exchange rate.
+  const r = await prepareCheckout(
+    { quote: signQuote(LISTING, ENV)!, buyer: buyer.toBase58(), address: ADDRESS },
+    { env: ENV, store, conn: rich(), fetchImpl: (async () => { throw new Error("no rate needed"); }) as unknown as typeof fetch },
+  );
+  assert.ok(r.ok, !r.ok ? r.error : "");
+  if (!r.ok) return;
+  assert.equal(r.token, "EURC");
+  assert.equal(r.baseUnits, "249000000", "249.00 EUR is 249 EURC");
+  assert.equal(r.display, "249.00 EURC");
+  assert.equal(r.rate, null);
+  const ix = Transaction.from(Buffer.from(r.transaction, "base64")).instructions[0];
+  assert.equal(ix.data.readBigUInt64LE(16), 249_000_000n);
+  assert.ok(ix.keys[3].pubkey.equals(associatedTokenAddress(buyer, orders.EURC_MINT)), "paid from the buyer's EURC account");
+  assert.ok(ix.keys[4].pubkey.equals(orders.EURC_MINT));
+  assert.equal((await store.get(r.order))?.record.token, "EURC");
+});
+
+test("the shopper can still choose USDC, and an unknown coin falls back to the default", async () => {
+  const { store } = tmpStore();
+  const buyer = Keypair.generate().publicKey.toBase58();
+  const usdc = await prepareCheckout({ quote: signQuote(LISTING, ENV)!, buyer, address: ADDRESS, token: "usdc" }, { env: ENV, store, conn: rich(), fetchImpl: noFetch });
+  assert.ok(usdc.ok && usdc.token === "USDC" && usdc.baseUnits === "283038300");
+  const odd = await prepareCheckout({ quote: signQuote(LISTING, ENV)!, buyer, address: ADDRESS, token: "DOGE" }, { env: ENV, store, conn: rich(), fetchImpl: noFetch });
+  assert.ok(odd.ok && odd.token === "EURC");
+});
+
+test("a dollar price in EURC is converted at the same ECB rate, rounded up", () => {
+  const rate = { micro: 1_136_700n, display: "1.1367", source: "test" };
+  // 100.00 USD / 1.1367 = 87.9739597... EUR -> 87.973960 EURC, rounded up.
+  assert.equal(toTokenBaseUnits(10_000, "USD", "EURC", rate), 87_973_960n);
+  assert.equal(toTokenBaseUnits(10_000, "USD", "EURC", null), null, "no rate, no price");
+  assert.equal(toTokenBaseUnits(24_900, "EUR", "EURC", null), 249_000_000n, "a euro price needs no rate");
+  assert.equal(toTokenBaseUnits(24_900, "EUR", "USDC", rate), 283_038_300n, "USDC as before");
+});
+
+test("the euro value beside a USDC total: the price it came from, to the cent", () => {
+  const rate = { micro: 1_136_700n, display: "1.1367", source: "test" };
+  assert.equal(euroValueCents(283_038_300n, "USDC", rate), 24_900, "283.0383 USDC is 249.00 EUR");
+  assert.equal(euroValueCents(164_880_000n, "USDC", { micro: 1_099_200n, display: "1.0992", source: "test" }), 15_000, "the friend's 164.88 USDC is 150.00 EUR");
+  assert.equal(euroValueCents(249_000_000n, "EURC", null), 24_900);
+  assert.equal(euroValueCents(1_000_000n, "USDC", null), null, "no rate: nothing to say");
 });
 
 test("the fee is the one signed into the quote, not whatever the setting says at checkout", async () => {
@@ -455,7 +515,7 @@ test("the fee is the one signed into the quote, not whatever the setting says at
   const quote = signQuote(LISTING, { ...ENV, SIGPATH_FEE_BPS: "150" })!;
   // The setting changes between the search and the checkout: the shopper still pays what they were shown.
   const r = await prepareCheckout(
-    { quote, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { quote, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS, token: "USDC" },
     { env: { ...ENV, SIGPATH_FEE_BPS: "500" }, store, conn: rich(), fetchImpl: noFetch },
   );
   assert.ok(r.ok);
@@ -468,13 +528,13 @@ test("a quote from before the fee existed is honoured without one", async () => 
   const body = Buffer.from(JSON.stringify({ ...LISTING, expiresAt: Math.floor(Date.now() / 1000) + 600 })).toString("base64url");
   const mac = createHmac("sha256", ENV.QUOTE_SECRET).update("sigpath-quote-v1\n").update(body).digest("base64url");
   const r = await prepareCheckout(
-    { quote: `${body}.${mac}`, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { quote: `${body}.${mac}`, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS, token: "USDC" },
     { env: ENV, store, conn: rich(), fetchImpl: noFetch },
   );
   assert.ok(r.ok, !r.ok ? r.error : "");
   if (r.ok) {
     assert.equal(r.feeBaseUnits, "0");
-    assert.equal(r.usdcBaseUnits, "283038300");
+    assert.equal(r.baseUnits, "283038300");
   }
 });
 
@@ -507,7 +567,7 @@ test("a wallet that cannot pay gets a plain message, and no address is stored", 
   // Data minimisation: an order that cannot happen has no reason to hold an address.
   const { dir, store } = tmpStore();
   const r = await prepareCheckout(
-    { quote: signQuote(LISTING, ENV)!, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { quote: signQuote(LISTING, ENV)!, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS, token: "USDC" },
     { env: ENV, store, conn: fakeConn({ usdc: 1_000_000n, lamports: 1_000_000_000 }), fetchImpl: noFetch },
   );
   assert.equal(r.ok, false);
@@ -515,8 +575,20 @@ test("a wallet that cannot pay gets a plain message, and no address is stored", 
   assert.match(!r.ok ? r.error : "", /1\.00 USDC/);
   // The page offers to top up exactly the missing amount (MoonPay).
   const needed = Number(!r.ok && r.error.match(/needs ([\d.]+) USDC/)?.[1]);
-  assert.ok(!r.ok && Math.abs((r.shortfallUsdc ?? 0) - (needed - 1)) < 1e-6);
+  assert.ok(!r.ok && Math.abs((r.shortfall ?? 0) - (needed - 1)) < 1e-6);
+  assert.equal(!r.ok && r.token, "USDC");
   assert.equal(readdirSync(dir).length, 0);
+});
+
+test("a wallet with dollars but no euros is short in EURC, and told so in EURC", async () => {
+  const { store } = tmpStore();
+  const r = await prepareCheckout(
+    { quote: signQuote(LISTING, ENV)!, buyer: Keypair.generate().publicKey.toBase58(), address: ADDRESS },
+    { env: ENV, store, conn: fakeConn({ usdc: 1_000_000_000n, eurc: null, lamports: 1_000_000_000 }), fetchImpl: noFetch },
+  );
+  assert.equal(!r.ok && r.status, 402);
+  assert.match(!r.ok ? r.error : "", /holds 0\.00 EURC; the order needs 249\.00 EURC/);
+  assert.equal(!r.ok && r.shortfall, 249);
 });
 
 test("too little SOL for fees and rent is caught before the wallet prompt", async () => {
@@ -612,22 +684,20 @@ test("a settled order offers no refund", async () => {
   assert.equal(!r.ok && r.status, 409);
 });
 
-test("the page's balance check reads the buyer's own USDC account and SOL, as the checkout does", async () => {
+test("the page's balance check reads the buyer's own EURC and USDC accounts and SOL, as the checkout does", async () => {
   const owner = Keypair.generate().publicKey;
   const asked: string[] = [];
   const conn = {
-    getAccountInfo: async (pk: PublicKey) => {
-      asked.push(pk.toBase58());
-      const data = Buffer.alloc(165);
-      data.writeBigUInt64LE(12_340_000n, 64);
-      return { owner: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), data, executable: false, lamports: 1 };
+    getMultipleAccountsInfo: async (pks: PublicKey[]) => {
+      asked.push(...pks.map((p) => p.toBase58()));
+      return [tokenAccount(5_000_000n), tokenAccount(12_340_000n)];
     },
     getBalance: async () => 7_000_000,
   } as unknown as Connection;
-  assert.deepEqual(await walletFunds(conn, owner), { usdc: 12_340_000n, lamports: 7_000_000 });
-  assert.deepEqual(asked, [associatedTokenAddress(owner, orders.USDC_MINT).toBase58()]);
-  // No USDC account yet: nothing to pay with, not an error.
-  assert.deepEqual(await walletFunds(fakeConn({ usdc: null, lamports: 0 }), owner), { usdc: 0n, lamports: 0 });
+  assert.deepEqual(await walletFunds(conn, owner), { balances: { EURC: 5_000_000n, USDC: 12_340_000n }, lamports: 7_000_000 });
+  assert.deepEqual(asked, [associatedTokenAddress(owner, orders.EURC_MINT).toBase58(), associatedTokenAddress(owner, orders.USDC_MINT).toBase58()]);
+  // No token accounts yet: nothing to pay with, not an error.
+  assert.deepEqual(await walletFunds(fakeConn({ usdc: null, lamports: 0 }), owner), { balances: { EURC: 0n, USDC: 0n }, lamports: 0 });
 });
 
 // ---------------------------------------------------------------------------

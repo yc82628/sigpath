@@ -4,7 +4,7 @@ import { PaySessionStore, ScanStates } from "@/lib/checkout/pay-session";
 // GET /api/pay/<session>/status
 //   -> { state: "waiting" }                         the code hasn't been scanned yet
 //    | { state: "scanned", orders, validUntil }      a phone took the transaction: follow it (/api/checkout/status)
-//    | { state: "failed", message, shortfallUsdc? }  the scan couldn't build it (the code still works)
+//    | { state: "failed", message, shortfall?, token? }  the scan couldn't build it (the code still works)
 //    | { state: "gone" }                             run out, or never existed
 //
 // What the checkout page asks every two seconds while its QR code is shown.

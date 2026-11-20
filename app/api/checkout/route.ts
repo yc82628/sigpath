@@ -6,8 +6,8 @@ import { OrderMetaStore } from "@/lib/reports/order-meta";
 import { DecisionLog } from "@/lib/reports/reports";
 import { AddressStore } from "@/lib/checkout/address-store";
 
-// POST /api/checkout  { quote, buyer, address }
-//   -> { transaction (base64, unsigned), order, usdcDisplay, ... }
+// POST /api/checkout  { quote, buyer, address, token? }   token: "EURC" | "USDC"
+//   -> { transaction (base64, unsigned), order, token, display, ... }
 //
 // Builds the transaction the shopper's wallet signs. The browser supplies only
 // the signed quote it was handed, its wallet address and a delivery address —
@@ -22,7 +22,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const tooMany = await limited(req.headers, RULES.write);
   if (tooMany) return tooMany;
-  let body: { quote?: unknown; buyer?: unknown; address?: unknown };
+  let body: { quote?: unknown; buyer?: unknown; address?: unknown; token?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -40,12 +40,12 @@ export async function POST(req: NextRequest) {
   if (metaStore) await metaStore.sweep(chainStateReader(conn)).catch(() => undefined);
 
   const result = await prepareCheckout(
-    { quote: body.quote, buyer: body.buyer, address: body.address },
+    { quote: body.quote, buyer: body.buyer, address: body.address, token: body.token },
     { store, metaStore, conn, upheldReports: await DecisionLog.fromEnv().upheldCounts() },
   );
   if (!result.ok) {
     return NextResponse.json(
-      { error: result.error, ...(result.shortfallUsdc ? { shortfallUsdc: result.shortfallUsdc } : {}), ...(result.code ? { code: result.code } : {}) },
+      { error: result.error, ...(result.shortfall ? { shortfall: result.shortfall, token: result.token } : {}), ...(result.code ? { code: result.code } : {}) },
       { status: result.status },
     );
   }
@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     transaction: result.transaction,
     order: result.order,
-    usdcDisplay: result.usdcDisplay,
+    token: result.token,
+    display: result.display,
     windowSecs: result.windowSecs,
     validUntil: result.validUntil,
     rate: result.rate ? { display: result.rate.display, source: result.rate.source } : null,

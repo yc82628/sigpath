@@ -89,7 +89,7 @@ export function checkoutEligibility(listing: Listing, flags: Flag[], priceCheck:
   }
   const total = totalPrice(listing);
   if (!PAYABLE_CURRENCIES.has(total.currency.toUpperCase())) {
-    return { eligible: false, reason: `Priced in ${total.currency}; USDC checkout supports EUR and USD.` };
+    return { eligible: false, reason: `Priced in ${total.currency}; checkout supports EUR and USD.` };
   }
   if (listing.shipping.currency !== listing.price.currency) {
     // totalPrice cannot add these, so the quote would understate the total.

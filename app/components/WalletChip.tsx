@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLang, useMessages } from "./I18n";
 import { WalletPicker, shortAddress, useWallet, useWalletErrorText, useWalletFunds } from "./WalletProvider";
 import { DEVNET, type WalletOption } from "./wallet";
-import { usdc } from "@/lib/i18n/money";
+import { coinText } from "@/lib/i18n/money";
 
 /**
  * The header's wallet: an icon to connect, and once connected, the short
@@ -128,7 +128,9 @@ export default function WalletChip({ children }: { children: React.ReactNode }) 
                 <span>{m.wallet.balance}</span>{" "}
                 {funds.status === "ok" ? (
                   <strong>
-                    {usdc(funds.usdc.toString(), lang, "down")} · {(funds.lamports / 1e9).toLocaleString(lang, { maximumFractionDigits: 4 })} SOL
+                    {/* EURC only once there is some: most wallets hold USDC and SOL alone. */}
+                    {funds.eurc > 0n && <>{coinText(funds.eurc.toString(), "EURC", lang, "down")} · </>}
+                    {coinText(funds.usdc.toString(), "USDC", lang, "down")} · {(funds.lamports / 1e9).toLocaleString(lang, { maximumFractionDigits: 4 })} SOL
                   </strong>
                 ) : funds.status === "error" ? (
                   <span className="hint">{m.wallet.balanceUnavailable}</span>

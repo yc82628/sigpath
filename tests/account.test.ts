@@ -13,7 +13,7 @@ import {
   siteFrom,
 } from "../lib/account/session";
 import { buyerFilters, ordersForBuyer, refundOpen } from "../lib/account/orders";
-import { ORDER_ACCOUNT_DISCRIMINATOR, ORDER_LAYOUT, ORDER_STATUS, ORDERS_PROGRAM_ID } from "../lib/chains/solana/orders";
+import { EURC_MINT, ORDER_ACCOUNT_DISCRIMINATOR, ORDER_LAYOUT, ORDER_STATUS, ORDERS_PROGRAM_ID } from "../lib/chains/solana/orders";
 
 const env = { QUOTE_SECRET: "x".repeat(40) };
 const SITE = "sigpath.vercel.app";
@@ -128,13 +128,16 @@ test("my orders: filtered on chain to this buyer, newest first, others and junk 
   const me = Keypair.generate().publicKey;
   const someoneElse = Keypair.generate().publicKey;
   const filters = buyerFilters(me);
-  assert.deepEqual(filters[0], { dataSize: ORDER_LAYOUT.size });
-  assert.deepEqual(filters[2], { memcmp: { offset: ORDER_LAYOUT.buyer, bytes: me.toBase58() } });
+  // No size filter: orders since EURC are 32 bytes longer, and both are this buyer's.
+  assert.ok(!filters.some((f) => "dataSize" in f));
+  assert.deepEqual(filters[1], { memcmp: { offset: ORDER_LAYOUT.buyer, bytes: me.toBase58() } });
 
   let asked: { program?: string; filters?: unknown } = {};
   const accounts = [
     { pubkey: Keypair.generate().publicKey, account: { data: orderAccount(me, "fulfilled", 1_000) } },
     { pubkey: Keypair.generate().publicKey, account: { data: orderAccount(me, "funded", 3_000) } },
+    // Paid in EURC: the coin follows the record.
+    { pubkey: Keypair.generate().publicKey, account: { data: Buffer.concat([orderAccount(me, "refunded", 2_500, 150_000_000n), EURC_MINT.toBuffer()]) } },
     { pubkey: Keypair.generate().publicKey, account: { data: orderAccount(someoneElse, "funded", 2_000) } },
     { pubkey: Keypair.generate().publicKey, account: { data: Buffer.alloc(ORDER_LAYOUT.size) } },
   ];
@@ -148,9 +151,10 @@ test("my orders: filtered on chain to this buyer, newest first, others and junk 
   const got = await ordersForBuyer(conn, me);
   assert.equal(asked.program, ORDERS_PROGRAM_ID.toBase58());
   assert.deepEqual(asked.filters, filters);
-  assert.deepEqual(got.map((o) => [o.status, o.createdAt]), [["funded", 3_000], ["fulfilled", 1_000]]);
+  assert.deepEqual(got.map((o) => [o.status, o.createdAt, o.token]), [["funded", 3_000, "USDC"], ["refunded", 2_500, "EURC"], ["fulfilled", 1_000, "USDC"]]);
   assert.equal(got[0].address, accounts[1].pubkey.toBase58());
   assert.equal(got[0].amount, 78_680_000n);
+  assert.equal(got[1].amount, 150_000_000n);
 });
 
 test("my orders: the refund is open only for an unfulfilled order past its deadline", () => {

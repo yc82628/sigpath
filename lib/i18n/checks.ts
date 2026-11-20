@@ -206,14 +206,20 @@ const RULES: Rule[] = [
   [/^SigPath only buys what it could price-check\. (.+)$/, (r) => `SigPath kauft nur, was es preislich prüfen konnte. ${translateCheck(r, "de")}`],
   [/^SigPath won't buy a listing its own checks flagged — see the notes above\.$/, () => "SigPath kauft kein Angebot, das seine eigenen Prüfungen markiert haben: siehe Hinweise oben."],
   [/^Shipping cost isn't published, so the total can't be quoted\.$/, () => "Versandkosten sind nicht angegeben, daher kann kein Gesamtpreis genannt werden."],
-  [/^Priced in ([A-Z]{3}); USDC checkout supports EUR and USD\.$/, (c) => `In ${c} bepreist; die USDC-Kasse unterstützt EUR und USD.`],
+  [/^Priced in ([A-Z]{3}); checkout supports EUR and USD\.$/, (c) => `In ${c} bepreist; die Kasse unterstützt EUR und USD.`],
   [/^Shipping is priced in a different currency, so the total is unknown\.$/, () => "Der Versand ist in einer anderen Währung bepreist, daher ist der Gesamtpreis unbekannt."],
   [/^AliExpress items are bought on AliExpress, through its own checkout\.$/, () => "AliExpress-Artikel werden auf AliExpress gekauft, über die eigene Kasse."],
   [/^It isn't in today's search results, so it couldn't be checked again\.$/, () => "Es ist nicht in den heutigen Suchergebnissen und konnte daher nicht erneut geprüft werden."],
   [/^Not SigPath-checked today: (.+)\.$/, (h) => `Heute nicht von SigPath geprüft: ${translateCheck(h, "de")}.`],
   [/^This item can't be searched again\.$/, () => "Dieser Artikel kann nicht erneut gesucht werden."],
-  [/^USDC checkout isn't set up here\.$/, () => "Die USDC-Kasse ist hier nicht eingerichtet."],
-  [/^SigPath's USDC checkout doesn't cover this marketplace\.$/, () => "SigPaths USDC-Kasse deckt diesen Marktplatz nicht ab."],
+  [/^Checkout isn't set up here\.$/, () => "Die Kasse ist hier nicht eingerichtet."],
+  [/^SigPath's checkout doesn't cover this marketplace\.$/, () => "SigPaths Kasse deckt diesen Marktplatz nicht ab."],
+  // --- paying (checkout.ts): amounts like "12.34 EURC" are written the German way below
+  [/^This wallet holds ([\d.]+) (EURC|USDC); (these orders need|the order needs) ([\d.]+) (EURC|USDC)\.$/, (have, c1, many, need, c2) =>
+    `Diese Wallet hat ${have.replace(".", ",")} ${c1}; ${many.startsWith("these") ? "diese Bestellungen brauchen" : "die Bestellung braucht"} ${need.replace(".", ",")} ${c2}.`],
+  [/^No exchange rate is available right now, so (these|this) cannot be priced in (EURC|USDC)\.$/, (n, c) =>
+    `Gerade ist kein Wechselkurs verfügbar, daher ${n === "these" ? "können diese Artikel" : "kann dieser Artikel"} nicht in ${c} bepreist werden.`],
+  [/^Listings priced in ([A-Z]{3}) cannot be paid in (EURC|USDC) yet\.$/, (cur, c) => `Angebote in ${cur} können noch nicht in ${c} bezahlt werden.`],
 
   // --- the cart's price refresh (refresh.ts)
   [/^A demo listing: there is no live price\.$/, () => "Ein Demo-Angebot: Es gibt keinen Live-Preis."],

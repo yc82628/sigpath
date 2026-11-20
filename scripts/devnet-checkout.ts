@@ -153,10 +153,10 @@ async function main() {
   // --- 1. pay, then fulfil --------------------------------------------------------
   console.log("1. checkout 1.00 EUR at the live ECB rate -> pay -> operator fulfils");
   {
-    const r = await prepareCheckout({ quote: quote(100, "EUR", "1"), buyer: buyer.publicKey.toBase58(), address }, deps);
+    const r = await prepareCheckout({ quote: quote(100, "EUR", "1"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" }, deps);
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("priced in USDC at the ECB rate", /^ECB/.test(r.rate?.source ?? "") && BigInt(r.usdcBaseUnits) > 1_000_000n, `${r.usdcDisplay} at ${r.rate?.display} — ${r.rate?.source}`);
-    const amount = BigInt(r.usdcBaseUnits);
+    check("priced in USDC at the ECB rate", /^ECB/.test(r.rate?.source ?? "") && BigInt(r.baseUnits) > 1_000_000n, `${r.display} at ${r.rate?.display} — ${r.rate?.source}`);
+    const amount = BigInt(r.baseUnits);
     const before = await bal(buyerAta);
     const sig = await walletSignsAndSends(r.transaction, buyer);
     console.log(`         paid     ${explorer(sig)}`);
@@ -178,9 +178,9 @@ async function main() {
   // --- 2. pay, then operator refunds early ----------------------------------------
   console.log("\n2. checkout 1.00 USD -> pay -> operator refunds (item unavailable)");
   {
-    const r = await prepareCheckout({ quote: quote(100, "USD", "2"), buyer: buyer.publicKey.toBase58(), address }, deps);
+    const r = await prepareCheckout({ quote: quote(100, "USD", "2"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" }, deps);
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
-    check("USD needs no exchange rate (1 USDC + 2% fee)", r.usdcBaseUnits === "1020000" && r.rate === null);
+    check("USD needs no exchange rate (1 USDC + 2% fee)", r.baseUnits === "1020000" && r.rate === null);
     const before = await bal(buyerAta);
     await walletSignsAndSends(r.transaction, buyer);
     const res = await retry429(() => refundOrderAsOperator(conn, operator, new PublicKey(r.order), store));
@@ -193,7 +193,7 @@ async function main() {
   console.log(`\n3. 0.50 EUR, ${o.MIN_WINDOW_SECS}s window -> deadline passes (waiting ${o.MIN_WINDOW_SECS + 10}s) -> a stranger refunds`);
   {
     const r = await prepareCheckout(
-      { quote: quote(50, "EUR", "3"), buyer: buyer.publicKey.toBase58(), address },
+      { quote: quote(50, "EUR", "3"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" },
       { ...deps, env: { ...env, CHECKOUT_WINDOW_SECS: String(o.MIN_WINDOW_SECS) } },
     );
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);

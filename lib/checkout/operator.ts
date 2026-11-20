@@ -45,6 +45,7 @@ export async function fulfilOrder(
         order,
         buyer: state.buyer,
         fulfilmentRef: orders.fulfilmentRefHash(retailerReference),
+        mint: state.mint,
       }),
     ),
     [operator],
@@ -69,7 +70,7 @@ export async function refundOrderAsOperator(
 
   const signature = await sendAndConfirmTransaction(
     conn,
-    new Transaction().add(orders.refundIx({ caller: operator.publicKey, order, buyer: state.buyer })),
+    new Transaction().add(orders.refundIx({ caller: operator.publicKey, order, buyer: state.buyer, mint: state.mint })),
     [operator],
     { commitment: "confirmed" },
   );

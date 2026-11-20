@@ -5,7 +5,11 @@ use anchor_lang::system_program;
 
 declare_id!("3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW");
 
-/// SigPath Orders — USDC escrow for purchases made on a shopper's behalf.
+/// SigPath Orders — stablecoin escrow for purchases made on a shopper's behalf.
+///
+/// It takes Circle's two stablecoins: USDC (US dollars) and EURC (euros). A
+/// shopper with euros pays a euro price in EURC one to one, with no exchange
+/// rate in between; USDC stays for those who hold dollars.
 ///
 /// THE PROBLEM THIS SOLVES
 /// Amazon, eBay and Etsy do not accept USDC. When a shopper pays on SigPath,
@@ -37,15 +41,24 @@ declare_id!("3gWtrK2mxrW5udZuYxQaeAKwTFx2VbD8WfShBMpgHBwW");
 /// this already does.
 ///
 /// DEVNET CONSTANTS
-/// The operator and the accepted mint are constants rather than a config
+/// The operator and the accepted mints are constants rather than a config
 /// account, so the deployed code itself states who can be paid and in what. A
 /// mainnet deployment would move these into an admin-controlled config account.
+///
+/// WHICH COIN AN ORDER HOLDS
+/// Each order's vault is a token account of the mint it was paid in, so the
+/// token program itself keeps an order's coin straight: TransferChecked fails if
+/// the mint passed in is not the vault's. The mint is also written just after
+/// the order record (see ORDER_MINT_OFFSET), so the order still says which coin
+/// it was once the vault is closed. Orders made before EURC have no such bytes
+/// and were all USDC.
 #[program]
 pub mod sigpath_orders {
     use super::*;
 
     /// Buyer funds an order. Creates the order record and its vault, and moves
-    /// `amount` USDC from the buyer into the vault in the same transaction.
+    /// `amount` of the chosen coin (USDC or EURC) from the buyer into the vault
+    /// in the same transaction.
     ///
     /// `nonce` makes the order address unique per buyer (the client uses a
     /// timestamp). `listing_hash` is a 32-byte commitment to exactly what was
@@ -103,6 +116,14 @@ pub mod sigpath_orders {
             amount,
             &[],
         )?;
+
+        // The coin, written after the order record so it outlives the vault.
+        // Anchor writes the record itself on exit and leaves these bytes alone.
+        {
+            let order_ai = ctx.accounts.order.to_account_info();
+            let mut data = order_ai.try_borrow_mut_data()?;
+            data[ORDER_MINT_OFFSET..ORDER_MINT_OFFSET + 32].copy_from_slice(ctx.accounts.mint.key.as_ref());
+        }
 
         let now = Clock::get()?.unix_timestamp;
         let o = &mut ctx.accounts.order;
@@ -164,7 +185,7 @@ pub mod sigpath_orders {
         )?;
 
         // Close the vault and return its rent to the buyer, who paid it — but
-        // only if it is now empty. A third party can send extra USDC to the
+        // only if it is now empty. A third party can send extra coins to the
         // vault address; CloseAccount would then fail, and failing HERE would
         // lock the order forever. So an unexpected balance is simply left in
         // the vault: the order still settles, the extra is the sender's own
@@ -197,8 +218,9 @@ pub mod sigpath_orders {
     /// Allowed when EITHER the deadline has passed — and then anyone may call
     /// it, so a refund cannot be withheld — OR the operator calls it early
     /// (item unavailable, price changed). The destination is checked to be the
-    /// buyer's own USDC account; without that check, a stranger calling a
-    /// permissionless refund could route the buyer's money to themselves.
+    /// buyer's own account for the order's coin; without that check, a stranger
+    /// calling a permissionless refund could route the buyer's money to
+    /// themselves.
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let (buyer, nonce, bump, status, deadline) = {
@@ -209,8 +231,12 @@ pub mod sigpath_orders {
         let by_operator = ctx.accounts.caller.key() == OPERATOR;
         require!(by_operator || now > deadline, OrdersError::DeadlineNotReached);
 
+        // Back in the coin it was paid in: the destination's mint must be the
+        // vault's. (TransferChecked would refuse a mismatch too; this says why.)
         let dest = read_token_account(&ctx.accounts.buyer_token.to_account_info())?;
-        require_keys_eq!(dest.mint, USDC_MINT, OrdersError::WrongMint);
+        let held = read_token_account(&ctx.accounts.vault.to_account_info())?;
+        require_keys_eq!(dest.mint, held.mint, OrdersError::WrongMint);
+        require_keys_eq!(*ctx.accounts.mint.key, held.mint, OrdersError::WrongMint);
         require_keys_eq!(dest.owner, buyer, OrdersError::RefundNotToBuyer);
 
         let nonce_bytes = nonce.to_le_bytes();
@@ -263,18 +289,26 @@ pub mod sigpath_orders {
 
 /// The only key that can fulfil (and so be paid for) an order.
 pub const OPERATOR: Pubkey = pubkey!("AaFcCzgJ53SPpqheu8KGM6fA3i4cwd57SL8goz6jdfXg");
-/// Circle's devnet USDC. The only mint this program accepts.
+/// Circle's devnet USDC.
 pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
-/// Classic SPL Token. Devnet USDC is not a Token-2022 mint.
+/// Circle's EURC: the same address on devnet and mainnet.
+pub const EURC_MINT: Pubkey = pubkey!("HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr");
+/// Classic SPL Token. Neither coin is a Token-2022 mint.
 pub const TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-pub const USDC_DECIMALS: u8 = 6;
+/// Both coins have six decimals. TransferChecked refuses a mint with any other.
+pub const TOKEN_DECIMALS: u8 = 6;
+
+/// The mints an order may be paid in: USDC and EURC, nothing else.
+pub fn is_accepted_mint(mint: &Pubkey) -> bool {
+    *mint == USDC_MINT || *mint == EURC_MINT
+}
 
 /// Shortest fulfilment window. Short enough to test the refund path on devnet
 /// in a minute; a real storefront would use days.
 pub const MIN_WINDOW_SECS: i64 = 60;
 /// Longest window a buyer's money can be held for.
 pub const MAX_WINDOW_SECS: i64 = 30 * 24 * 3600;
-/// Per-order ceiling: 1,000 USDC. A devnet safety rail, not a business rule.
+/// Per-order ceiling: 1,000 coins (dollars or euros). A devnet safety rail, not a business rule.
 pub const MAX_AMOUNT: u64 = 1_000 * 1_000_000;
 
 pub const STATUS_FUNDED: u8 = 0;
@@ -283,6 +317,10 @@ pub const STATUS_REFUNDED: u8 = 2;
 
 /// Size of an SPL token account.
 const TOKEN_ACCOUNT_LEN: usize = 165;
+
+/// Where an order records its coin's mint: right after the order record. An
+/// order account made before EURC ends at this offset, and was paid in USDC.
+pub const ORDER_MINT_OFFSET: usize = 8 + Order::INIT_SPACE;
 
 // ---------------------------------------------------------------------------
 // Accounts
@@ -297,7 +335,7 @@ pub struct CreateOrder<'info> {
     #[account(
         init,
         payer = buyer,
-        space = 8 + Order::INIT_SPACE,
+        space = ORDER_MINT_OFFSET + 32,
         seeds = [b"order", buyer.key().as_ref(), &nonce.to_le_bytes()],
         bump
     )]
@@ -308,13 +346,13 @@ pub struct CreateOrder<'info> {
     #[account(mut, seeds = [b"vault", order.key().as_ref()], bump)]
     pub vault: UncheckedAccount<'info>,
 
-    /// CHECK: the buyer's USDC account. TransferChecked has the token program
-    /// verify its mint, and that `buyer` signed as its owner.
+    /// CHECK: the buyer's account for the chosen coin. TransferChecked has the
+    /// token program verify its mint, and that `buyer` signed as its owner.
     #[account(mut)]
     pub buyer_token: UncheckedAccount<'info>,
 
-    /// CHECK: pinned to devnet USDC.
-    #[account(address = USDC_MINT)]
+    /// CHECK: USDC or EURC; the vault is created for exactly this mint.
+    #[account(constraint = is_accepted_mint(mint.key) @ OrdersError::WrongMint)]
     pub mint: UncheckedAccount<'info>,
 
     /// CHECK: pinned to the SPL Token program.
@@ -350,8 +388,8 @@ pub struct Fulfil<'info> {
     #[account(mut)]
     pub operator_token: UncheckedAccount<'info>,
 
-    /// CHECK: pinned to devnet USDC.
-    #[account(address = USDC_MINT)]
+    /// CHECK: the order's coin. TransferChecked fails unless it is the vault's mint.
+    #[account(constraint = is_accepted_mint(mint.key) @ OrdersError::WrongMint)]
     pub mint: UncheckedAccount<'info>,
 
     /// CHECK: pinned to the SPL Token program.
@@ -376,9 +414,9 @@ pub struct Refund<'info> {
     #[account(mut)]
     pub buyer: UncheckedAccount<'info>,
 
-    /// CHECK: parsed and checked in the handler to be a USDC account OWNED BY
-    /// THE BUYER. This is the check that stops a permissionless refund being
-    /// routed to whoever called it.
+    /// CHECK: parsed and checked in the handler to be an account of the
+    /// order's coin OWNED BY THE BUYER. This is the check that stops a
+    /// permissionless refund being routed to whoever called it.
     #[account(mut)]
     pub buyer_token: UncheckedAccount<'info>,
 
@@ -386,8 +424,8 @@ pub struct Refund<'info> {
     #[account(mut, seeds = [b"vault", order.key().as_ref()], bump = order.vault_bump)]
     pub vault: UncheckedAccount<'info>,
 
-    /// CHECK: pinned to devnet USDC.
-    #[account(address = USDC_MINT)]
+    /// CHECK: the order's coin; checked in the handler against the vault's mint.
+    #[account(constraint = is_accepted_mint(mint.key) @ OrdersError::WrongMint)]
     pub mint: UncheckedAccount<'info>,
 
     /// CHECK: pinned to the SPL Token program.
@@ -401,13 +439,13 @@ pub struct Refund<'info> {
 
 /// One purchase. Kept after settlement as a public receipt: who paid, how
 /// much, for which listing, and how it ended — fulfilled with a reference, or
-/// refunded.
+/// refunded. The coin's mint follows the record (ORDER_MINT_OFFSET).
 #[account]
 #[derive(InitSpace)]
 pub struct Order {
     pub buyer: Pubkey,
     pub nonce: u64,
-    /// USDC base units (6 decimals).
+    /// Base units of the order's coin (6 decimals).
     pub amount: u64,
     pub listing_hash: [u8; 32],
     pub created_at: i64,
@@ -468,7 +506,7 @@ pub enum OrdersError {
     DeadlineNotReached,
     #[msg("A fulfilment reference is required.")]
     MissingFulfilmentRef,
-    #[msg("Refunds may only go to the buyer's own USDC account.")]
+    #[msg("Refunds may only go to the buyer's own account for the order's coin.")]
     RefundNotToBuyer,
     #[msg("Not a valid SPL token account.")]
     InvalidTokenAccount,
@@ -497,7 +535,7 @@ fn token_transfer_checked<'info>(
     let mut data = Vec::with_capacity(10);
     data.push(12u8);
     data.extend_from_slice(&amount.to_le_bytes());
-    data.push(USDC_DECIMALS);
+    data.push(TOKEN_DECIMALS);
     let ix = Instruction {
         program_id: TOKEN_PROGRAM_ID,
         accounts: vec![

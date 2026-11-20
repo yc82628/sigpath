@@ -154,7 +154,7 @@ async function main() {
   console.log("1. buy 0.50 EUR from the test seller; the operator fulfils");
   let order: string;
   {
-    const r = await prepareCheckout({ quote: quote("1"), buyer: buyer.publicKey.toBase58(), address }, { env, conn, store, metaStore, upheldReports: await decisions.upheldCounts() });
+    const r = await prepareCheckout({ quote: quote("1"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" }, { env, conn, store, metaStore, upheldReports: await decisions.upheldCounts() });
     if (!r.ok) throw new Error(`checkout failed: ${r.error}`);
     order = r.order;
     const tx = Transaction.from(Buffer.from(r.transaction, "base64"));
@@ -163,7 +163,7 @@ async function main() {
     await retry429(() => conn.confirmTransaction(sig, "confirmed"));
     await retry429(() => fulfilOrder(conn, operator, new PublicKey(order), "DEVNET-REPORT-TEST", store));
     const s = await readOrder(conn, new PublicKey(order));
-    check("order fulfilled on chain, seller recorded for the report window", s.found && s.status === "fulfilled" && (await metaStore.get(order)) !== null, `${r.usdcDisplay}`);
+    check("order fulfilled on chain, seller recorded for the report window", s.found && s.status === "fulfilled" && (await metaStore.get(order)) !== null, `${r.display}`);
     console.log(`         order ${explorer("address", order)}`);
   }
 
@@ -255,7 +255,7 @@ async function main() {
     const listing = { id: "next", source: seller.source, seller: { handle: seller.handle } };
     const flags = upheldReportFlags([listing as never], counts);
     check("search flags the seller's listings", flags.length === 1 && flags[0].kind === "upheld_reports");
-    const blocked = await prepareCheckout({ quote: quote("2"), buyer: buyer.publicKey.toBase58(), address }, { env, conn, store, metaStore, upheldReports: counts });
+    const blocked = await prepareCheckout({ quote: quote("2"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" }, { env, conn, store, metaStore, upheldReports: counts });
     check("checkout refuses to pay this seller", !blocked.ok && blocked.status === 409);
     const [pub] = await publicFindings(SELLER, deps);
     check("public finding shows the seller's reply beside it", pub?.status === "upheld" && /genuine/.test(pub.reply?.text ?? ""));
@@ -287,7 +287,7 @@ async function main() {
 
     const counts = await decisions.upheldCounts();
     check("the search flag lifts", upheldReportFlags([{ id: "next", source: seller.source, seller: { handle: seller.handle } } as never], counts).length === 0);
-    const allowed = await prepareCheckout({ quote: quote("3"), buyer: buyer.publicKey.toBase58(), address }, { env, conn, store, metaStore, upheldReports: counts });
+    const allowed = await prepareCheckout({ quote: quote("3"), buyer: buyer.publicKey.toBase58(), address, token: "USDC" }, { env, conn, store, metaStore, upheldReports: counts });
     check("checkout will pay this seller again", allowed.ok, allowed.ok ? "transaction prepared, not sent" : allowed.error);
     const [pub] = await publicFindings(SELLER, deps);
     check("the finding stays listed, marked reversed", pub?.status === "reversed" && /different serial/.test(pub.appeal?.text ?? ""));
